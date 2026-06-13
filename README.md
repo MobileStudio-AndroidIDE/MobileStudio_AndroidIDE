@@ -47,6 +47,7 @@ MobileStudio AIDE .apk files
 ■ 핸드폰 권장 성능
 
 ▪︎ RAM      | 최소 : 4GB  |   | 권장 : 8GB 이상  |
+
 ▪︎ 저장공간   | 최소 : 15GB |   | 권장 : 30GB 이상 |
 
 안드로이드 10.0 + 지원
