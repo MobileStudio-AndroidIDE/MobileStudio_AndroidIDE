@@ -1,5 +1,9 @@
 ## MobileStudio Android IDE
 
+## 📥 Download
+
+[![Download MobileStudio](https://img.shields.io/badge/Download-MobileStudio_26.6.15_Daisy-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.6.15-Daisy/MobileStudio_26.6.15-Daisy.apk)
+
 Android 10+ IDE for Android
 
 «[!WARNING]
