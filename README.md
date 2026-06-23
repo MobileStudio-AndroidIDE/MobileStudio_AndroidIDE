@@ -191,3 +191,8 @@ Please send bug reports and suggestions to:
 Including Logcat output will help fix issues much faster.
 
 </details>
+
+
+*Auto-Update is now supported.*
+
+**Starting from v26.6.23 (Daisy), MobileStudio can automatically download and install the latest available version.**
