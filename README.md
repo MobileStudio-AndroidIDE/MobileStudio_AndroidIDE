@@ -1,14 +1,20 @@
 ## MobileStudio Android IDE
 
+현재 NDK 기능은 작동하지 않습니다.
+다른 기능들을 **먼저** 추가 한후 NDK기능을 수정할 예정입니다.
+
+The NDK function is currently not working.
+We plan to add other features **first** and then modify the NDK function.
+
 ## 📥 Download
 
 [![Download MobileStudio](https://img.shields.io/badge/Download-MobileStudio_26.6.23_Daisy-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.6.23-Daisy/MobileStudio_26.6.23-Daisy.apk)
 
 Android 10+ IDE for Android
 
-«[!WARNING]
+《[!WARNING]
 MobileStudio is currently under active development.
-Some features may not work correctly.»
+Some features may not work correctly.》
 
 ---
 
@@ -42,6 +48,8 @@ MobileStudio_26.6.15-Daisy [lastest] [recommand]
 8.7| ✅
 8.8 이상| ❌
 
+-> 곧 Gradle 9.X버전도 사용가능하게 바뀔 예정입니다.
+
 ✅ JDK
 
 버전| 상태
@@ -62,11 +70,18 @@ XML Preview & Compose Preview
 
 **🚧 개발 예정**
 
-AI
+[AI]
 
 AI 기능은 26.6.15 Daisy 버전부터 제거되었습니다.
 
 향후 OpenCode 기반 AI 기능을 사용할 예정입니다.
+
+---
+
+[Window exe파일 빌드 및 실행]
+
+MobileStudio IDE에서 빌드한 .exe파일을
+QEMU를 이용해서 실행 가능한 기능
 
 ---
 
