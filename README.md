@@ -30,7 +30,7 @@ MobileStudio는 Android 기기에서 Gradle 기반 Android 프로젝트를 개�
 🌼 26.6.15 Daisy
 
 Version 1.0
-MobileStudio_26.6.15-Daisy [lastest] [recommand]
+MobileStudio_26.6.15-Daisy [lastest] [recommend]
 
 🌷 26.7.xx Tulip
 
