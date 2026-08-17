@@ -1,5 +1,9 @@
 ## MobileStudio Android IDE
 
+# The big update in 26.8.XX Rose
+I'm adding new future :
+Build .exe file (with clang)
+
 현재 NDK 기능은 작동하지 않습니다.
 다른 기능들을 **먼저** 추가 한후 NDK기능을 수정할 예정입니다.
 
@@ -34,7 +38,11 @@ MobileStudio_26.6.15-Daisy [lastest] [recommend]
 
 🌷 26.7.xx Tulip
 
-- 개발 중
+- 개발 완료.
+
+26.8.XX Rose 🌹
+
+- 개발중
 
 ---
 
