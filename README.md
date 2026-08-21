@@ -6,7 +6,6 @@ Build .exe file (with clang)
 Run .exe file (with Box64, Wine)
 User can use git, curl...(StudioShell)
 AI futures (OpenCode)
-
 -
 
 현재 NDK 기능은 작동하지 않습니다.
