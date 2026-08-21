@@ -3,6 +3,11 @@
 # The big update in 26.8.XX Rose
 I'm adding new future :
 Build .exe file (with clang)
+Run .exe file (with Box64, Wine)
+User can use git, curl...(StudioShell)
+AI futures (OpenCode)
+
+-
 
 현재 NDK 기능은 작동하지 않습니다.
 다른 기능들을 **먼저** 추가 한후 NDK기능을 수정할 예정입니다.
