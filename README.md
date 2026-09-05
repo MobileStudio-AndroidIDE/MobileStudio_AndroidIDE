@@ -8,7 +8,15 @@
 **Develop · Build · Run — directly on your Android device**
 
 <sub>🌸 · 🌷 · 🌹 · 🪻</sub>
+## Star History
 
+<a href="https://www.star-history.com/?type=date&repos=MobileStudio-AndroidIDE%2FMobileStudio_AndroidIDE">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&legend=top-left" />
+ </picture>
+</a>
 <br>
 
 ![Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
