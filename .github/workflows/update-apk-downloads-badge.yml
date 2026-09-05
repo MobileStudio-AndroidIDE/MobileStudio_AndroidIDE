@@ -1,0 +1,66 @@
+name: Update APK Downloads Badge
+
+# Recomputes total .apk-only download count across ALL releases and
+# publishes it as a shields.io "endpoint" badge JSON on the `badges` branch.
+#
+# Why this exists instead of the built-in shields.io GitHub downloads badge:
+#  - The stock badge sums EVERY release asset (apk, mingw, ninja, etc.) —
+#    this script filters to files ending in .apk only.
+#  - The stock badge is also known to stop paginating after ~100-500
+#    releases; this workflow pages through the full release list itself.
+
+on:
+  schedule:
+    - cron: "0 * * * *"      # refresh hourly
+  release:
+    types: [published]        # refresh immediately on every new release
+  workflow_dispatch: {}       # allow manual runs (e.g. first-time bootstrap)
+
+permissions:
+  contents: write
+
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Count total .apk downloads across all releases
+        id: count
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          total=$(gh api --paginate "repos/${{ github.repository }}/releases" \
+            --jq '[.[].assets[] | select(.name | test("\\.apk$"; "i")) | .download_count] | add // 0')
+          echo "APK downloads total: $total"
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+
+      - name: Publish badge JSON to the badges branch
+        env:
+          TOTAL: ${{ steps.count.outputs.total }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Always start a fresh orphan commit — this JSON has no history worth
+          # keeping, so we just force-push over whatever is currently on
+          # `badges`. This also sidesteps any race between overlapping runs
+          # (schedule + release firing close together): whichever run pushes
+          # last simply wins, with no fast-forward conflict possible.
+          git checkout --orphan badges-tmp
+          git rm -rf . >/dev/null 2>&1 || true
+
+          cat > apk-downloads.json << JSON
+          {
+            "schemaVersion": 1,
+            "label": "APK Downloads",
+            "message": "$TOTAL",
+            "color": "success",
+            "logo": "android"
+          }
+          JSON
+
+          git add apk-downloads.json
+          git commit -m "chore: update APK downloads badge ($TOTAL)"
+          git push --force origin badges-tmp:badges
