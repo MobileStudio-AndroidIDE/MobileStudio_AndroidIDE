@@ -8,16 +8,6 @@
 **Develop · Build · Run — directly on your Android device**
 
 <sub>🌸 · 🌷 · 🌹 · 🪻</sub>
-## Star History
-
-<a href="https://www.star-history.com/?type=date&repos=MobileStudio-AndroidIDE%2FMobileStudio_AndroidIDE">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&legend=top-left" />
- </picture>
-</a>
-<br>
 
 ![Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Supported-7F52FF?logo=kotlin&logoColor=white)
@@ -649,11 +639,15 @@ Rose는 `.exe` 지원, StudioShell, AI 통합 등 큰 구조적 변화가 포함
 
 <div align="center">
 
-## ⭐ Star History
+## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=Date)](https://star-history.com/#MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&Date)
-
-</div>
+<a href="https://www.star-history.com/?type=date&repos=MobileStudio-AndroidIDE%2FMobileStudio_AndroidIDE">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=MobileStudio-AndroidIDE/MobileStudio_AndroidIDE&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ---
 
