@@ -1,13 +1,13 @@
 <a id="top"></a>
 <div align="center">
 
-# 📱 MobileStudio
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=200&section=header&text=MobileStudio&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=Android%20IDE%20for%20Android&descAlignY=60&descSize=18&descColor=ffffff" width="100%" alt="MobileStudio - Android IDE for Android"/>
 
-### Android IDE for Android
+<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&size=20&pause=1000&color=E75480&center=true&vCenter=true&width=650&lines=Develop+%C2%B7+Build+%C2%B7+Run;Directly+on+your+Android+device;No+PC.+No+Root.+Just+your+phone." alt="Typing SVG"/>
 
-**Develop · Build · Run — directly on your Android device**
+<sub>🌼 · 🌷 · 🪻</sub>
 
-<sub>🌸 · 🌷 · 🌹 · 🪻</sub>
+<br>
 
 ![Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Supported-7F52FF?logo=kotlin&logoColor=white)
@@ -20,7 +20,7 @@
 ![Maintained](https://img.shields.io/badge/Maintained-Yes-success)
 ![Open Source](https://img.shields.io/badge/Open%20Source-%E2%9D%A4-blueviolet)
 
-![GitHub Release](https://img.shields.io/github/v/release/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE)
+![GitHub Release](https://img.shields.io/github/v/release/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE?filter=!studio-tools*)
 ![APK Downloads](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/badges/apk-downloads.json)
 ![GitHub License](https://img.shields.io/github/license/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE)
 ![GitHub Stars](https://img.shields.io/github/stars/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE?style=social)
@@ -50,7 +50,7 @@
 
 ## 📑 Table of Contents
 
-- [🌹 The Big Update — 26.8.xx Rose](#-the-big-update--268xx-rose)
+- [🪻 The Big Update — 26.8.17 Lavender](#-the-big-update--26817-lavender)
 - [🔍 Why This Is Hard](#-why-this-is-hard)
 - [🚀 Quick Start](#-quick-start)
 - [🧩 Built With](#-built-with)
@@ -66,9 +66,9 @@
 
 ---
 
-## 🌹 The Big Update — 26.8.xx Rose
+## 🪻 The Big Update — 26.8.17 Lavender
 
-MobileStudio 26.8.xx **Rose** introduces several major features and improvements.
+MobileStudio **26.8.17 "Lavender"** is where the next major update is being prepared.
 
 ### 🖥️ Windows `.exe` Support
 
@@ -156,8 +156,7 @@ No PC. No root. Just your phone.
 </div>
 
 - 🌼 **26.6.23 Daisy** — the current **stable** release. This is what the button above downloads.
-- 🌹 **26.8.xx Rose** (described above) is the **in-development** version.
-- 🪻 **26.8.17 Lavender** — upcoming milestone build inside the Rose cycle, bringing **Gradle 9.x support**.
+- 🪻 **26.8.17 Lavender** — the **in-development** version described above, bringing `.exe` support, StudioShell, OpenCode AI, and **Gradle 9.x support**.
 
 > ⚠️ MobileStudio is under active development. Some features may not work correctly on the stable build either.
 
@@ -169,8 +168,7 @@ No PC. No root. Just your phone.
 |---|---|---|---|
 | 🌼 Daisy | 26.6.x | **Stable** | Latest stable release — recommended for general use |
 | 🌷 Tulip | 26.7.x | Development | Feature improvements |
-| 🌹 Rose | 26.8.x | Major Development | `.exe` build/run, StudioShell improvements, OpenCode AI, toolchain + NDK fixes |
-| 🪻 Lavender | 26.8.17 | Upcoming Milestone | **Gradle 9.x support** |
+| 🪻 Lavender | 26.8.17 | Major Development | `.exe` build/run, StudioShell improvements, OpenCode AI, Gradle 9.x support, toolchain + NDK fixes |
 
 > 💡 Every release gets its own flower codename.
 
@@ -256,7 +254,7 @@ No PC. No root. Just your phone.
 | Requires root | ❌ No | — |
 | Real Gradle build | ✅ Yes | ✅ Yes |
 | On-device terminal | ✅ Yes (StudioShell) | Varies |
-| AI-assisted coding | 🚧 Coming in Rose | Varies |
+| AI-assisted coding | 🚧 Coming in Lavender | Varies |
 | NDK / native builds | ⚠️ In progress | ✅ Yes |
 
 ---
@@ -315,10 +313,10 @@ Not yet — JDK 17 is the currently recommended version.
 Starting with **26.8.17 "Lavender" 🪻**.
 
 **Is the AI coding feature available now?**
-Not yet — OpenCode integration is planned for the Rose (26.8.x) release.
+Not yet — OpenCode integration is planned for the Lavender (26.8.17) release.
 
-**Why isn't a stable release of Rose available yet?**
-Rose is a major development release with big architectural changes (`.exe` support, StudioShell, AI integration). It needs to stabilize before becoming the new Daisy.
+**Why isn't a stable release of Lavender available yet?**
+Lavender is a major development release with big architectural changes (`.exe` support, StudioShell, AI integration, Gradle 9.x). It needs to stabilize before becoming the new Daisy.
 
 ---
 
@@ -346,7 +344,7 @@ For bugs or feature requests, please open a GitHub Issue first so it can be disc
 
 ## 📑 목차
 
-- [🌹 대규모 업데이트 — 26.8.xx Rose](#-대규모-업데이트--268xx-rose)
+- [🪻 대규모 업데이트 — 26.8.17 Lavender](#-대규모-업데이트--26817-lavender)
 - [🔍 왜 어려운가](#-왜-어려운가)
 - [🚀 시작하기](#-시작하기)
 - [🧩 사용 기술](#-사용-기술)
@@ -362,9 +360,9 @@ For bugs or feature requests, please open a GitHub Issue first so it can be disc
 
 ---
 
-## 🌹 대규모 업데이트 — 26.8.xx Rose
+## 🪻 대규모 업데이트 — 26.8.17 Lavender
 
-MobileStudio 26.8.xx **Rose** 버전에서는 여러 주요 기능과 개선사항이 추가됩니다.
+MobileStudio **26.8.17 "Lavender"** 버전에서 다음 대규모 업데이트가 준비되고 있습니다.
 
 ### 🖥️ Windows `.exe` 지원
 
@@ -452,8 +450,7 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 </div>
 
 - 🌼 **26.6.23 Daisy** — 현재 **안정 버전**. 위 버튼으로 바로 다운로드됩니다.
-- 🌹 **26.8.xx Rose** — 위에서 설명한 **개발 중** 버전.
-- 🪻 **26.8.17 Lavender** — Rose 개발 주기 내 예정된 마일스톤 빌드로, **Gradle 9.x 지원**이 추가됩니다.
+- 🪻 **26.8.17 Lavender** — 위에서 설명한 **개발 중** 버전으로, `.exe` 지원, StudioShell, OpenCode AI, **Gradle 9.x 지원**이 함께 준비되고 있습니다.
 
 > ⚠️ MobileStudio는 활발히 개발 중입니다. 안정 버전에서도 일부 기능이 정상 작동하지 않을 수 있습니다.
 
@@ -463,9 +460,9 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 
 | 코드네임 | 버전 | 트랙 | 비고 |
 |---|---|---|---|
-| 🌼 Daisy | 26.6.23 | **안정** | 최신 안정 버전 — 일반 사용 권장 |
-| 🌼 Daisy | 26.6.15 | 개발 | 기능 개선 |
-| 🪻 Lavender | 26.8.17 | .exe빌드 | **Gradle 9.x 지원** | git등등추가(studio shell) |
+| 🌼 Daisy | 26.6.x | **안정** | 최신 안정 버전 — 일반 사용 권장 |
+| 🌷 Tulip | 26.7.x | 개발 | 기능 개선 |
+| 🪻 Lavender | 26.8.17 | 주요 개발 | `.exe` 빌드/실행, StudioShell 개선, OpenCode AI, Gradle 9.x 지원, 툴체인 + NDK 수정 |
 
 > 💡 모든 릴리즈는 고유한 꽃 이름을 가지고 있습니다.
 
@@ -508,7 +505,7 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 ### 💻 개발
 
 - ✅ Gradle 빌드
-- ✅ Kotlin 실시간 진단 (26.8.17 Lavender 🪻부터 추가)
+- ✅ Kotlin 실시간 진단
 - ✅ 코드 완성
 - ✅ 문법 강조
 - ✅ 파일 탐색기
@@ -551,7 +548,7 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 | 루트 필요 | ❌ 불필요 | — |
 | 실제 Gradle 빌드 | ✅ 지원 | ✅ 지원 |
 | 온디바이스 터미널 | ✅ 지원 (StudioShell) | 상이 |
-| AI 기반 코딩 | 🚧 Rose에서 추가 예정 | 상이 |
+| AI 기반 코딩 | 🚧 Lavender에서 추가 예정 | 상이 |
 | NDK / 네이티브 빌드 | ⚠️ 진행 중 | ✅ 지원 |
 
 ---
@@ -610,10 +607,10 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 **26.8.17 "Lavender" 🪻**부터 지원됩니다.
 
 **AI 코딩 기능을 지금 쓸 수 있나요?**
-아직입니다. OpenCode 통합은 Rose(26.8.x) 릴리즈에서 계획되어 있습니다.
+아직입니다. OpenCode 통합은 Lavender(26.8.17) 릴리즈에서 계획되어 있습니다.
 
-**Rose의 안정 버전은 왜 아직 없나요?**
-Rose는 `.exe` 지원, StudioShell, AI 통합 등 큰 구조적 변화가 포함된 주요 개발 릴리즈입니다. 새로운 Daisy가 되기 전에 먼저 안정화가 필요합니다.
+**Lavender의 안정 버전은 왜 아직 없나요?**
+Lavender는 `.exe` 지원, StudioShell, AI 통합, Gradle 9.x 등 큰 구조적 변화가 포함된 주요 개발 릴리즈입니다. 새로운 Daisy가 되기 전에 먼저 안정화가 필요합니다.
 
 ---
 
@@ -673,8 +670,6 @@ See the [LICENSE](LICENSE) file for license information. · 라이선스 정보�
 
 ---
 
-<div align="center">
-
 ### 📱 MobileStudio
 
 **A development environment built for Android.**
@@ -682,5 +677,7 @@ See the [LICENSE](LICENSE) file for license information. · 라이선스 정보�
 *Develop anywhere. Build anywhere.*
 
 ⭐ If you find MobileStudio useful, consider starring the repository. · 유용하다면 ⭐를 눌러주세요.
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:B39DDB,35:E75480,70:FF8FA3,100:FFD1DC&height=120&section=footer" width="100%"/>
 
 </div>
