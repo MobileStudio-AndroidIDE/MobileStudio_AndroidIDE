@@ -200,7 +200,7 @@ No PC. No root. Just your phone.
 | Gradle 8.2 | ⭐ Recommended |
 | Gradle 8.7 | ✅ Supported |
 | Gradle ≥ 8.8 | ❌ Currently unsupported |
-| Gradle 9.x | 🌱 Coming in **26.8.17 Lavender 🪻** |
+| Gradle 9.x | Added after **26.8.17 Lavender 🪻**, Support gradle daemon |
 
 ### JDK
 
