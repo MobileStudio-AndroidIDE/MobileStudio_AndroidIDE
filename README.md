@@ -41,12 +41,18 @@
 
 **[📥 Download](#-download)** · **[✨ Features](#-features)** · **[🗺️ Roadmap](#️-roadmap)** · **[❓ FAQ](#-faq)** · **[🤝 Contributing](#-contributing)** · **[🐞 Bug Reports](#-bug-reports)**
 
+<br>
+
+[![Star this repo](https://img.shields.io/badge/⭐-Star_this_repo-FFD700?style=for-the-badge)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE) [![Watch releases](https://img.shields.io/badge/🔔-Watch_releases-6f42c1?style=for-the-badge)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/subscription)
+
 </div>
 
 <img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
 
 <a id="english"></a>
-# 🇺🇸 English
+<details>
+<summary><h2>🇺🇸 English (click to expand)</h2></summary>
+<br>
 
 > [!TIP]
 > **⚡ At a Glance** — No PC needed · No root needed · Real on-device Gradle builds · Native `arm64-v8a` toolchain (no proot) · Windows `.exe`, AI coding, and game dev (Vulkan + Lua) coming in 26.8.17 Lavender 🪻
@@ -87,6 +93,12 @@ MobileStudio is being expanded beyond Android development.
 ### 🐚 StudioShell
 
 StudioShell provides a command-line development environment inside MobileStudio, powered by tools **natively ported and built for `arm64-v8a`** — no proot, no emulation layer.
+
+<div align="center">
+
+<img src="https://readme-typing-svg.demolab.com/?font=JetBrains+Mono&size=16&duration=2500&pause=500&color=39FF14&background=0D1117FF&center=true&vCenter=true&width=600&height=50&lines=%24+git+clone+MobileStudio_AndroidIDE.git;%24+cd+MobileStudio_AndroidIDE;%24+.%2Fgradlew+assembleRelease;%E2%9C%94+BUILD+SUCCESSFUL+in+38s;%24+.%2Fstudioshell;arm64-v8a+~+%24" alt="StudioShell terminal"/>
+
+</div>
 
 You can use tools such as:
 
@@ -136,7 +148,7 @@ This is the difference between "a code editor for Android" and "an actual build 
 
 ## 🚀 Quick Start
 
-1. Download the latest **stable** APK (🌼 Daisy) from [Download](#-download) below.
+1. Download the latest build (🪻 Lavender) from [Download](#-download) below.
 2. Install and open MobileStudio on your Android device.
 3. Import or create a Gradle-based Android project.
 4. Tap **Build** — MobileStudio compiles and runs it, right there on your device.
@@ -164,14 +176,14 @@ No PC. No root. Just your phone.
 
 <div align="center">
 
-[![Download MobileStudio](https://img.shields.io/badge/Download-MobileStudio_26.6.23_Daisy-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.6.23-Daisy/MobileStudio_26.6.23-Daisy.apk)
+[![Download MobileStudio](https://img.shields.io/badge/Download-MobileStudio_26.8.17_Lavender-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.8.17-Lavender/Mobilestudio.26.8.17-Lavender.apk)
 
 **Android 10+**
 
 </div>
 
-- 🌼 **26.6.23 Daisy** — the current **stable** release. This is what the button above downloads.
-- 🪻 **26.8.17 Lavender** — the **in-development** version described above, bringing `.exe` support, StudioShell, OpenCode AI, Gradle 9.x support, and Vulkan/Lua game development.
+- 🪻 **26.8.17 Lavender** — the latest build, described above. This is what the button above downloads. Brings `.exe` support, StudioShell, OpenCode AI, Gradle 9.7.0 support, and Vulkan/Lua game development.
+- 🌼 **26.6.23 Daisy** — the previous **stable** release, if you'd rather wait for Lavender to settle.
 
 > [!NOTE]
 > MobileStudio is under active development. Some features may not work correctly on the stable build either.
@@ -184,7 +196,7 @@ No PC. No root. Just your phone.
 |---|---|---|---|
 | 🌼 Daisy | 26.6.x | **Stable** | Latest stable release — recommended for general use |
 | 🌷 Tulip | 26.7.x | Development | Feature improvements |
-| 🪻 Lavender | 26.8.17 | Major Development | `.exe` build/run, StudioShell improvements, OpenCode AI, Gradle 9.x support, Vulkan + Lua game development, toolchain + NDK fixes |
+| 🪻 Lavender | 26.8.17 | Major Development | `.exe` build/run, StudioShell improvements, OpenCode AI, Gradle 9.7.0 support, Vulkan + Lua game development, toolchain + NDK fixes |
 
 > 💡 Every release gets its own flower codename.
 
@@ -200,7 +212,7 @@ No PC. No root. Just your phone.
 | Gradle 8.2 | ⭐ Recommended |
 | Gradle 8.7 | ✅ Supported |
 | Gradle ≥ 8.8 | ❌ Currently unsupported |
-| Gradle 9.x | Added after **26.8.17 Lavender 🪻**, Support gradle daemon |
+| Gradle 9.7.0 | 🌱 Coming in **26.8.17 Lavender 🪻** |
 
 ### JDK
 
@@ -297,7 +309,7 @@ No PC. No root. Just your phone.
 | Auto Update | ✅ |
 | StudioShell | 🚧 |
 | JDK 21 | 🚧 |
-| Gradle 9.x | 🌱 Planned — 26.8.17 Lavender 🪻 |
+| Gradle 9.7.0 | 🌱 Planned — 26.8.17 Lavender 🪻 |
 | NDK | 🔧 Fixing |
 | CMake | 🔧 Fixing |
 | Python | 🔧 Fixing |
@@ -324,29 +336,61 @@ Building large Android projects may require significantly more RAM and storage.
 
 ## ❓ FAQ
 
-**Do I need root access?**
+<details>
+<summary><b>Do I need root access?</b></summary>
+<br>
+
 No. MobileStudio is built specifically to work around Android's `noexec` restrictions without requiring root.
+</details>
 
-**Can I build native (C/C++/NDK) projects right now?**
+<details>
+<summary><b>Can I build native (C/C++/NDK) projects right now?</b></summary>
+<br>
+
 Not yet. NDK support is currently broken and is being fixed after other core features are stabilized.
+</details>
 
-**Can I use JDK 21?**
+<details>
+<summary><b>Can I use JDK 21?</b></summary>
+<br>
+
 Not yet — JDK 17 is the currently recommended version.
+</details>
 
-**When will Gradle 9.x be supported?**
+<details>
+<summary><b>When will Gradle 9.7.0 be supported?</b></summary>
+<br>
+
 Starting with **26.8.17 "Lavender" 🪻**.
+</details>
 
-**Is the AI coding feature available now?**
+<details>
+<summary><b>Is the AI coding feature available now?</b></summary>
+<br>
+
 Not yet — OpenCode integration is planned for the Lavender (26.8.17) release.
+</details>
 
-**Will MobileStudio support game development?**
+<details>
+<summary><b>Will MobileStudio support game development?</b></summary>
+<br>
+
 Yes — planned for **26.8.17 Lavender**, with Vulkan-based rendering and Lua scripting to write and play games directly on the device.
+</details>
 
-**Does StudioShell run through proot or an emulator?**
+<details>
+<summary><b>Does StudioShell run through proot or an emulator?</b></summary>
+<br>
+
 No. The CLI tools (Git, cURL, tar, etc.) are natively ported and built for `arm64-v8a` — there's no proot or emulation layer involved.
+</details>
 
-**Why isn't a stable release of Lavender available yet?**
-Lavender is a major development release with big architectural changes (`.exe` support, StudioShell, AI integration, Gradle 9.x, game development). It needs to stabilize before becoming the new Daisy.
+<details>
+<summary><b>Why isn't a stable release of Lavender available yet?</b></summary>
+<br>
+
+Lavender is a major development release with big architectural changes (`.exe` support, StudioShell, AI integration, Gradle 9.7.0, game development). It needs to stabilize before becoming the new Daisy.
+</details>
 
 <img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
 
@@ -373,10 +417,14 @@ For bugs or feature requests, please open a GitHub Issue first so it can be disc
 
 </div>
 
+</details>
+
 <img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
 
 <a id="korean"></a>
-# 🇰🇷 한국어
+<details>
+<summary><h2>🇰🇷 한국어 (클릭해서 펼치기)</h2></summary>
+<br>
 
 > [!TIP]
 > **⚡ 한눈에 보기** — PC 불필요 · 루트 불필요 · 기기에서 실제 Gradle 빌드 · `arm64-v8a` 네이티브 툴체인 (proot 미사용) · Windows `.exe`, AI 코딩, 게임 개발(Vulkan + Lua)은 26.8.17 Lavender 🪻에서 추가 예정
@@ -417,6 +465,12 @@ MobileStudio는 Android 개발을 넘어 영역을 확장하고 있습니다.
 ### 🐚 StudioShell
 
 StudioShell은 MobileStudio 내부에서 사용할 수 있는 커맨드라인 개발 환경으로, **`arm64-v8a`용으로 직접 포팅·빌드한** 도구들로 동작합니다 — proot나 에뮬레이션 레이어를 쓰지 않습니다.
+
+<div align="center">
+
+<img src="https://readme-typing-svg.demolab.com/?font=JetBrains+Mono&size=16&duration=2500&pause=500&color=39FF14&background=0D1117FF&center=true&vCenter=true&width=600&height=50&lines=%24+git+clone+MobileStudio_AndroidIDE.git;%24+cd+MobileStudio_AndroidIDE;%24+.%2Fgradlew+assembleRelease;%E2%9C%94+BUILD+SUCCESSFUL+in+38s;%24+.%2Fstudioshell;arm64-v8a+~+%24" alt="StudioShell terminal"/>
+
+</div>
 
 사용 가능한 도구:
 
@@ -466,7 +520,7 @@ StudioShell은 MobileStudio 내부에서 사용할 수 있는 커맨드라인 �
 
 ## 🚀 시작하기
 
-1. 아래 [다운로드](#-다운로드)에서 최신 **안정 버전**(🌼 Daisy) APK 받기
+1. 아래 [다운로드](#-다운로드)에서 최신 빌드(🪻 Lavender) 받기
 2. 기기에 설치 후 MobileStudio 실행
 3. Gradle 기반 Android 프로젝트 열기 또는 새로 만들기
 4. **빌드** 버튼 탭 — 기기에서 바로 컴파일 및 실행
@@ -494,14 +548,14 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 
 <div align="center">
 
-[![Download MobileStudio](https://img.shields.io/badge/Download-MobileStudio_26.6.23_Daisy-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.6.23-Daisy/MobileStudio_26.6.23-Daisy.apk)
+[![Download MobileStudio](https://img.shields.io/badge/Download-MobileStudio_26.8.17_Lavender-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.8.17-Lavender/Mobilestudio.26.8.17-Lavender.apk)
 
 **Android 10 이상**
 
 </div>
 
-- 🌼 **26.6.23 Daisy** — 현재 **안정 버전**. 위 버튼으로 바로 다운로드됩니다.
-- 🪻 **26.8.17 Lavender** — 위에서 설명한 **개발 중** 버전으로, `.exe` 지원, StudioShell, OpenCode AI, Gradle 9.x 지원, Vulkan/Lua 게임 개발이 함께 준비되고 있습니다.
+- 🪻 **26.8.17 Lavender** — 위에서 설명한 최신 빌드. 위 버튼으로 바로 다운로드됩니다. `.exe` 지원, StudioShell, OpenCode AI, Gradle 9.7.0 지원, Vulkan/Lua 게임 개발이 함께 포함되어 있습니다.
+- 🌼 **26.6.23 Daisy** — Lavender가 안정화되기 전까지 기다리고 싶다면 이전 **안정 버전**입니다.
 
 > [!NOTE]
 > MobileStudio는 활발히 개발 중입니다. 안정 버전에서도 일부 기능이 정상 작동하지 않을 수 있습니다.
@@ -514,7 +568,7 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 |---|---|---|---|
 | 🌼 Daisy | 26.6.x | **안정** | 최신 안정 버전 — 일반 사용 권장 |
 | 🌷 Tulip | 26.7.x | 개발 | 기능 개선 |
-| 🪻 Lavender | 26.8.17 | 주요 개발 | `.exe` 빌드/실행, StudioShell 개선, OpenCode AI, Gradle 9.x 지원, Vulkan + Lua 게임 개발, 툴체인 + NDK 수정 |
+| 🪻 Lavender | 26.8.17 | 주요 개발 | `.exe` 빌드/실행, StudioShell 개선, OpenCode AI, Gradle 9.7.0 지원, Vulkan + Lua 게임 개발, 툴체인 + NDK 수정 |
 
 > 💡 모든 릴리즈는 고유한 꽃 이름을 가지고 있습니다.
 
@@ -530,7 +584,7 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 | Gradle 8.2 | ⭐ 권장 |
 | Gradle 8.7 | ✅ 지원 |
 | Gradle 8.8 이상 | ❌ 현재 미지원 |
-| Gradle 9.x | 🌱 **26.8.17 Lavender 🪻**부터 지원 예정 |
+| Gradle 9.7.0 | 🌱 **26.8.17 Lavender 🪻**부터 지원 예정 |
 
 ### JDK
 
@@ -627,7 +681,7 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 | 자동 업데이트 | ✅ |
 | StudioShell | 🚧 |
 | JDK 21 | 🚧 |
-| Gradle 9.x | 🌱 예정 — 26.8.17 Lavender 🪻 |
+| Gradle 9.7.0 | 🌱 예정 — 26.8.17 Lavender 🪻 |
 | NDK | 🔧 수정 중 |
 | CMake | 🔧 수정 중 |
 | Python | 🔧 수정 중 |
@@ -654,29 +708,61 @@ PC도, 루트도 필요 없습니다. 폰만 있으면 됩니다.
 
 ## ❓ 자주 묻는 질문
 
-**루트 권한이 필요한가요?**
+<details>
+<summary><b>루트 권한이 필요한가요?</b></summary>
+<br>
+
 아니요. MobileStudio는 루트 없이 Android의 `noexec` 제약을 우회하도록 설계되었습니다.
+</details>
 
-**지금 네이티브(C/C++/NDK) 프로젝트를 빌드할 수 있나요?**
+<details>
+<summary><b>지금 네이티브(C/C++/NDK) 프로젝트를 빌드할 수 있나요?</b></summary>
+<br>
+
 아직입니다. NDK 지원은 현재 정상 작동하지 않으며, 다른 핵심 기능을 안정화한 후 수정될 예정입니다.
+</details>
 
-**JDK 21을 쓸 수 있나요?**
+<details>
+<summary><b>JDK 21을 쓸 수 있나요?</b></summary>
+<br>
+
 아직입니다. 현재는 JDK 17이 권장 버전입니다.
+</details>
 
-**Gradle 9.x는 언제 지원되나요?**
+<details>
+<summary><b>Gradle 9.7.0는 언제 지원되나요?</b></summary>
+<br>
+
 **26.8.17 "Lavender" 🪻**부터 지원됩니다.
+</details>
 
-**AI 코딩 기능을 지금 쓸 수 있나요?**
+<details>
+<summary><b>AI 코딩 기능을 지금 쓸 수 있나요?</b></summary>
+<br>
+
 아직입니다. OpenCode 통합은 Lavender(26.8.17) 릴리즈에서 계획되어 있습니다.
+</details>
 
-**게임 개발도 지원하나요?**
+<details>
+<summary><b>게임 개발도 지원하나요?</b></summary>
+<br>
+
 네 — **26.8.17 Lavender**부터 지원 예정입니다. Vulkan 기반 렌더링과 Lua 스크립팅으로 기기에서 바로 게임을 만들고 플레이할 수 있습니다.
+</details>
 
-**StudioShell은 proot나 에뮬레이터로 동작하나요?**
+<details>
+<summary><b>StudioShell은 proot나 에뮬레이터로 동작하나요?</b></summary>
+<br>
+
 아니요. Git, cURL, tar 등은 `arm64-v8a`용으로 직접 포팅·빌드한 네이티브 바이너리로 동작하며, proot나 에뮬레이션 레이어를 쓰지 않습니다.
+</details>
 
-**Lavender의 안정 버전은 왜 아직 없나요?**
-Lavender는 `.exe` 지원, StudioShell, AI 통합, Gradle 9.x, 게임 개발 등 큰 구조적 변화가 포함된 주요 개발 릴리즈입니다. 새로운 Daisy가 되기 전에 먼저 안정화가 필요합니다.
+<details>
+<summary><b>Lavender의 안정 버전은 왜 아직 없나요?</b></summary>
+<br>
+
+Lavender는 `.exe` 지원, StudioShell, AI 통합, Gradle 9.7.0, 게임 개발 등 큰 구조적 변화가 포함된 주요 개발 릴리즈입니다. 새로운 Daisy가 되기 전에 먼저 안정화가 필요합니다.
+</details>
 
 <img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
 
@@ -696,6 +782,8 @@ Lavender는 `.exe` 지원, StudioShell, AI 통합, Gradle 9.x, 게임 개발 등
 [⬆ 맨 위로](#top) · [🇺🇸 View in English](#english)
 
 </div>
+
+</details>
 
 <img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
 
@@ -745,4 +833,3 @@ See the [LICENSE](LICENSE) file for license information. · 라이선스 정보�
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:B39DDB,35:E75480,70:FF8FA3,100:FFD1DC&height=120&section=footer" width="100%"/>
 
 </div>
-
