@@ -1,19 +1,13 @@
 package com.aide.mobilestudio
 
-import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
-import android.content.DialogInterface
 import android.content.SharedPreferences
-import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.widget.EditText
-import android.widget.NumberPicker
 import android.widget.ScrollView
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -21,1888 +15,2963 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aide.mobilestudio.StudioUi
+import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.*
 
 const val PREFS_NAME = "mobilestudio_settings"
 
+/**
+ * Android Studio style Settings dialog.
+ *
+ * Layout mirrors the reference screenshots: a light window title bar, a left
+ * tree with a search box and a help button, a right pane with a breadcrumb
+ * header (back / forward / pin), and an OK / Cancel / Apply footer.
+ *
+ * All data shown on the toolchain pages (JDK, Gradle, SDK, NDK, CMake,
+ * devices, Git, logs, models) is read live from the device - nothing is
+ * hardcoded. Edits are staged in [draft] and only written to
+ * SharedPreferences when Apply or OK is pressed, so Cancel really discards
+ * changes.
+ */
 class SettingsActivity : ComponentActivity() {
-    private val prefs: SharedPreferences by lazy { getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
-    private fun get(key: String, default: String): String = prefs.getString(key, default) ?: default
-    private fun put(key: String, value: String) = prefs.edit().putString(key, value).apply()
-    private fun getInt(key: String, default: Int): Int = prefs.getInt(key, default)
-    private fun putInt(key: String, value: Int) = prefs.edit().putInt(key, value).apply()
-    private fun getBool(key: String, default: Boolean): Boolean = prefs.getBoolean(key, default)
-    private fun putBool(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
+    private val prefs: SharedPreferences by lazy {
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
-    private fun isFavorite(id: String): Boolean = getBool("fav_$id", false)
-    private fun toggleFavorite(id: String) {
-        putBool("fav_$id", !getBool("fav_$id", false))
+    /** Pending (not yet applied) edits. Observable so Compose recomposes. */
+    private val draft = mutableStateMapOf<String, Any?>()
+
+    private fun toast(msg: String) {
+        Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_SHORT).show()
+    }
+
+    // ------------------------------------------------------------
+    // Staged setting accessors (draft first, then committed prefs)
+    // ------------------------------------------------------------
+    private fun get(key: String, default: String): String = when (val v = draft[key]) {
+        null -> prefs.getString(key, default) ?: default
+        else -> v.toString()
+    }
+
+    private fun put(key: String, value: String) { draft[key] = value }
+
+    private fun getBool(key: String, default: Boolean): Boolean =
+        draft[key] as? Boolean ?: prefs.getBoolean(key, default)
+
+    private fun putBool(key: String, value: Boolean) { draft[key] = value }
+
+    private fun getInt(key: String, default: Int): Int =
+        draft[key] as? Int ?: prefs.getInt(key, default)
+
+    private fun putInt(key: String, value: Int) { draft[key] = value }
+
+    /** Committed value only (ignores draft) - used for "modified" detection. */
+    private fun prefRaw(key: String): Any? = prefs.all[key]
+
+    private fun isModified(key: String, def: Any): Boolean {
+        if (draft.containsKey(key)) return true
+        val raw = prefRaw(key) ?: return false
+        return raw.toString() != def.toString()
+    }
+
+    // ------------------------------------------------------------
+    // BuildToolsConfig-backed settings (own prefs file, staged here)
+    // ------------------------------------------------------------
+    private fun btcBool(key: String, read: () -> Boolean): Boolean =
+        draft[BTC_PREFIX + key] as? Boolean ?: read()
+
+    private fun btcInt(key: String, read: () -> Int): Int =
+        draft[BTC_PREFIX + key] as? Int ?: read()
+
+    private fun btcStr(key: String, read: () -> String): String =
+        draft[BTC_PREFIX + key] as? String ?: read()
+
+    private fun putBtc(key: String, value: Any) { draft[BTC_PREFIX + key] = value }
+
+    private fun commitBtc(key: String, v: Any) {
+        when (key) {
+            "gradle_heap" -> BuildToolsConfig.setGradleHeapMb(this, v as Int)
+            "gradle_metaspace" -> BuildToolsConfig.setGradleMetaspaceMb(this, v as Int)
+            "kotlin_heap" -> BuildToolsConfig.setKotlinHeapMb(this, v as Int)
+            "kotlin_metaspace" -> BuildToolsConfig.setKotlinMetaspaceMb(this, v as Int)
+            "max_workers" -> BuildToolsConfig.setMaxWorkers(this, v as Int)
+            "parallel" -> BuildToolsConfig.setParallel(this, v as Boolean)
+            "build_cache" -> BuildToolsConfig.setBuildCache(this, v as Boolean)
+            "daemon" -> BuildToolsConfig.setDaemon(this, v as Boolean)
+            "vfs_watch" -> BuildToolsConfig.setVfsWatch(this, v as Boolean)
+            "console" -> BuildToolsConfig.setConsole(this, v.toString())
+            "verbose" -> BuildToolsConfig.setGradleVerbose(this, v as Boolean)
+            "custom_args" -> BuildToolsConfig.setCustomGradleJvmArgs(this, v.toString())
+        }
+    }
+
+    private fun commitDraft() {
+        if (draft.isEmpty()) return
+        val editor = prefs.edit()
+        for ((k, v) in draft) {
+            when {
+                k.startsWith(BTC_PREFIX) -> {
+                    if (v != null) commitBtc(k.substring(BTC_PREFIX.length), v)
+                }
+                v is Boolean -> editor.putBoolean(k, v)
+                v is Int -> editor.putInt(k, v)
+                else -> editor.putString(k, v.toString())
+            }
+        }
+        editor.apply()
+        draft.clear()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val themeName = get("theme", "Dark")
-        val bgColor = when (themeName) {
-            "Light" -> ComposeColor(0xFFF5F5F5)
-            "Darcula" -> ComposeColor(0xFF2B2B2B)
-            else -> ComposeColor(0xFF1E1E22) // Dark
-        }
         setContent {
             MobileStudioTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = bgColor) {
+                Surface(modifier = Modifier.fillMaxSize(), color = Palette.bg) {
                     SettingsScreen()
                 }
             }
         }
     }
 
-    data class SettingsCategory(val id: String, val label: String, val subItems: List<SettingsItem> = emptyList())
-    data class SettingsItem(val id: String, val label: String)
-
-    private val settingsCategories = listOf(
-        SettingsCategory("appearance", "Appearance & Behavior", listOf(
-            SettingsItem("a1", "Appearance"),
-            SettingsItem("a2", "Menus and Toolbars"),
-            SettingsItem("a3", "System Settings"),
-            SettingsItem("a4", "File Colors"),
-            SettingsItem("a5", "Scopes"),
-            SettingsItem("a6", "Notifications"),
-            SettingsItem("a7", "Data Editor and Viewer"),
-            SettingsItem("a8", "Quick Lists"),
-            SettingsItem("a9", "Required Plugins"),
-            SettingsItem("a10", "Trusted Locations"),
-            SettingsItem("a11", "Path Variables"),
-            SettingsItem("a12", "Presentation Assistant"),
-        )),
-        SettingsCategory("editor", "Editor", listOf(
-            SettingsItem("e1", "General"),
-            SettingsItem("e2", "Code Editing"),
-            SettingsItem("e3", "Font"),
-            SettingsItem("e4", "Color Scheme"),
-            SettingsItem("e5", "Code Style"),
-            SettingsItem("e6", "Inspections"),
-            SettingsItem("e7", "File and Code Templates"),
-            SettingsItem("e8", "File Encodings"),
-            SettingsItem("e9", "Live Templates"),
-            SettingsItem("e10", "File Types"),
-            SettingsItem("e11", "UI Tools"),
-            SettingsItem("e12", "Copyright"),
-            SettingsItem("e13", "Inlay Hints"),
-            SettingsItem("e14", "Emmet"),
-            SettingsItem("e15", "Intentions"),
-            SettingsItem("e16", "Language Injections"),
-            SettingsItem("e17", "Live Edit"),
-            SettingsItem("e18", "Natural Languages"),
-        )),
-        SettingsCategory("plugins", "Plugins"),
-        SettingsCategory("version_control", "Version Control", listOf(
-            SettingsItem("v1", "Changelists"),
-            SettingsItem("v2", "Commit"),
-            SettingsItem("v3", "Confirmation"),
-            SettingsItem("v4", "Directory Mappings"),
-            SettingsItem("v5", "File Status Colors"),
-            SettingsItem("v6", "Issue Navigation"),
-            SettingsItem("v7", "Shelf"),
-            SettingsItem("v8", "Git"),
-            SettingsItem("v9", "GitHub"),
-            SettingsItem("v10", "GitLab"),
-            SettingsItem("v11", "Mercurial"),
-            SettingsItem("v12", "Perforce"),
-            SettingsItem("v13", "Subversion"),
-        )),
-        SettingsCategory("build_deploy", "Build, Execution, Deployment", listOf(
-            SettingsItem("b1", "Build Tools"),
-            SettingsItem("b2", "Coverage"),
-            SettingsItem("b3", "Debugger"),
-            SettingsItem("b4", "Deployment"),
-            SettingsItem("b5", "Gradle-Android Compiler"),
-            SettingsItem("b6", "Remote Jar Repositories"),
-        )),
-        SettingsCategory("languages_frameworks", "Languages & Frameworks", listOf(
-            SettingsItem("l1", "C/C++"),
-            SettingsItem("l2", "Android SDK"),
-            SettingsItem("l3", "JVM Logging"),
-            SettingsItem("l4", "Kotlin"),
-            SettingsItem("l5", "Markdown"),
-            SettingsItem("l6", "Mermaid"),
-            SettingsItem("l7", "Schemas and DTDs"),
-            SettingsItem("l8", "Template Data Languages"),
-        )),
-        SettingsCategory("tools", "Tools", listOf(
-            SettingsItem("t1", "Actions on Save"),
-            SettingsItem("t2", "AI"),
-            SettingsItem("t3", "App Links Assistant"),
-            SettingsItem("t4", "CSV Formats"),
-            SettingsItem("t5", "Database Inspector"),
-            SettingsItem("t6", "Device Explorer"),
-            SettingsItem("t7", "Device Mirroring"),
-            SettingsItem("t8", "Diff & Merge"),
-            SettingsItem("t9", "Emulator"),
-            SettingsItem("t10", "External Tools"),
-            SettingsItem("t11", "Google Accounts"),
-            SettingsItem("t12", "Gradle Declarative Focus"),
-            SettingsItem("t13", "Layout Inspector"),
-            SettingsItem("t14", "Logcat"),
-            SettingsItem("t15", "Screenshots & Screen Recordings"),
-            SettingsItem("t16", "Startup Tasks"),
-            SettingsItem("t17", "Terminal"),
-        )),
-        SettingsCategory("backup_sync", "Backup and Sync"),
-        SettingsCategory("advanced", "Advanced Settings"),
+    // ------------------------------------------------------------
+    // Tree model
+    // ------------------------------------------------------------
+    private data class SPage(
+        val id: String,
+        val label: String,
+        val children: List<SPage> = emptyList(),
+        val desc: String = "",
+        val flask: Boolean = false,
     )
 
+    private val pages: List<SPage> = listOf(
+        SPage("appearance_behavior", "Appearance & Behavior",
+            desc = "Configure the look and feel of the IDE, notifications, and system behavior",
+            children = listOf(
+                SPage("appearance", "Appearance"),
+                SPage("menus_toolbars", "Menus and Toolbars"),
+                SPage("system_settings", "System Settings"),
+                SPage("file_colors", "File Colors"),
+                SPage("scopes", "Scopes"),
+                SPage("notifications", "Notifications"),
+                SPage("data_editor", "Data Editor and Viewer"),
+                SPage("quick_lists", "Quick Lists"),
+                SPage("required_plugins", "Required Plugins"),
+                SPage("trusted_locations", "Trusted Locations"),
+                SPage("path_variables", "Path Variables"),
+                SPage("presentation_assistant", "Presentation Assistant"),
+            )),
+        SPage("keymap", "Keymap"),
+        SPage("editor", "Editor",
+            desc = "Customize the editor behavior, code style, and appearance",
+            children = listOf(
+                SPage("ed_general", "General"),
+                SPage("ed_code_editing", "Code Editing"),
+                SPage("ed_font", "Font"),
+                SPage("ed_color_scheme", "Color Scheme"),
+                SPage("ed_code_style", "Code Style"),
+                SPage("ed_inspections", "Inspections"),
+                SPage("ed_file_templates", "File and Code Templates"),
+                SPage("ed_encodings", "File Encodings"),
+                SPage("ed_live_templates", "Live Templates"),
+                SPage("ed_file_types", "File Types"),
+                SPage("ed_ui_tools", "UI Tools"),
+                SPage("ed_copyright", "Copyright"),
+                SPage("ed_inlay_hints", "Inlay Hints"),
+                SPage("ed_emmet", "Emmet"),
+                SPage("ed_intentions", "Intentions"),
+                SPage("ed_language_injections", "Language Injections"),
+                SPage("ed_live_edit", "Live Edit"),
+                SPage("ed_natural_languages", "Natural Languages"),
+            )),
+        SPage("plugins", "Plugins"),
+        SPage("version_control", "Version Control",
+            desc = "Configure the settings related to version control used in your project",
+            children = listOf(
+                SPage("vc_changelists", "Changelists"),
+                SPage("vc_commit", "Commit"),
+                SPage("vc_confirmation", "Confirmation"),
+                SPage("vc_directory_mappings", "Directory Mappings"),
+                SPage("vc_file_status_colors", "File Status Colors"),
+                SPage("vc_issue_navigation", "Issue Navigation"),
+                SPage("vc_shelf", "Shelf"),
+                SPage("vc_git", "Git"),
+                SPage("vc_github", "GitHub"),
+                SPage("vc_gitlab", "GitLab"),
+                SPage("vc_mercurial", "Mercurial"),
+                SPage("vc_perforce", "Perforce"),
+                SPage("vc_subversion", "Subversion"),
+            )),
+        SPage("build_deploy", "Build, Execution, Deployment",
+            desc = "Configure project execution settings, deployment options, and the debugger behavior",
+            children = listOf(
+                SPage("b_tools", "Build Tools"),
+                SPage("b_coverage", "Coverage"),
+                SPage("b_debugger", "Debugger"),
+                SPage("b_deployment", "Deployment"),
+                SPage("b_gradle_android_compiler", "Gradle-Android Compiler"),
+                SPage("b_remote_repos", "Remote Jar Repositories"),
+            )),
+        SPage("languages_frameworks", "Languages & Frameworks",
+            desc = "Configure language-specific settings, code insight, and formatting",
+            children = listOf(
+                SPage("l_cpp", "C/C++",
+                    desc = "Configure the settings related to C/C++ code insight, formatting, and language support",
+                    children = listOf(
+                        SPage("clang_tidy", "Clang-Tidy"),
+                        SPage("clangd", "Clangd"),
+                        SPage("cling", "Cling"),
+                    )),
+                SPage("l_android_sdk", "Android SDK"),
+                SPage("l_jvm_logging", "JVM Logging"),
+                SPage("l_kotlin", "Kotlin",
+                    desc = "Configure the Kotlin language and its compiler",
+                    children = listOf(
+                        SPage("kotlin_compiler", "Kotlin Compiler"),
+                        SPage("kotlin_gradle", "Kotlin Gradle Script"),
+                        SPage("kotlin_style", "Code Style"),
+                    )),
+                SPage("l_markdown", "Markdown"),
+                SPage("l_mermaid", "Mermaid"),
+                SPage("l_schemas", "Schemas and DTDs",
+                    desc = "Manage external schemas and DTDs used for XML validation",
+                    children = listOf(
+                        SPage("schemas_external", "External Schemas and DTDs"),
+                        SPage("schemas_ignored", "Ignored Schemas"),
+                    )),
+                SPage("l_template_data", "Template Data Languages"),
+            )),
+        SPage("tools", "Tools",
+            desc = "Configure tools integrated with the IDE",
+            children = listOf(
+                SPage("actions_on_save", "Actions on Save"),
+                SPage("ai", "AI"),
+                SPage("app_links", "App Links Assistant"),
+                SPage("csv_formats", "CSV Formats"),
+                SPage("database_inspector", "Database Inspector"),
+                SPage("device_explorer", "Device Explorer"),
+                SPage("device_mirroring", "Device Mirroring"),
+                SPage("diff_merge", "Diff & Merge"),
+                SPage("emulator", "Emulator"),
+                SPage("external_tools", "External Tools"),
+                SPage("google_accounts", "Google Accounts"),
+                SPage("gradle_decl_focus", "Gradle Declarative Focus"),
+                SPage("layout_inspector", "Layout Inspector"),
+                SPage("logcat", "Logcat"),
+                SPage("screenshots_recordings", "Screenshots & Screen Recordings"),
+                SPage("startup_tasks", "Startup Tasks"),
+                SPage("terminal", "Terminal"),
+            )),
+        SPage("backup_sync", "Backup and Sync"),
+        SPage("advanced", "Advanced Settings"),
+        SPage("other_settings", "Other Settings",
+            desc = "Additional settings that do not fit into other categories",
+            children = listOf(
+                SPage("experimental", "Experimental"),
+                SPage("studio_labs", "Studio Labs", flask = true),
+            )),
+    )
+
+    private fun findIn(list: List<SPage>, id: String): SPage? {
+        for (p in list) {
+            if (p.id == id) return p
+            findIn(p.children, id)?.let { return it }
+        }
+        return null
+    }
+
+    private fun findPage(id: String): SPage? = findIn(pages, id)
+
+    private fun findPathIn(list: List<SPage>, id: String, prefix: List<String>): List<String>? {
+        for (p in list) {
+            val cur = prefix + p.id
+            if (p.id == id) return cur
+            findPathIn(p.children, id, cur)?.let { return it }
+        }
+        return null
+    }
+
+    private fun findPath(id: String): List<String>? = findPathIn(pages, id, emptyList())
+
+    private fun findFirstPinned(list: List<SPage>): String? {
+        for (p in list) {
+            if (getBool("pinned_${p.id}", false)) return p.id
+            findFirstPinned(p.children)?.let { return it }
+        }
+        return null
+    }
+
+    private fun initialPath(): List<String> {
+        findFirstPinned(pages)?.let { findPath(it)?.let { p -> return p } }
+        prefs.getString(KEY_LAST_PAGE, null)?.let { findPath(it)?.let { p -> return p } }
+        return listOf("appearance_behavior", "appearance")
+    }
+
+    private data class FlatRow(
+        val page: SPage,
+        val depth: Int,
+        val selected: Boolean,
+        val hasKids: Boolean,
+        val isOpen: Boolean,
+        val pinned: Boolean,
+    )
+
+    private fun buildFlat(query: String, path: List<String>, expanded: Set<String>): List<FlatRow> {
+        val q = query.trim().lowercase()
+        val out = mutableListOf<FlatRow>()
+        fun matches(p: SPage): Boolean =
+            q.isEmpty() || p.label.lowercase().contains(q) || p.children.any { matches(it) }
+        fun walk(p: SPage, depth: Int) {
+            if (!matches(p)) return
+            val isOpen = q.isNotEmpty() || p.id in expanded || path.dropLast(1).contains(p.id)
+            out += FlatRow(
+                page = p,
+                depth = depth,
+                selected = p.id == path.lastOrNull(),
+                hasKids = p.children.isNotEmpty(),
+                isOpen = isOpen,
+                pinned = getBool("pinned_${p.id}", false),
+            )
+            if (isOpen) p.children.forEach { walk(it, depth + 1) }
+        }
+        pages.forEach { walk(it, 0) }
+        return out
+    }
+
+    // ------------------------------------------------------------
+    // Real data: menu actions and shortcuts (mirrors the menu bar)
+    // ------------------------------------------------------------
+    private data class KeyGroup(val menu: String, val actions: List<Pair<String, String>>)
+
+    private val keymapGroups: List<KeyGroup> = listOf(
+        KeyGroup("Files", listOf(
+            "New Project..." to "",
+            "New File..." to "",
+            "New Folder..." to "",
+            "Open Project..." to "",
+            "Save" to "Ctrl+S",
+            "Save All" to "",
+            "Close Tab" to "Ctrl+W",
+            "Exit" to "",
+        )),
+        KeyGroup("Edit", listOf(
+            "Undo" to "Ctrl+Z",
+            "Redo" to "Ctrl+Shift+Z",
+            "Cut" to "Ctrl+X",
+            "Copy" to "Ctrl+C",
+            "Paste" to "Ctrl+V",
+            "Select All" to "Ctrl+A",
+            "Find..." to "Ctrl+F",
+            "Find/Replace..." to "",
+            "Find in Files..." to "",
+            "Close All Tabs" to "",
+        )),
+        KeyGroup("View", listOf(
+            "Editor" to "",
+            "Build Log" to "",
+            "Terminal" to "",
+            "Project Files Drawer" to "",
+        )),
+        KeyGroup("Move", listOf(
+            "Next Tab" to "Ctrl+Tab",
+            "Previous Tab" to "Ctrl+Shift+Tab",
+            "Go to Line..." to "Ctrl+G",
+        )),
+        KeyGroup("Code", listOf(
+            "Comment / Uncomment" to "Ctrl+/",
+            "Reformat Code" to "Ctrl+Alt+L",
+            "Optimize Imports" to "Ctrl+Alt+O",
+        )),
+        KeyGroup("Run", listOf(
+            "Run 'app'" to "Shift+F10",
+        )),
+        KeyGroup("Tools", listOf(
+            "Terminal" to "Alt+F12",
+            "AI Assistant" to "",
+            "Device Manager" to "",
+            "SDK Manager" to "",
+            "Resource Manager" to "",
+            "AGP Upgrade Assistant..." to "",
+            "Android SDK Upgrade Assistant" to "",
+            "Troubleshoot Device Connections" to "",
+            "App Links Assistant" to "",
+            "Firebase" to "",
+            "Layout Inspector" to "",
+            "Generate Javadoc..." to "",
+            "Create Command Line Launcher..." to "",
+            "Services" to "",
+            "Markdown" to "",
+            "XML Actions" to "",
+            "Cling" to "",
+            "Groovy Console" to "",
+            "Kotlin" to "",
+            "Git" to "",
+            "File Manager" to "",
+            "Download Manager" to "",
+        )),
+        KeyGroup("IDE", listOf(
+            "Settings..." to "",
+            "Recent Projects" to "",
+            "Recent Files" to "",
+            "About MobileStudio" to "",
+        )),
+    )
+
+    // ------------------------------------------------------------
+    // Screen shell
+    // ------------------------------------------------------------
     @Composable
     private fun SettingsScreen() {
-        var selectedCategory by remember { mutableStateOf(settingsCategories.first()) }
-        var searchQuery by remember { mutableStateOf("") }
+        val startPath = remember { initialPath() }
+        var path by remember { mutableStateOf(startPath) }
+        var expanded by remember {
+            mutableStateOf(setOf("appearance_behavior", "languages_frameworks") + startPath.dropLast(1))
+        }
+        var query by remember { mutableStateOf("") }
+        var backStack by remember {
+            mutableStateOf<List<List<String>>>(listOf(startPath))
+        }
+        var idx by remember { mutableStateOf(0) }
+        var pinTick by remember { mutableStateOf(0) }
 
-        val filteredCategories = remember(searchQuery) {
-            settingsCategories.filter { cat ->
-                cat.label.lowercase().contains(searchQuery.lowercase()) ||
-                    cat.subItems.any { it.label.lowercase().contains(searchQuery.lowercase()) }
+        fun navTo(target: List<String>) {
+            if (target.isEmpty() || target == path) return
+            path = target
+            expanded = expanded + target.dropLast(1)
+            val stack: List<List<String>> = backStack.take(idx + 1) + listOf(target)
+            backStack = stack
+            idx = stack.lastIndex
+        }
+
+        fun goBack() {
+            if (idx > 0) {
+                idx--
+                path = backStack[idx]
+                expanded = expanded + path.dropLast(1)
             }
         }
 
-        Row(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .width(320.dp)
-                    .background(ComposeColor(0xFF2A2A2E))
-                    .verticalScroll(rememberScrollState())
-            ) {
-                // Header with Search
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Settings",
-                        color = ComposeColor(0xFF82AAFF),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = { Text("Search settings", color = ComposeColor(0xFF82AAFF)) },
-                        leadingIcon = { Text("🔍", color = ComposeColor(0xFF82AAFF)) },
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-                Divider(color = ComposeColor(0xFF3A3A4A), modifier = Modifier.fillMaxWidth())
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(8.dp)
-                ) {
-                    items(filteredCategories) { cat ->
-                        SettingsTreeItem(
-                            item = cat,
-                            isSelected = cat.id == selectedCategory.id,
-                            onClick = { selectedCategory = cat },
-                            searchQuery = searchQuery
-                        )
+        fun goForward() {
+            if (idx < backStack.lastIndex) {
+                idx++
+                path = backStack[idx]
+                expanded = expanded + path.dropLast(1)
+            }
+        }
+
+        val treeRows = remember(query, path, expanded, pinTick) { buildFlat(query, path, expanded) }
+        val dirty = draft.isNotEmpty()
+        val currentId = path.lastOrNull() ?: ""
+        val current = findPage(currentId)
+
+        Column(Modifier.fillMaxSize().background(Palette.bg)) {
+            TitleBar(onClose = { finish() })
+            Row(Modifier.weight(1f).fillMaxWidth()) {
+
+                // ---------------- left: search + tree + help ----------------
+                Column(Modifier.weight(1f).fillMaxHeight().background(Palette.panel)) {
+                    SearchBox(query) { query = it }
+                    HLine()
+                    Column(
+                        Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 4.dp)
+                    ) {
+                        treeRows.forEach { r ->
+                            TreeRow(
+                                row = r,
+                                onSelect = { findPath(r.page.id)?.let { navTo(it) } },
+                                onChevron = {
+                                    expanded = if (r.page.id in expanded) expanded - r.page.id
+                                    else expanded + r.page.id
+                                },
+                            )
+                        }
+                        if (treeRows.isEmpty()) {
+                            Text(
+                                "No matching settings",
+                                color = Palette.dimText,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(12.dp),
+                            )
+                        }
                     }
+                    HLine()
+                    HelpRow { showHelpDialog(current) }
+                }
+
+                Box(Modifier.fillMaxHeight().width(1.dp).background(Palette.divider))
+
+                // ---------------- right: header + content + footer ----------------
+                Column(Modifier.weight(1.35f).fillMaxHeight().background(Palette.bg)) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Breadcrumb(path)
+                        Spacer(Modifier.weight(1f))
+                        NavGlyph("←", enabled = idx > 0, onClick = { goBack() })
+                        NavGlyph("→", enabled = idx < backStack.lastIndex, onClick = { goForward() })
+                        if (currentId.isNotEmpty()) {
+                            val pinKey = "pinned_$currentId"
+                            val pinned = getBool(pinKey, false)
+                            Box(
+                                Modifier
+                                    .size(30.dp)
+                                    .then(
+                                        if (pinned) Modifier.background(
+                                            Palette.fieldBg,
+                                            RoundedCornerShape(4.dp),
+                                        ) else Modifier
+                                    )
+                                    .clickable {
+                                        putBool(pinKey, !pinned)
+                                        pinTick++
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "📌",
+                                    fontSize = 13.sp,
+                                    color = if (pinned) Palette.link else Palette.dimText,
+                                )
+                            }
+                        }
+                    }
+                    HLine()
+                    Column(
+                        Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)
+                    ) {
+                        PageBody(path) { navTo(it) }
+                    }
+                    HLine()
+                    Footer(
+                        dirty = dirty,
+                        onOk = {
+                            put(KEY_LAST_PAGE, currentId)
+                            commitDraft()
+                            finish()
+                        },
+                        onCancel = {
+                            draft.clear()
+                            finish()
+                        },
+                        onApply = {
+                            put(KEY_LAST_PAGE, currentId)
+                            commitDraft()
+                            toast("Settings applied")
+                        },
+                    )
                 }
             }
-            Divider(color = ComposeColor(0xFF3A3A4A), modifier = Modifier.fillMaxWidth().height(1.dp))
-            SettingsContent(selectedCategory)
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Chrome components
+    // ------------------------------------------------------------
+    @Composable
+    private fun TitleBar(onClose: () -> Unit) {
+        Box(Modifier.fillMaxWidth().height(36.dp).background(Palette.titleBar)) {
+            Text(
+                "Settings – MobileStudio",
+                color = Palette.titleText,
+                fontSize = 14.sp,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            Row(
+                Modifier.align(Alignment.CenterEnd).padding(end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                WindowGlyph("—") { }
+                WindowGlyph("▢") { }
+                WindowGlyph("✕", onClick = onClose)
+            }
         }
     }
 
     @Composable
-    private fun SettingsTreeItem(item: SettingsCategory, isSelected: Boolean, onClick: () -> Unit, searchQuery: String) {
-        val isFav = isFavorite("cat_${item.id}")
-        val bgColor = if (isSelected) ComposeColor(0xFF3A3A4A) else ComposeColor.Transparent
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp, horizontal = 4.dp)
-                .background(bgColor)
-                .clickable { onClick() }
+    private fun WindowGlyph(glyph: String, onClick: () -> Unit) {
+        Box(
+            Modifier.width(34.dp).fillMaxHeight().clickable { onClick() },
+            contentAlignment = Alignment.Center,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Text(glyph, color = Palette.titleText, fontSize = 13.sp)
+        }
+    }
+
+    @Composable
+    private fun SearchBox(query: String, onChange: (String) -> Unit) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .background(Palette.fieldBg)
+                .border(1.dp, Palette.border, RoundedCornerShape(4.dp))
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🔍", fontSize = 12.sp)
+            Spacer(Modifier.width(6.dp))
+            BasicTextField(
+                value = query,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = TextStyle(color = Palette.text, fontSize = 14.sp),
+                cursorBrush = SolidColor(Palette.link),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+
+    @Composable
+    private fun TreeRow(row: FlatRow, onSelect: () -> Unit, onChevron: () -> Unit) {
+        val selected = row.selected
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(if (selected) Palette.selection else Color.Transparent)
+                .clickable { onSelect() }
+                .padding(start = (6 + 16 * row.depth).dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (row.hasKids) {
+                Box(
+                    Modifier.width(18.dp).clickable { onChevron() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (row.isOpen) "▾" else "▸",
+                        color = Palette.text,
+                        fontSize = 11.sp,
+                    )
+                }
+            } else {
+                Spacer(Modifier.width(18.dp))
+            }
+            Text(
+                row.page.label,
+                color = if (selected) Color.White else Palette.text,
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (row.pinned) Text("📌", fontSize = 10.sp, modifier = Modifier.padding(end = 4.dp))
+            if (row.depth > 0) {
+                Text("▭", color = Palette.dimText, fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
+            }
+            if (row.page.flask) Text("🧪", fontSize = 11.sp)
+        }
+    }
+
+    @Composable
+    private fun HelpRow(onClick: () -> Unit) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Box(
+                Modifier
+                    .size(26.dp)
+                    .border(1.dp, Palette.border, RoundedCornerShape(13.dp))
+                    .clickable { onClick() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("?", color = Palette.text, fontSize = 13.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun NavGlyph(glyph: String, enabled: Boolean, onClick: () -> Unit) {
+        Box(
+            Modifier
+                .size(30.dp)
+                .clickable(enabled = enabled) { onClick() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                glyph,
+                fontSize = 16.sp,
+                color = if (enabled) Palette.text else Palette.disabledText,
+            )
+        }
+    }
+
+    @Composable
+    private fun Breadcrumb(path: List<String>) {
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            path.forEachIndexed { i, id ->
+                if (i > 0) {
+                    Text(
+                        "  ›  ",
+                        color = Palette.dimText,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
                 Text(
-                    text = item.label,
-                    color = if (isSelected) ComposeColor(0xFF82AAFF) else ComposeColor.White,
+                    findPage(id)?.label ?: id,
+                    color = Color.White,
                     fontSize = 15.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.padding(start = 20.dp, top = 10.dp, bottom = 10.dp)
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
                 )
-                if (item.subItems.isNotEmpty()) {
-                    LazyColumn(modifier = Modifier.padding(start = 32.dp, end = 16.dp)) {
-                        items(item.subItems) { sub ->
-                            SettingsSubItem(sub, searchQuery)
+            }
+        }
+    }
+
+    @Composable
+    private fun Footer(dirty: Boolean, onOk: () -> Unit, onCancel: () -> Unit, onApply: () -> Unit) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(
+                onClick = onOk,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Palette.okBlue,
+                    contentColor = Color.White,
+                ),
+                contentPadding = PaddingValues(horizontal = 22.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(4.dp),
+            ) {
+                Text("OK", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+            OutlinedButton(
+                onClick = onCancel,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.text),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(4.dp),
+            ) {
+                Text("Cancel", fontSize = 13.sp)
+            }
+            Button(
+                onClick = onApply,
+                enabled = dirty,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Palette.okBlue,
+                    contentColor = Color.White,
+                    disabledContainerColor = Palette.fieldBg,
+                    disabledContentColor = Palette.disabledText,
+                ),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(4.dp),
+            ) {
+                Text("Apply", fontSize = 13.sp)
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Page body dispatch
+    // ------------------------------------------------------------
+    @Composable
+    private fun PageBody(path: List<String>, navTo: (List<String>) -> Unit) {
+        val id = path.lastOrNull() ?: return
+        val page = findPage(id) ?: run {
+            Text("Page not found.", color = Palette.dimText, fontSize = 14.sp)
+            return
+        }
+        val go: (String) -> Unit = { target -> findPath(target)?.let { navTo(it) } }
+        when (id) {
+            "appearance" -> AppearancePage(go)
+            "system_settings" -> SystemInfoPage()
+            "ed_font" -> FontPage()
+            "ed_color_scheme" -> ColorSchemePage()
+            "keymap" -> KeymapPage()
+            "plugins" -> PluginsPage()
+            "vc_git" -> GitPage()
+            "b_tools" -> BuildToolsPage()
+            "clang_tidy" -> NativeToolPage("Clang-Tidy", "clang-tidy")
+            "clangd" -> NativeToolPage("Clangd", "clangd")
+            "cling" -> NativeToolPage("Cling", "cling")
+            "l_android_sdk" -> AndroidSdkPage()
+            "l_jvm_logging" -> JvmLoggingPage()
+            "kotlin_compiler" -> KotlinCompilerPage()
+            "l_markdown" -> MarkdownPage()
+            "ai" -> AiPage()
+            "device_explorer" -> DevicesPage()
+            "device_mirroring" -> DevicesPage()
+            "advanced" -> AdvancedPage()
+            "backup_sync" -> BackupSyncPage()
+            "schemas_external" -> ListEditorPage(
+                "schemas_external",
+                "External schemas and DTDs:",
+                "No external resources",
+                "Schema location or URL",
+            )
+            "schemas_ignored" -> ListEditorPage(
+                "schemas_ignored",
+                "Ignored schemas and DTDs:",
+                "Schemas listed here are not used for XML validation.",
+                "Schema location or URL",
+            )
+            "l_template_data" -> ListEditorPage(
+                "template_data_mappings",
+                "Path mappings:",
+                "Template data languages are the underlying languages in template files like those of " +
+                    "FreeMarker/Velocity frameworks. To change template data language settings for a " +
+                    "file, a directory, or the entire project, add its path if necessary and then " +
+                    "select a language from the drop-down list.",
+                "Path — language",
+            )
+            "external_tools" -> ListEditorPage(
+                "external_tools",
+                "External tools:",
+                "Registered external tools appear in the Tools menu.",
+                "Tool name — command",
+            )
+            "startup_tasks" -> ListEditorPage(
+                "startup_tasks",
+                "Startup tasks:",
+                "Tasks that run when MobileStudio starts.",
+                "Task name",
+            )
+            else -> if (page.children.isNotEmpty()) LinksBody(page, go)
+            else FormBody(rowsFor(id), go)
+        }
+    }
+
+    @Composable
+    private fun LinksBody(page: SPage, go: (String) -> Unit) {
+        Column(Modifier.fillMaxWidth()) {
+            if (page.desc.isNotBlank()) {
+                Text(
+                    page.desc,
+                    color = Palette.desc,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(bottom = 14.dp),
+                )
+            }
+            page.children.forEach { child ->
+                Text(
+                    child.label,
+                    color = Palette.link,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { go(child.id) }
+                        .padding(vertical = 5.dp),
+                )
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Generic form rows
+    // ------------------------------------------------------------
+    private sealed class RowItem {
+        data class Sec(val label: String) : RowItem()
+        data class Chk(
+            val key: String,
+            val label: String,
+            val desc: String = "",
+            val def: Boolean = false,
+        ) : RowItem()
+        data class Txt(
+            val key: String,
+            val label: String,
+            val def: String = "",
+            val numeric: Boolean = false,
+            val desc: String = "",
+        ) : RowItem()
+        data class Cbo(
+            val key: String,
+            val label: String,
+            val options: List<String>,
+            val def: String,
+            val desc: String = "",
+        ) : RowItem()
+        data class Lnk(val target: String, val label: String) : RowItem()
+        data class Nte(val text: String) : RowItem()
+        data class Act(val label: String, val action: () -> Unit) : RowItem()
+    }
+
+    @Composable
+    private fun FormBody(rows: List<RowItem>, go: (String) -> Unit) {
+        Column(Modifier.fillMaxWidth()) {
+            rows.forEach { r ->
+                when (r) {
+                    is RowItem.Sec -> SectionRow(r.label)
+                    is RowItem.Chk -> CheckRow(
+                        checked = getBool(r.key, r.def),
+                        label = r.label,
+                        desc = r.desc,
+                    ) { putBool(r.key, it) }
+                    is RowItem.Txt -> FieldRow(
+                        label = r.label,
+                        value = get(r.key, r.def),
+                        numeric = r.numeric,
+                        desc = r.desc,
+                    ) { put(r.key, it) }
+                    is RowItem.Cbo -> ComboRow(
+                        label = r.label,
+                        options = r.options,
+                        value = get(r.key, r.def),
+                        desc = r.desc,
+                    ) { put(r.key, it) }
+                    is RowItem.Lnk -> LinkRow(r.label) { go(r.target) }
+                    is RowItem.Nte -> NoteRow(r.text)
+                    is RowItem.Act -> ActionRow(r.label) { r.action() }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun SectionRow(label: String) {
+        Row(
+            Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.weight(1f).height(1.dp).background(Palette.divider))
+        }
+    }
+
+    @Composable
+    private fun CheckRow(
+        checked: Boolean,
+        label: String,
+        desc: String,
+        onChange: (Boolean) -> Unit,
+    ) {
+        Row(
+            Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 4.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = onChange,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Palette.link,
+                    uncheckedColor = Palette.border,
+                    checkmarkColor = Color.White,
+                ),
+                modifier = Modifier.padding(top = 1.dp),
+            )
+            Column(Modifier.padding(start = 6.dp)) {
+                Text(label, color = Palette.text, fontSize = 14.sp, lineHeight = 18.sp)
+                if (desc.isNotBlank()) {
+                    Text(
+                        desc,
+                        color = Palette.dimText,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun FieldRow(
+        label: String,
+        value: String,
+        numeric: Boolean,
+        desc: String,
+        onChange: (String) -> Unit,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    label,
+                    color = Palette.text,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier
+                        .width(150.dp)
+                        .background(Palette.fieldBg)
+                        .border(1.dp, Palette.border, RoundedCornerShape(4.dp)),
+                ) {
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onChange,
+                        singleLine = true,
+                        keyboardOptions = if (numeric) {
+                            KeyboardOptions(keyboardType = KeyboardType.Number)
+                        } else KeyboardOptions.Default,
+                        textStyle = TextStyle(
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace,
+                        ),
+                        cursorBrush = SolidColor(Palette.link),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                    )
+                }
+            }
+            if (desc.isNotBlank()) {
+                Text(
+                    desc,
+                    color = Palette.dimText,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun NumberRow(label: String, value: Int, suffix: String = "", onChange: (Int) -> Unit) {
+        var raw by remember(value) { mutableStateOf(value.toString()) }
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                label,
+                color = Palette.text,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+            )
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .width(86.dp)
+                    .background(Palette.fieldBg)
+                    .border(1.dp, Palette.border, RoundedCornerShape(4.dp)),
+            ) {
+                BasicTextField(
+                    value = raw,
+                    onValueChange = { s ->
+                        raw = s
+                        s.filter { it.isDigit() }.toIntOrNull()?.let(onChange)
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    textStyle = TextStyle(
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                    cursorBrush = SolidColor(Palette.link),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                )
+            }
+            if (suffix.isNotBlank()) {
+                Spacer(Modifier.width(6.dp))
+                Text(suffix, color = Palette.dimText, fontSize = 12.sp)
+            }
+        }
+    }
+
+    @Composable
+    private fun ComboRow(
+        label: String,
+        options: List<String>,
+        value: String,
+        desc: String,
+        onChange: (String) -> Unit,
+    ) {
+        var open by remember { mutableStateOf(false) }
+        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    label,
+                    color = Palette.text,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                )
+                Spacer(Modifier.width(8.dp))
+                Box {
+                    Row(
+                        Modifier
+                            .background(Palette.fieldBg)
+                            .border(1.dp, Palette.border, RoundedCornerShape(4.dp))
+                            .clickable { open = true }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            value,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 150.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("▾", color = Palette.dimText, fontSize = 10.sp)
+                    }
+                    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                        options.forEach { opt ->
+                            DropdownMenuItem(
+                                text = { Text(opt, fontSize = 13.sp) },
+                                onClick = {
+                                    onChange(opt)
+                                    open = false
+                                },
+                            )
                         }
                     }
                 }
             }
-            Text(
-                text = if (isFav) "★" else "☆",
-                color = if (isFav) ComposeColor(0xFFFFD54F) else ComposeColor(0xFF666666),
-                fontSize = 16.sp,
-                modifier = Modifier.clickable { toggleFavorite("cat_${item.id}") }.padding(vertical = 10.dp)
-            )
-        }
-    }
-
-    @Composable
-    private fun SettingsSubItem(item: SettingsItem, searchQuery: String) {
-        val highlightColor = ComposeColor(0xFFFFD54F)
-        val isFav = isFavorite("sub_${item.id}")
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).background(ComposeColor.Transparent)) {
-            Text(
-                text = buildAnnotatedString {
-                    append(item.label)
-                    if (searchQuery.isNotEmpty() && item.label.lowercase().contains(searchQuery.lowercase())) {
-                        val startIndex = item.label.lowercase().indexOf(searchQuery.lowercase())
-                        addStyle(
-                            style = SpanStyle(color = highlightColor, fontWeight = FontWeight.Bold),
-                            start = startIndex,
-                            end = startIndex + searchQuery.length
-                        )
-                    }
-                },
-                color = ComposeColor(0xFFB0B0B0),
-                fontSize = 13.sp,
-                modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp).weight(1f)
-            )
-            Text(
-                text = if (isFav) "★" else "☆",
-                color = if (isFav) ComposeColor(0xFFFFD54F) else ComposeColor(0xFF666666),
-                fontSize = 14.sp,
-                modifier = Modifier.clickable { toggleFavorite("sub_${item.id}") }.padding(vertical = 4.dp)
-            )
-        }
-    }
-
-    @Composable
-    private fun SettingsContent(category: SettingsCategory) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
-        ) {
-            Text(
-                text = category.label,
-                color = ComposeColor(0xFF82AAFF),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            Divider(color = ComposeColor(0xFF3A3A4A), modifier = Modifier.fillMaxWidth())
-            Spacer(modifier = Modifier.height(16.dp))
-            when (category.id) {
-                "appearance" -> AppearanceSection()
-                "editor" -> EditorSection()
-                "version_control" -> VersionControlSection()
-                "build_deploy" -> BuildDeploySection()
-                "languages_frameworks" -> LanguagesFrameworksSection(category.subItems)
-                "tools" -> ToolsSection()
-                "backup_sync" -> BackupSyncSection()
-                "advanced" -> AdvancedSection()
-                else -> {
-                    Text(
-                        text = "준비 중입니다.",
-                        color = ComposeColor(0xFF888888),
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
+            if (desc.isNotBlank()) {
+                Text(
+                    desc,
+                    color = Palette.dimText,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
         }
     }
 
-    // ============================================================
-    // Appearance & Behavior Section
-    // ============================================================
     @Composable
-    private fun AppearanceSection() {
-        SectionHeader("Appearance & Behavior")
-        SettingRow("Theme", get("theme", "Dark")) { showThemeDialog() }
-        SettingRow("Color Scheme", get("color_scheme", "Darcula")) { showColorSchemeDialog() }
-        SettingRow("Font Size", get("font_size", "14sp")) { showFontSizeDialog() }
-        SettingRow("Font Family", get("font_family", "Monospace")) { showFontFamilyDialog() }
-        SettingRow("File Colors", "") { showFileColorsDialog() }
-        SettingRow("Scopes", "") { showScopesDialog() }
-        SettingRow("Notifications", "") { showNotificationsDialog() }
-        SettingRow("Data Editor and Viewer", "") { showDataEditorDialog() }
-        SettingRow("Quick Lists", "") { showQuickListsDialog() }
-        SettingRow("Required Plugins", "") { showRequiredPluginsDialog() }
-        SettingRow("Trusted Locations", "") { showTrustedLocationsDialog() }
-        SettingRow("Path Variables", "") { showPathVariablesDialog() }
-        SettingRow("Presentation Assistant", "") { showPresentationAssistantDialog() }
-    }
-
-    private fun showFileColorsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("File Colors")
-            .setMessage("Configure file color scopes for project files.")
-            .setItems(arrayOf("Add New Scope...", "Edit Scope...", "Delete Scope")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "New file color scope", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit file color scope", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete file color scope", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showScopesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Scopes")
-            .setMessage("Define custom scopes for code inspections and highlighting.")
-            .setItems(arrayOf("Add Scope...", "Edit Scope...", "Delete Scope")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "New scope created", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit scope", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete scope", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showNotificationsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Notifications")
-            .setMessage("Configure IDE notification settings.")
-            .setItems(arrayOf("Balloon notifications", "Tool window notifications", "Log notifications")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Balloon notifications toggled", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Tool window notifications toggled", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Log notifications toggled", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showDataEditorDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Data Editor and Viewer")
-            .setMessage("Configure data editor and viewer settings.")
-            .setItems(arrayOf("Data formatters", "CSV settings", "JSON settings", "XML settings")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Data formatters", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "CSV settings", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "JSON settings", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "XML settings", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showQuickListsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Quick Lists")
-            .setMessage("Manage quick lists of IDE actions.")
-            .setItems(arrayOf("Add Quick List...", "Edit Quick List...", "Delete Quick List")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "New quick list", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit quick list", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete quick list", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showRequiredPluginsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Required Plugins")
-            .setMessage("Configure required plugins for the project.")
-            .setItems(arrayOf("Add Plugin...", "Remove Plugin...", "Update Plugin")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add required plugin", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Remove required plugin", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Update required plugin", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showTrustedLocationsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Trusted Locations")
-            .setMessage("Manage trusted project locations.")
-            .setItems(arrayOf("Add Location...", "Edit Location...", "Delete Location")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add trusted location", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit trusted location", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete trusted location", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showPathVariablesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Path Variables")
-            .setMessage("Configure path variables for project paths.")
-            .setItems(arrayOf("Add Variable...", "Edit Variable...", "Delete Variable")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add path variable", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit path variable", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete path variable", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showPresentationAssistantDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Presentation Assistant")
-            .setMessage("Configure presentation mode settings.")
-            .setItems(arrayOf("Enable Presentation Mode", "Font Size", "Tool Window Visibility")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Presentation mode enabled", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Font size adjusted", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Tool window visibility changed", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    // ============================================================
-    // Editor Section
-    // ============================================================
-    @Composable
-    private fun EditorSection() {
-        SectionHeader("Editor")
-        SettingRow("General", "") { showEditorGeneralDialog() }
-        SettingRow("Code Editing", "") { showCodeEditingDialog() }
-        SettingRow("Font", "") { showEditorFontDialog() }
-        SettingRow("Color Scheme", "") { showEditorColorSchemeDialog() }
-        SettingRow("Code Style", "") { showCodeStyleDialog() }
-        SettingRow("Inspections", "") { showInspectionsDialog() }
-        SettingRow("File and Code Templates", "") { showFileTemplatesDialog() }
-        SettingRow("File Encodings", "") { showFileEncodingsDialog() }
-        SettingRow("Live Templates", "") { showLiveTemplatesDialog() }
-        SettingRow("File Types", "") { showFileTypesDialog() }
-        SettingRow("UI Tools", "") { showUIToolsDialog() }
-        SettingRow("Copyright", "") { showCopyrightDialog() }
-        SettingRow("Inlay Hints", "") { showInlayHintsDialog() }
-        SettingRow("Emmet", "") { showEmmetDialog() }
-        SettingRow("Intentions", "") { showIntentionsDialog() }
-        SettingRow("Language Injections", "") { showLanguageInjectionsDialog() }
-        SettingRow("Live Edit", "") { showLiveEditDialog() }
-        SettingRow("Natural Languages", "") { showNaturalLanguagesDialog() }
-    }
-
-    private fun showEditorGeneralDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Editor General")
-            .setMessage("General editor settings including line numbers, caret placement, and tabs.")
-            .setItems(arrayOf("Line Numbers", "Caret Placement", "Tabs and Indents")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Line numbers", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Caret placement", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Tabs and indents", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showCodeEditingDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Code Editing")
-            .setMessage("Configure code editing options.")
-            .setItems(arrayOf("Smart Keys", "Code Completion", "Inline Completion")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Smart keys", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Code completion", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Inline completion", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showEditorFontDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Editor Font")
-            .setMessage("Select font family and size for the editor.")
-            .setItems(arrayOf("Font Family", "Font Size", "Line Spacing")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Font family", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Font size", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Line spacing", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showEditorColorSchemeDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Color Scheme")
-            .setMessage("Choose color scheme for editor highlighting.")
-            .setItems(arrayOf("Darcula", "Light", "High Contrast", "Custom")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Darcula scheme", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Light scheme", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "High Contrast", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "Custom scheme", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showCodeStyleDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Code Style")
-            .setMessage("Configure code style settings per language.")
-            .setItems(arrayOf("Kotlin", "Java", "XML", "JSON", "Groovy")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Kotlin style", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Java style", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "XML style", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "JSON style", Toast.LENGTH_SHORT).show()
-                    4 -> Toast.makeText(this@SettingsActivity, "Groovy style", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showInspectionsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Inspections")
-            .setMessage("Configure code inspections and severity levels.")
-            .setItems(arrayOf("Enable Inspections", "Severity Levels", "Inspection Profiles")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Enable inspections", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Severity levels", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Inspection profiles", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showFileTemplatesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("File and Code Templates")
-            .setMessage("Configure file and code templates for new files.")
-            .setItems(arrayOf("File Templates", "Code Templates", "Include Templates")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "File templates", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Code templates", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Include templates", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showFileEncodingsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("File Encodings")
-            .setMessage("Configure file encoding settings.")
-            .setItems(arrayOf("Global Encoding", "Project Encoding", "Default Encoding")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Global encoding", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Project encoding", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Default encoding", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showLiveTemplatesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Live Templates")
-            .setMessage("Configure live template abbreviations.")
-            .setItems(arrayOf("Add Template...", "Edit Template...", "Delete Template")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add live template", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit live template", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete live template", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showFileTypesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("File Types")
-            .setMessage("Configure recognized file types and extensions.")
-            .setItems(arrayOf("Registered Types", "User Types", "Ignore Files")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Registered file types", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "User file types", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Ignore files and folders", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showUIToolsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("UI Tools")
-            .setMessage("Configure UI-related editor tools.")
-            .setItems(arrayOf("Distraction Free Mode", "Presentation Mode", "Zen Mode")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Distraction free mode", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Presentation mode", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Zen mode", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showCopyrightDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Copyright")
-            .setMessage("Configure copyright profiles for new files.")
-            .setItems(arrayOf("Add Profile...", "Edit Profile...", "Delete Profile")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add copyright profile", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit copyright profile", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete copyright profile", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showInlayHintsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Inlay Hints")
-            .setMessage("Configure inlay parameter name hints.")
-            .setItems(arrayOf("Enable Inlay Hints", "Exclude Types", "Exclude Values")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Enable inlay hints", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Exclude types", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Exclude values", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showEmmetDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Emmet")
-            .setMessage("Configure Emmet abbreviations for HTML/CSS.")
-            .setItems(arrayOf("Enable Emmet", "Abbreviations", "Preview")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Enable Emmet", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Emmet abbreviations", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Emmet preview", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showIntentionsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Intentions")
-            .setMessage("Configure intention actions for quick fixes.")
-            .setItems(arrayOf("Enable Intentions", "Intentions List", "Severity")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Enable intentions", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Intentions list", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Intentions severity", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showLanguageInjectionsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Language Injections")
-            .setMessage("Configure language injections for code fragments.")
-            .setItems(arrayOf("Add Injection...", "Edit Injection...", "Delete Injection")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add language injection", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit language injection", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete language injection", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showLiveEditDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Live Edit")
-            .setMessage("Configure live edit for instant code updates.")
-            .setItems(arrayOf("Enable Live Edit", "Update on Change", "Restart App")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Enable live edit", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Update on change", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Restart app", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showNaturalLanguagesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Natural Languages")
-            .setMessage("Configure natural language processing settings.")
-            .setItems(arrayOf("Spell Checker", "Dictionary", "Language")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Spell checker", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Dictionary", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Natural language", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    // ============================================================
-    // Version Control Section
-    // ============================================================
-    @Composable
-    private fun VersionControlSection() {
-        SectionHeader("Version Control")
-        SettingRow("Changelists", "") { showChangelistsDialog() }
-        SettingRow("Commit", "") { showCommitDialog() }
-        SettingRow("Confirmation", "") { showConfirmationDialog() }
-        SettingRow("Directory Mappings", "") { showDirectoryMappingsDialog() }
-        SettingRow("File Status Colors", "") { showFileStatusColorsDialog() }
-        SettingRow("Issue Navigation", "") { showIssueNavigationDialog() }
-        SettingRow("Shelf", "") { showShelfDialog() }
-        SettingRow("Git", "") { showGitDialog() }
-        SettingRow("GitHub", "") { showGitHubDialog() }
-        SettingRow("GitLab", "") { showGitLabDialog() }
-        SettingRow("Mercurial", "") { showMercurialDialog() }
-        SettingRow("Perforce", "") { showPerforceDialog() }
-        SettingRow("Subversion", "") { showSubversionDialog() }
-    }
-
-    private fun showChangelistsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Changelists")
-            .setMessage("Configure changelist management settings.")
-            .setItems(arrayOf("Default Changelist", "Create Changelist...", "Delete Changelist")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Default changelist", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Create changelist", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete changelist", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showCommitDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Commit")
-            .setMessage("Configure commit options and behavior.")
-            .setItems(arrayOf("Commit Options", "Before Commit", "After Commit")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Commit options", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Before commit", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "After commit", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showConfirmationDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Confirmation")
-            .setMessage("Configure confirmation dialogs for VCS operations.")
-            .setItems(arrayOf("Delete Confirmation", "Revert Confirmation", "Force Push Confirmation")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Delete confirmation", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Revert confirmation", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Force push confirmation", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showDirectoryMappingsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Directory Mappings")
-            .setMessage("Map directories to VCS roots.")
-            .setItems(arrayOf("Add Mapping...", "Edit Mapping...", "Delete Mapping")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add directory mapping", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit directory mapping", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete directory mapping", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showFileStatusColorsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("File Status Colors")
-            .setMessage("Configure colors for file status indicators.")
-            .setItems(arrayOf("Added", "Modified", "Deleted", "Ignored")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Added color", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Modified color", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Deleted color", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "Ignored color", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showIssueNavigationDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Issue Navigation")
-            .setMessage("Configure issue navigation patterns.")
-            .setItems(arrayOf("Add Pattern...", "Edit Pattern...", "Delete Pattern")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add issue pattern", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit issue pattern", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete issue pattern", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showShelfDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Shelf")
-            .setMessage("Configure shelf for temporary changes.")
-            .setItems(arrayOf("Shelf Life", "Auto-Shelf", "Shelf Location")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Shelf life", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Auto-shelf", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Shelf location", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showGitDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Git")
-            .setMessage("Configure Git executable path and settings.")
-            .setItems(arrayOf("Git Path", "Git Executable", "SSH Executable")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Git path", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Git executable", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "SSH executable", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showGitHubDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("GitHub")
-            .setMessage("Configure GitHub account and authentication.")
-            .setItems(arrayOf("Add Account...", "Edit Account...", "Remove Account")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add GitHub account", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit GitHub account", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Remove GitHub account", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showGitLabDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("GitLab")
-            .setMessage("Configure GitLab account and authentication.")
-            .setItems(arrayOf("Add Account...", "Edit Account...", "Remove Account")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add GitLab account", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit GitLab account", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Remove GitLab account", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showMercurialDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Mercurial")
-            .setMessage("Configure Mercurial executable path and settings.")
-            .setItems(arrayOf("HG Path", "HG Executable")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Mercurial path", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Mercurial executable", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showPerforceDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Perforce")
-            .setMessage("Configure Perforce (P4) connection settings.")
-            .setItems(arrayOf("P4 Port", "P4 Client", "P4 User")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Perforce port", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Perforce client", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Perforce user", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showSubversionDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Subversion")
-            .setMessage("Configure Subversion (SVN) executable and settings.")
-            .setItems(arrayOf("SVN Path", "SVN Executable", "SSH Executable")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Subversion path", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Subversion executable", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "SSH executable", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    // ============================================================
-    // Build, Execution, Deployment Section
-    // ============================================================
-    @Composable
-    private fun BuildDeploySection() {
-        SectionHeader("Build, Execution, Deployment")
-        SettingRow("Build Tools", "") { showBuildToolsDialog() }
-        SettingRow("Coverage", "") { showCoverageDialog() }
-        SettingRow("Debugger", "") { showDebuggerDialog() }
-        SettingRow("Deployment", "") { showDeploymentDialog() }
-        SettingRow("Gradle-Android Compiler", "") { showGradleAndroidCompilerDialog() }
-        SettingRow("Remote Jar Repositories", "") { showRemoteJarRepositoriesDialog() }
-    }
-
-    private fun showBuildToolsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Build Tools")
-            .setMessage("Configure build tools for the project.")
-            .setItems(arrayOf("Maven", "Gradle", "Ant")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Maven build tools", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Gradle build tools", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Ant build tools", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showCoverageDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Coverage")
-            .setMessage("Configure code coverage measurement.")
-            .setItems(arrayOf("Enable Coverage", "Coverage Data", "Coverage Suites")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Enable coverage", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Coverage data", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Coverage suites", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showDebuggerDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Debugger")
-            .setMessage("Configure debugger settings and behavior.")
-            .setItems(arrayOf("Stepping", "Variables", "Frames")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Debugger stepping", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Debugger variables", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Debugger frames", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showDeploymentDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Deployment")
-            .setMessage("Configure deployment options for applications.")
-            .setItems(arrayOf("Deployment Target", "Deployment Options", "Server Settings")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Deployment target", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Deployment options", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Server settings", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showGradleAndroidCompilerDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Gradle-Android Compiler")
-            .setMessage("Configure Gradle and Android compiler settings.")
-            .setItems(arrayOf("Gradle Settings", "Android Compiler", "Daemon Settings")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Gradle settings", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Android compiler", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Gradle daemon", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showRemoteJarRepositoriesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Remote Jar Repositories")
-            .setMessage("Manage remote JAR repository configurations.")
-            .setItems(arrayOf("Add Repository...", "Edit Repository...", "Delete Repository")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add remote JAR repository", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit remote JAR repository", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete remote JAR repository", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    // ============================================================
-    // Languages & Frameworks Section
-    // ============================================================
-    @Composable
-    private fun LanguagesFrameworksSection(subItems: List<SettingsItem>) {
-        SectionHeader("Languages & Frameworks")
-        subItems.forEach { item ->
-            SettingRow(item.label, "") { when (item.id) {
-                "l1" -> showCppDialog()
-                "l2" -> showAndroidSdkDialog()
-                "l3" -> showJvmLoggingDialog()
-                "l4" -> showKotlinDialog()
-                "l5" -> showMarkdownDialog()
-                "l6" -> showMermaidDialog()
-                "l7" -> showSchemasAndDtdsDialog()
-                "l8" -> showTemplateDataLanguagesDialog()
-                else -> logClick("Languages: ${item.label}")
-            } }
-        }
-    }
-
-    private fun showCppDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("C/C++")
-            .setMessage("Configure C/C++ compiler and debugger settings.")
-            .setItems(arrayOf("Compiler Path", "Debugger Path", "CMake Settings")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "C/C++ compiler path", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "C/C++ debugger path", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "CMake settings", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showAndroidSdkDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Android SDK")
-            .setMessage("Configure Android SDK location and components.")
-            .setItems(arrayOf("SDK Path", "SDK Components", "SDK Update")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Android SDK path", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "SDK components", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "SDK update", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showJvmLoggingDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("JVM Logging")
-            .setMessage("Configure JVM logging options.")
-            .setItems(arrayOf("Log Level", "Log File", "Log Rotation")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "JVM log level", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "JVM log file", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Log rotation", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showKotlinDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Kotlin")
-            .setMessage("Configure Kotlin compiler and settings.")
-            .setItems(arrayOf("Kotlin Version", "Compiler Options", "Coroutines")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Kotlin version", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Kotlin compiler options", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Kotlin coroutines", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showMarkdownDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Markdown")
-            .setMessage("Configure Markdown editor settings.")
-            .setItems(arrayOf("Preview Engine", "Default Layout", "Preview Font Size")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Markdown preview engine", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Default layout", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Preview font size", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showMermaidDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Mermaid")
-            .setMessage("Configure Mermaid diagram rendering.")
-            .setItems(arrayOf("Theme", "Diagram Type", "Rendering Engine")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Mermaid theme", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Diagram type", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Rendering engine", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showSchemasAndDtdsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Schemas and DTDs")
-            .setMessage("Configure external schemas and DTDs.")
-            .setItems(arrayOf("External Schemas", "Ignored Schemas", "Add Schema URL")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "External schemas", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Ignored schemas", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Add schema URL", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showTemplateDataLanguagesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Template Data Languages")
-            .setMessage("Configure template data language mappings.")
-            .setItems(arrayOf("Add Mapping...", "Edit Mapping...", "Delete Mapping")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Add template mapping", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Edit template mapping", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Delete template mapping", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    // ============================================================
-    // Tools Section
-    // ============================================================
-    @Composable
-    private fun ToolsSection() {
-        SectionHeader("Tools")
-        val tools = listOf(
-            SettingsItem("t1", "Device Manager"),
-            SettingsItem("t2", "SDK Manager"),
-            SettingsItem("t3", "Resource Manager"),
-            SettingsItem("t4", "AGP Upgrade Assistant..."),
-            SettingsItem("t5", "Android SDK Upgrade Assistant"),
-            SettingsItem("t6", "Troubleshoot Device Connections"),
-            SettingsItem("t7", "App Links Assistant"),
-            SettingsItem("t8", "Firebase"),
-            SettingsItem("t9", "Layout Inspector"),
-            SettingsItem("t10", "Generate Javadoc..."),
-            SettingsItem("t11", "Create Command Line Launcher..."),
-            SettingsItem("t12", "Services"),
-            SettingsItem("t13", "Markdown"),
-            SettingsItem("t14", "XML Actions"),
-            SettingsItem("t15", "Cling"),
-            SettingsItem("t16", "Groovy Console"),
-            SettingsItem("t17", "Kotlin")
-        )
-        tools.forEach { tool ->
-            SettingRow(tool.label, "") { when (tool.id) {
-                "t1" -> showDeviceManagerDialog()
-                "t2" -> showSdkManagerDialog()
-                "t3" -> showResourceManagerDialog()
-                "t4" -> showAgpUpgradeDialog()
-                "t5" -> showAndroidSdkUpgradeDialog()
-                "t6" -> showTroubleshootDeviceDialog()
-                "t7" -> showAppLinksDialog()
-                "t8" -> showFirebaseDialog()
-                "t9" -> showLayoutInspectorDialog()
-                "t10" -> showGenerateJavadocDialog()
-                "t11" -> showCreateCliLauncherDialog()
-                "t12" -> showServicesDialog()
-                "t13" -> showToolsMarkdownDialog()
-                "t14" -> showXmlActionsDialog()
-                "t15" -> showClingDialog()
-                "t16" -> showGroovyConsoleDialog()
-                "t17" -> showToolsKotlinDialog()
-                else -> logClick("Tools: ${tool.label}")
-            } }
-        }
-    }
-
-    private fun showDeviceManagerDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Device Manager")
-            .setMessage("Manage connected Android devices.")
-            .setItems(arrayOf("ADB Restart", "Device Scan", "Connection Test")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "ADB restart", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Device scan", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Connection test", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showSdkManagerDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("SDK Manager")
-            .setMessage("Manage Android SDK components.")
-            .setItems(arrayOf("JDK 21 Download", "NDK Download", "Gradle Download", "Glibc Download")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "JDK 21 download", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "NDK download", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Gradle download", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "Glibc download", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showResourceManagerDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Resource Manager")
-            .setMessage("Manage images, vectors, fonts, and strings.")
-            .setItems(arrayOf("Images (drawable)", "Vectors (vector)", "Fonts (font)", "Strings (strings)")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Image resources", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Vector resources", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Font resources", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "String resources", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showAgpUpgradeDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("AGP Upgrade Assistant")
-            .setMessage("Upgrade Android Gradle Plugin version.")
-            .setItems(arrayOf("8.0.0", "8.1.0", "8.2.0", "8.3.0")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "AGP 8.0.0 upgrade", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "AGP 8.1.0 upgrade", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "AGP 8.2.0 upgrade", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "AGP 8.3.0 upgrade", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showAndroidSdkUpgradeDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Android SDK Upgrade Assistant")
-            .setMessage("Update Android SDK tools.")
-            .setItems(arrayOf("SDK Tools", "Platform-Tools", "Build-Tools", "Android API 34")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "SDK Tools update", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Platform-Tools update", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Build-Tools update", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "Android API 34 update", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showTroubleshootDeviceDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Troubleshoot Device Connections")
-            .setMessage("Diagnose ADB and device connection issues.")
-            .setItems(arrayOf("ADB Scan", "Connection Test", "Log View")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "ADB scan", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Connection test", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Log view", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showAppLinksDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("App Links Assistant")
-            .setMessage("Verify and manage app links.")
-            .setItems(arrayOf("Verify App Links", "Manage App Links", "Remove App Links")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Verify app links", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Manage app links", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Remove app links", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showFirebaseDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Firebase")
-            .setMessage("Connect to Firebase services.")
-            .setItems(arrayOf("Project Connection", "Auth Setup", "Firestore Setup", "Cloud Messaging")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Firebase project connection", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Firebase Auth setup", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Firebase Firestore setup", Toast.LENGTH_SHORT).show()
-                    3 -> Toast.makeText(this@SettingsActivity, "Firebase Cloud Messaging", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showLayoutInspectorDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Layout Inspector")
-            .setMessage("Inspect layout hierarchy.")
-            .setPositiveButton("Open Inspector") { _, _ ->
-                Toast.makeText(this@SettingsActivity, "Layout Inspector opened", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showGenerateJavadocDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Generate Javadoc...")
-            .setMessage("Generate API documentation from sources.")
-            .setItems(arrayOf("app Module", "Library Module", "Whole Project")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Generate Javadoc: app module", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Generate Javadoc: library module", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Generate Javadoc: whole project", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showCreateCliLauncherDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Create Command Line Launcher...")
-            .setMessage("Generate shell launcher script.")
-            .setView(EditText(this@SettingsActivity).apply { setText("studio") })
-            .setPositiveButton("Generate") { _, _ ->
-                Toast.makeText(this@SettingsActivity, "CLI launcher generated", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showServicesDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Services")
-            .setMessage("Manage background services.")
-            .setItems(arrayOf("Service List", "Start Service", "Stop Service")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Service list", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Start service", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Stop service", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showToolsMarkdownDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Markdown")
-            .setMessage("Configure Markdown editor.")
-            .setItems(arrayOf("Open Markdown File", "Preview Settings", "Export to HTML")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Open Markdown file", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Preview settings", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Export to HTML", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }    private fun showXmlActionsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("XML Actions")
-            .setMessage("Quick XML transformations.")
-            .setItems(arrayOf("XML Formatting", "XML Validation", "JSON Conversion")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "XML formatting", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "XML validation", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "JSON conversion", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showClingDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Cling")
-            .setMessage("UPnP/discovery tools.")
-            .setItems(arrayOf("UPnP Device Scan", "UPnP Service Discovery")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "UPnP device scan", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "UPnP service discovery", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showGroovyConsoleDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Groovy Console")
-            .setMessage("Run Groovy scripts.")
-            .setView(EditText(this@SettingsActivity).apply { setHint("println 'Hello, Groovy!'") })
-            .setPositiveButton("Run") { _, _ ->
-                Toast.makeText(this@SettingsActivity, "Groovy script executed", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showToolsKotlinDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Kotlin REPL")
-            .setMessage("Run Kotlin code.")
-            .setView(EditText(this@SettingsActivity).apply { setHint("println(\"Hello, Kotlin!\")") })
-            .setPositiveButton("Run") { _, _ ->
-                Toast.makeText(this@SettingsActivity, "Kotlin code executed", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-
-    // ============================================================
-    // Backup and Sync Section
-    // ============================================================
-    @Composable
-    private fun BackupSyncSection() {
-        SectionHeader("Backup and Sync")
-        SettingRow("Enable backup and sync", get("backup_email", "mobilestudio.aide@gmail.com")) {
-            showBackupSyncDialog()
-        }
-    }
-
-    // ============================================================
-    // Advanced Settings Section
-    // ============================================================
-    @Composable
-    private fun AdvancedSection() {
-        SectionHeader("Advanced Settings")
-        SettingRow("Attach scripts dependencies sources", "") { showAttachScriptsDialog() }
-        SettingRow("Timeout to execute compiler (in seconds)", "60") { showCompilerTimeoutDialog() }
-        SettingRow("Show all files in External Sources", "") { toggleSetting("external_sources", "Show all files in External Sources") }
-        SettingRow("Use Clangd-based indexer", "") { toggleSetting("clangd_indexer", "Use Clangd-based indexer") }
-        SettingRow("Keep obsolete ASTs in clangd", "") { toggleSetting("clangd_keep_asts", "Keep obsolete ASTs in clangd") }
-        SettingRow("All-in-one Diff for Code Reviews", "") { toggleSetting("diff_all_in_one", "All-in-one Diff for Code Reviews") }
-        SettingRow("Keep increased margins for Diff threads", "") { toggleSetting("diff_margins", "Keep increased margins for Diff threads") }
-        SettingRow("Allow auto-make to start even if developed application is currently running", "") { toggleSetting("auto_make_running", "Allow auto-make while running") }
-        SettingRow("Run compilation with lower priority", "") { toggleSetting("compile_lower_priority", "Run compilation with lower priority") }
-        SettingRow("Enable unified Java/Kotlin incremental compilation implementation", "") { toggleSetting("unified_compilation", "Enable unified Java/Kotlin compilation") }
-        SettingRow("Collect a detailed debug log report in case of build failures", "") { toggleSetting("debug_log_report", "Collect detailed debug log report") }
-        SettingRow("Maximum number of recent expressions", "50") { showRecentExpressionsDialog() }
-        SettingRow("Show inline Run to Cursor popup", "") { toggleSetting("inline_run_cursor", "Show inline Run to Cursor popup") }
-        SettingRow("Basic syntax highlighting of inline code", "As plain code") { showInlineCodeHighlightDialog() }
-        SettingRow("Basic syntax highlighting of multiline code blocks", "") { toggleSetting("multiline_highlight", "Basic syntax highlighting of multiline code blocks") }
-        SettingRow("Syntax highlighting of links on code elements", "") { toggleSetting("link_highlight", "Syntax highlighting of links on code elements") }
-        SettingRow("Add background to inline and multiline code blocks", "") { toggleSetting("code_background", "Add background to inline and multiline code blocks") }
-        SettingRow("Show QuickDoc automatically during code completion in modal dialogs", "") { toggleSetting("quickdoc_auto", "Show QuickDoc automatically during code completion") }
-        SettingRow("Use undo transparent caret movement", "") { toggleSetting("undo_caret", "Use undo transparent caret movement") }
-        SettingRow("Export Settings", "") { showExportSettingsDialog() }
-        SettingRow("Import Settings", "") { showImportSettingsDialog() }
-    }
-
-    private fun showAttachScriptsDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Attach scripts dependencies sources")
-            .setMessage("Attach sources for build scripts dependencies during project import.")
-            .setItems(arrayOf("Enabled", "Disabled")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Attach scripts sources enabled", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Attach scripts sources disabled", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showCompilerTimeoutDialog() {
-        val input = EditText(this@SettingsActivity).apply {
-            setText(get("compiler_timeout", "60"))
-            setHint("seconds")
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        }
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Timeout to execute compiler (in seconds)")
-            .setView(input)
-            .setPositiveButton("OK") { _, _ ->
-                put("compiler_timeout", input.text.toString().trim())
-                Toast.makeText(this@SettingsActivity, "Compiler timeout: ${input.text} seconds", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showRecentExpressionsDialog() {
-        val input = EditText(this@SettingsActivity).apply {
-            setText(get("recent_expressions", "50"))
-            setHint("expressions")
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        }
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Maximum number of recent expressions")
-            .setView(input)
-            .setPositiveButton("OK") { _, _ ->
-                put("recent_expressions", input.text.toString().trim())
-                Toast.makeText(this@SettingsActivity, "Recent expressions: ${input.text}", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showInlineCodeHighlightDialog() {
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Basic syntax highlighting of inline code")
-            .setItems(arrayOf("As plain code", "With syntax highlighting", "Disabled")) { _, which ->
-                when (which) {
-                    0 -> Toast.makeText(this@SettingsActivity, "Inline code: As plain code", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(this@SettingsActivity, "Inline code: With syntax highlighting", Toast.LENGTH_SHORT).show()
-                    2 -> Toast.makeText(this@SettingsActivity, "Inline code: Disabled", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun toggleSetting(key: String, label: String) {
-        val current = getBool(key, false)
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle(label)
-            .setPositiveButton("OK") { _, _ ->
-                putBool(key, !current)
-                val state = if (!current) "enabled" else "disabled"
-                Toast.makeText(this@SettingsActivity, "$label: $state", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    // ============================================================
-    // Dialogs
-    // ============================================================
-    private fun showThemeDialog() {
-        val items = arrayOf("Dark", "Light", "Darcula")
-        val current = get("theme", "Dark")
-        val selectedIndex = items.indexOf(current).takeIf { it >= 0 } ?: 0
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Theme")
-            .setSingleChoiceItems(items, selectedIndex) { _, which ->
-                put("theme", items[which])
-                Toast.makeText(this@SettingsActivity, "테마: ${items[which]} (재시작 후 적용)", Toast.LENGTH_SHORT).show()
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showColorSchemeDialog() {
-        val items = arrayOf("Darcula", "Dark", "Light")
-        val current = get("color_scheme", "Darcula")
-        val selectedIndex = items.indexOf(current).takeIf { it >= 0 } ?: 0
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Color Scheme")
-            .setSingleChoiceItems(items, selectedIndex) { _, which ->
-                put("color_scheme", items[which])
-                Toast.makeText(this@SettingsActivity, "색상 체계: ${items[which]}", Toast.LENGTH_SHORT).show()
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showFontSizeDialog() {
-        val items = arrayOf("10sp", "12sp", "14sp", "16sp", "18sp", "20sp", "24sp")
-        val current = get("font_size", "14sp")
-        val selectedIndex = items.indexOf(current).takeIf { it >= 0 } ?: 2
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Font Size")
-            .setSingleChoiceItems(items, selectedIndex) { _, which ->
-                put("font_size", items[which])
-                Toast.makeText(this@SettingsActivity, "글꼴 크기: ${items[which]}", Toast.LENGTH_SHORT).show()
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showFontFamilyDialog() {
-        val items = arrayOf("Monospace", "Sans-serif", "Serif", "System Default")
-        val current = get("font_family", "Monospace")
-        val selectedIndex = items.indexOf(current).takeIf { it >= 0 } ?: 0
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Font Family")
-            .setSingleChoiceItems(items, selectedIndex) { _, which ->
-                put("font_family", items[which])
-                Toast.makeText(this@SettingsActivity, "글꼴: ${items[which]}", Toast.LENGTH_SHORT).show()
-            }
-            .setPositiveButton("OK", null)
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showBackupSyncDialog() {
-        val emailInput = EditText(this@SettingsActivity).apply {
-            setText(get("backup_email", "mobilestudio.aide@gmail.com"))
-            setHint("mobilestudio.aide@gmail.com")
-        }
-        val enableCheck = android.widget.CheckBox(this@SettingsActivity).apply {
-            text = "Enable backup and sync"
-            isChecked = getBool("backup_enabled", false)
-        }
-        val layout = android.widget.LinearLayout(this@SettingsActivity).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(24, 24, 24, 24)
-            addView(android.widget.TextView(this@SettingsActivity).apply {
-                text = "Sync UI, Code and System settings, Keymaps, Plugins, and Tools."
-                textSize = 14f
-                setTextColor(android.graphics.Color.parseColor("#E0E0E0"))
-            })
-            addView(android.widget.TextView(this@SettingsActivity).apply {
-                text = "Google Account Email"
-                textSize = 14f
-                setTextColor(android.graphics.Color.parseColor("#82AAFF"))
-            })
-            addView(emailInput)
-            addView(enableCheck)
-        }
-        AlertDialog.Builder(this@SettingsActivity)
-            .setTitle("Backup and Sync")
-            .setView(layout)
-            .setPositiveButton("Apply") { _, _ ->
-                put("backup_email", emailInput.text.toString().trim())
-                putBool("backup_enabled", enableCheck.isChecked)
-                Toast.makeText(this@SettingsActivity, "Backup settings saved", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun logClick(msg: String) {
-        android.util.Log.i("SettingsActivity", "click: $msg")
-        Toast.makeText(this@SettingsActivity, "$msg (준비 중)", Toast.LENGTH_SHORT).show()
-    }
-
-    // ============================================================
-    // Common UI Components
-    // ============================================================
-    @Composable
-    private fun SectionHeader(text: String) {
+    private fun NoteRow(text: String) {
         Text(
-            text = text,
-            color = ComposeColor(0xFF82AAFF),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 20.dp, bottom = 12.dp)
+            text,
+            color = Palette.dimText,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
         )
-        Divider(color = ComposeColor(0xFF3A3A4A), modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
     }
 
     @Composable
-    private fun SettingRow(title: String, value: String, onClick: () -> Unit) {
-        val cardColor = ComposeColor(0xFF2A2A2E)
-        Card(
+    private fun LinkRow(label: String, onClick: () -> Unit) {
+        Text(
+            label,
+            color = Palette.link,
+            fontSize = 15.sp,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
                 .clickable { onClick() }
-            ,
-            colors = CardDefaults.cardColors(containerColor = cardColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            shape = RoundedCornerShape(8.dp)
+                .padding(vertical = 5.dp),
+        )
+    }
+
+    @Composable
+    private fun ActionRow(label: String, onClick: () -> Unit) {
+        Text(
+            label,
+            color = Palette.link,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .padding(vertical = 7.dp),
+        )
+    }
+
+    @Composable
+    private fun HLine() {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.divider))
+    }
+
+    @Composable
+    private fun Collapsible(title: String, content: @Composable ColumnScope.() -> Unit) {
+        var open by remember { mutableStateOf(false) }
+        Row(
+            Modifier.fillMaxWidth().clickable { open = !open }.padding(top = 14.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
+            Text(if (open) "▾" else "▸", color = Palette.dimText, fontSize = 11.sp)
+            Spacer(Modifier.width(6.dp))
+            Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.weight(1f).height(1.dp).background(Palette.divider))
+        }
+        if (open) {
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp), content = content)
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Appearance & Behavior > Appearance
+    // ------------------------------------------------------------
+    @Composable
+    private fun AppearancePage(go: (String) -> Unit) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Configure the appearance of the IDE.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SectionRow("Theme")
+            ComboRow(
+                label = "Theme:",
+                options = listOf("Dark", "Light", "Darcula"),
+                value = get("theme", "Dark"),
+                desc = "Takes effect after restarting the app.",
+            ) { put("theme", it) }
+            ComboRow(
+                label = "Color scheme:",
+                options = listOf("Darcula", "Dark", "Light"),
+                value = get("color_scheme", "Darcula"),
+                desc = "",
+            ) { put("color_scheme", it) }
+            SectionRow("Editor")
+            LinkRow("Font") { go("ed_font") }
+            LinkRow("Color Scheme") { go("ed_color_scheme") }
+            SectionRow("System")
+            LinkRow("System Settings") { go("system_settings") }
+            LinkRow("Notifications") { go("notifications") }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Appearance & Behavior > System Settings (real device data)
+    // ------------------------------------------------------------
+    @Composable
+    private fun SystemInfoPage() {
+        val version = remember {
+            runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown" }
+                .getOrDefault("unknown")
+        }
+        val abi = remember { Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown" }
+        val heapMb = remember { Runtime.getRuntime().maxMemory() / (1024 * 1024) }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Environment information reported by this device.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SectionRow("Application")
+            InfoRow("Version", version)
+            InfoRow("Package", packageName)
+            SectionRow("Device")
+            InfoRow("Manufacturer", Build.MANUFACTURER ?: "unknown")
+            InfoRow("Model", Build.MODEL ?: "unknown")
+            InfoRow("Android", "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+            InfoRow("Primary ABI", abi)
+            SectionRow("Runtime")
+            InfoRow("Max heap", "$heapMb MB")
+            InfoRow("Files directory", filesDir.absolutePath)
+            InfoRow("Cache directory", cacheDir.absolutePath)
+            InfoRow("Toolchain", File(filesDir, "toolchain").absolutePath)
+            InfoRow("Gradle user home", File(filesDir, ".gradle").absolutePath)
+            InfoRow("AI models", File(filesDir, "AI/models").absolutePath)
+        }
+    }
+
+    @Composable
+    private fun InfoRow(label: String, value: String) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 5.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text(
+                label,
+                color = Palette.text,
+                fontSize = 14.sp,
+                modifier = Modifier.width(132.dp),
+            )
+            Text(
+                value,
+                color = Palette.dimText,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                lineHeight = 17.sp,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Editor > Font
+    // ------------------------------------------------------------
+    @Composable
+    private fun FontPage() {
+        val family = get("font_family", "Monospace")
+        val sizeSp = get("font_size", "14sp").removeSuffix("sp").toIntOrNull() ?: 14
+        Column(Modifier.fillMaxWidth()) {
+            SectionRow("Editor font")
+            ComboRow(
+                label = "Font family:",
+                options = listOf("Monospace", "Sans-serif", "Serif", "System Default"),
+                value = family,
+                desc = "",
+            ) { put("font_family", it) }
+            ComboRow(
+                label = "Font size:",
+                options = listOf("10sp", "12sp", "14sp", "16sp", "18sp", "20sp", "24sp"),
+                value = "${sizeSp}sp",
+                desc = "Used by the code editor.",
+            ) { put("font_size", it) }
+            SectionRow("Preview")
+            Box(
+                Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .background(Palette.fieldBg)
+                    .border(1.dp, Palette.border, RoundedCornerShape(4.dp))
+                    .padding(12.dp),
             ) {
                 Text(
-                    text = title,
-                    color = ComposeColor.White,
-                    fontSize = 14.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                if (value.isNotEmpty()) {
-                    Text(
-                        text = value,
-                        color = ComposeColor(0xFF82AAFF),
-                        fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "›",
-                    color = ComposeColor(0xFF666666),
-                    fontSize = 16.sp,
+                    "class SettingsActivity : ComponentActivity() {\n" +
+                        "    private val prefs = \"mobilestudio_settings\"\n" +
+                        "}",
+                    color = Color(0xFFA9B7C6),
+                    fontSize = sizeSp.sp,
+                    fontFamily = when (family) {
+                        "Sans-serif" -> FontFamily.SansSerif
+                        "Serif" -> FontFamily.Serif
+                        else -> FontFamily.Monospace
+                    },
+                    lineHeight = (sizeSp + 4).sp,
                 )
             }
         }
+    }
+
+    // ------------------------------------------------------------
+    // Editor > Color Scheme
+    // ------------------------------------------------------------
+    @Composable
+    private fun ColorSchemePage() {
+        val scheme = get("color_scheme", "Darcula")
+        val light = scheme == "Light"
+        val keyword = if (light) Color(0xFF0000CC) else Color(0xFFCC7832)
+        val string = if (light) Color(0xFF008000) else Color(0xFF6A8759)
+        val text = if (light) Color(0xFF000000) else Color(0xFFA9B7C6)
+        val bg = if (light) Color(0xFFFFFFFF) else Color(0xFF2B2B2B)
+
+        Column(Modifier.fillMaxWidth()) {
+            SectionRow("Color scheme")
+            ComboRow(
+                label = "Scheme:",
+                options = listOf("Darcula", "Dark", "Light"),
+                value = scheme,
+                desc = "Applied to the editor highlighting.",
+            ) { put("color_scheme", it) }
+            SectionRow("Preview")
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(bg)
+                    .border(1.dp, Palette.border, RoundedCornerShape(4.dp))
+                    .padding(12.dp),
+            ) {
+                Column {
+                    Text("class Greeter {", color = keyword, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Text(
+                        "    val name = \"MobileStudio\"",
+                        color = string,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                    Text("}", color = keyword, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Text(
+                        "    // plain comment",
+                        color = text,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Keymap (real menu actions and shortcuts)
+    // ------------------------------------------------------------
+    @Composable
+    private fun KeymapPage() {
+        var q by remember { mutableStateOf("") }
+        val query = q.trim().lowercase()
+        val groups = remember(query) {
+            keymapGroups.map { g ->
+                g to g.actions.filter {
+                    query.isEmpty() ||
+                        it.first.lowercase().contains(query) ||
+                        g.menu.lowercase().contains(query)
+                }
+            }.filter { it.second.isNotEmpty() }
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Actions from the menu bar and their keyboard shortcuts.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+            SearchBox(q) { q = it }
+            groups.forEach { (group, actions) ->
+                SectionRow(group.menu)
+                actions.forEach { (name, shortcut) ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            name,
+                            color = Palette.text,
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            shortcut.ifBlank { "—" },
+                            color = Palette.dimText,
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                }
+            }
+            if (groups.isEmpty()) {
+                NoteRow("No matching actions.")
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Plugins (real build info)
+    // ------------------------------------------------------------
+    @Composable
+    private fun PluginsPage() {
+        val version = remember {
+            runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown" }
+                .getOrDefault("unknown")
+        }
+        val components = remember {
+            listOf(
+                "Kotlin" to "Language support and compiler integration",
+                "Markdown" to "Markdown editing and preview",
+                "Mermaid" to "Mermaid diagram rendering",
+                "Git" to "Version control integration",
+                "Terminal" to "Embedded shell",
+                "Logcat" to "Device log viewer",
+                "Layout Inspector" to "View hierarchy inspection",
+                "Compose Preview" to "Compose @Preview rendering",
+                "Diff Viewer" to "Side-by-side file comparison",
+                "APK Editor" to "Re-sign, split, merge, and inspect APKs",
+                "Archive Viewer" to "Browse .zip and .tar.gz archives",
+                "Gradle" to "Gradle build integration",
+                "Android SDK tools" to "SDK, NDK, and CMake management",
+                "llama.cpp AI" to "Local AI assistant (llama.cpp engine)",
+            )
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Components bundled with this build of MobileStudio.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SectionRow("Bundled components (${components.size})")
+            components.forEach { (name, desc) ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(desc, color = Palette.dimText, fontSize = 12.sp, lineHeight = 16.sp)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "bundled",
+                        color = Palette.dimText,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .background(Palette.fieldBg, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+            SectionRow("About")
+            InfoRow("Version", version)
+            InfoRow("Package", packageName)
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Version Control > Git (real executable detection)
+    // ------------------------------------------------------------
+    @Composable
+    private fun GitPage() {
+        var tick by remember { mutableStateOf(0) }
+        var foundPath by remember { mutableStateOf<String?>(null) }
+        var version by remember { mutableStateOf("") }
+        var checked by remember { mutableStateOf(false) }
+
+        LaunchedEffect(tick) {
+            checked = false
+            withContext(Dispatchers.IO) {
+                val candidates = listOf(
+                    File(filesDir, "toolchain/git/bin/git"),
+                    File(filesDir, "files/usr/bin/git"),
+                    File("/system/bin/git"),
+                    File("/system/xbin/git"),
+                    File("/data/data/com.termux/files/usr/bin/git"),
+                )
+                var found: File? = candidates.firstOrNull { it.isFile && it.canExecute() }
+                if (found == null) {
+                    val pathDirs = (System.getenv("PATH") ?: "").split(":").filter { it.isNotBlank() }
+                    found = pathDirs.firstNotNullOfOrNull { d ->
+                        File(d, "git").takeIf { it.isFile && it.canExecute() }
+                    }
+                }
+                if (found != null) {
+                    foundPath = found.absolutePath
+                    version = runCatching {
+                        val p = ProcessBuilder(found.absolutePath, "--version")
+                            .redirectErrorStream(true)
+                            .start()
+                        val out = p.inputStream.bufferedReader().readText()
+                        p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+                        p.destroy()
+                        out.trim().lineSequence().firstOrNull() ?: ""
+                    }.getOrDefault("")
+                } else {
+                    foundPath = null
+                    version = ""
+                }
+            }
+            checked = true
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Git operations use the Git executable found on this device.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SectionRow("Git executable")
+            when {
+                !checked -> NoteRow("Searching for Git…")
+                foundPath == null -> NoteRow(
+                    "No Git executable found on this device. Clone, commit, and push are unavailable " +
+                        "until Git is installed.",
+                )
+                else -> {
+                    InfoRow("Path", foundPath ?: "")
+                    InfoRow("Version", version.ifBlank { "unknown" })
+                }
+            }
+            ActionRow("Refresh") { tick++ }
+            SectionRow("User")
+            InfoRow("User name", get("git_user_name", "(not set)"))
+            InfoRow("User email", get("git_user_email", "(not set)"))
+            FieldRow(
+                label = "Name:",
+                value = get("git_user_name", ""),
+                numeric = false,
+                desc = "",
+            ) { put("git_user_name", it) }
+            FieldRow(
+                label = "Email:",
+                value = get("git_user_email", ""),
+                numeric = false,
+                desc = "",
+            ) { put("git_user_email", it) }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Build, Execution, Deployment > Build Tools (real toolchain data)
+    // ------------------------------------------------------------
+    private data class JdkEntry(val version: String, val path: String, val javaVersion: String)
+
+    private fun jdkVersionOf(home: File): String {
+        val rel = File(home, "release")
+        if (rel.isFile) {
+            val txt = runCatching { rel.readText() }.getOrDefault("")
+            Regex("""JAVA_VERSION="?([^"\n]+)"?""").find(txt)?.let { return it.groupValues[1] }
+        }
+        return ""
+    }
+
+    @Composable
+    private fun BuildToolsPage() {
+        var tick by remember { mutableStateOf(0) }
+        var loading by remember { mutableStateOf(true) }
+        var jdkEntries by remember { mutableStateOf<List<JdkEntry>>(emptyList()) }
+        var jdkActive by remember { mutableStateOf<String?>(null) }
+        var jdkHome by remember { mutableStateOf("") }
+        var gradleVersions by remember { mutableStateOf<List<String>>(emptyList()) }
+        var gradleActive by remember { mutableStateOf<String?>(null) }
+        var gradleHome by remember { mutableStateOf("") }
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(tick) {
+            loading = true
+            withContext(Dispatchers.IO) {
+                val tc = ToolchainManager(this@SettingsActivity)
+                jdkEntries = tc.installedVersions(ToolchainManager.Kind.JDK).map { v ->
+                    val dir = File(tc.kindDir(ToolchainManager.Kind.JDK), v)
+                    val home = tc.resolveJdkHome(dir) ?: dir
+                    JdkEntry(v, home.absolutePath, jdkVersionOf(home))
+                }
+                jdkActive = tc.activeVersion(ToolchainManager.Kind.JDK)
+                jdkHome = tc.activeJdkHome()?.absolutePath ?: "Not found"
+                gradleVersions = tc.installedVersions(ToolchainManager.Kind.GRADLE)
+                gradleActive = tc.activeVersion(ToolchainManager.Kind.GRADLE)
+                gradleHome = tc.activeDir(ToolchainManager.Kind.GRADLE)?.absolutePath ?: "Not found"
+            }
+            loading = false
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Gradle build settings and the toolchain used to run builds.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+
+            if (loading) {
+                NoteRow("Loading toolchain…")
+            }
+
+            SectionRow("Gradle")
+            InfoRow("Gradle home", gradleHome)
+            InfoRow("Gradle user home", File(filesDir, ".gradle").absolutePath)
+            if (gradleVersions.isEmpty()) {
+                NoteRow("No Gradle distribution installed yet.")
+            } else {
+                gradleVersions.forEach { v ->
+                    SelectRow(
+                        label = v,
+                        sub = "",
+                        selected = v == gradleActive,
+                    ) {
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                ToolchainManager(this@SettingsActivity)
+                                    .setActiveVersion(ToolchainManager.Kind.GRADLE, v)
+                            }
+                            toast(if (ok) "Active Gradle: $v" else "Could not activate $v")
+                            tick++
+                        }
+                    }
+                }
+            }
+
+            SectionRow("Gradle JVM")
+            InfoRow("JAVA_HOME", jdkHome)
+            if (jdkEntries.isEmpty()) {
+                NoteRow(
+                    "No JDK installed. Download one from Tools > Download Manager; installed JDKs " +
+                        "appear here.",
+                )
+            } else {
+                jdkEntries.forEach { jdk ->
+                    val active = jdk.version == jdkActive
+                    SelectRow(
+                        label = if (active) "${jdk.version}  (default)" else jdk.version,
+                        sub = buildString {
+                            if (jdk.javaVersion.isNotBlank()) {
+                                append("Java ${jdk.javaVersion}")
+                                append("  ·  ")
+                            }
+                            append(jdk.path)
+                        },
+                        selected = active,
+                    ) {
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                ToolchainManager(this@SettingsActivity)
+                                    .setActiveVersion(ToolchainManager.Kind.JDK, jdk.version)
+                            }
+                            toast(if (ok) "Active JDK: ${jdk.version}" else "Could not activate ${jdk.version}")
+                            tick++
+                        }
+                    }
+                }
+            }
+
+            SectionRow("Memory")
+            NumberRow(
+                label = "Gradle heap (MB):",
+                value = btcInt("gradle_heap") { BuildToolsConfig.gradleHeapMb(this@SettingsActivity) },
+            ) { putBtc("gradle_heap", it) }
+            NumberRow(
+                label = "Gradle metaspace (MB):",
+                value = btcInt("gradle_metaspace") { BuildToolsConfig.gradleMetaspaceMb(this@SettingsActivity) },
+            ) { putBtc("gradle_metaspace", it) }
+            NumberRow(
+                label = "Kotlin heap (MB):",
+                value = btcInt("kotlin_heap") { BuildToolsConfig.kotlinHeapMb(this@SettingsActivity) },
+            ) { putBtc("kotlin_heap", it) }
+            NumberRow(
+                label = "Max worker threads:",
+                value = btcInt("max_workers") { BuildToolsConfig.maxWorkers(this@SettingsActivity) },
+            ) { putBtc("max_workers", it) }
+
+            SectionRow("Build")
+            CheckRow(
+                checked = btcBool("parallel") { BuildToolsConfig.parallel(this@SettingsActivity) },
+                label = "Run build in parallel",
+                desc = "Executes independent tasks concurrently.",
+            ) { putBtc("parallel", it) }
+            CheckRow(
+                checked = btcBool("build_cache") { BuildToolsConfig.buildCache(this@SettingsActivity) },
+                label = "Enable build cache",
+                desc = "Reuses task outputs between builds.",
+            ) { putBtc("build_cache", it) }
+            CheckRow(
+                checked = btcBool("daemon") { BuildToolsConfig.daemon(this@SettingsActivity) },
+                label = "Enable Gradle daemon",
+                desc = "Keeps a long-lived Gradle process for faster builds.",
+            ) { putBtc("daemon", it) }
+            ComboRow(
+                label = "Console output:",
+                options = listOf("plain", "console", "rich"),
+                value = btcStr("console") { BuildToolsConfig.console(this@SettingsActivity) },
+                desc = "",
+            ) { putBtc("console", it) }
+            CheckRow(
+                checked = btcBool("verbose") { BuildToolsConfig.gradleVerbose(this@SettingsActivity) },
+                label = "Verbose Gradle output",
+                desc = "Prints full Gradle diagnostics to the build log.",
+            ) { putBtc("verbose", it) }
+
+            SectionRow("Advanced")
+            ActionRow("Open advanced Build Tools settings") {
+                BuildToolsSettingsActivity.start(this@SettingsActivity)
+            }
+        }
+    }
+
+    @Composable
+    private fun SelectRow(label: String, sub: String, selected: Boolean, onClick: () -> Unit) {
+        Row(
+            Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 5.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text(
+                if (selected) "●" else "○",
+                color = if (selected) Palette.link else Palette.dimText,
+                fontSize = 14.sp,
+                modifier = Modifier.width(22.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    label,
+                    color = if (selected) Color.White else Palette.text,
+                    fontSize = 14.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                )
+                if (sub.isNotBlank()) {
+                    Text(
+                        sub,
+                        color = Palette.dimText,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        lineHeight = 16.sp,
+                    )
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Languages & Frameworks > C/C++ children (real tool detection)
+    // ------------------------------------------------------------
+    @Composable
+    private fun NativeToolPage(title: String, binary: String) {
+        var tick by remember { mutableStateOf(0) }
+        var loading by remember { mutableStateOf(true) }
+        var path by remember { mutableStateOf<String?>(null) }
+
+        LaunchedEffect(tick) {
+            loading = true
+            withContext(Dispatchers.IO) {
+                val root = File(filesDir, "toolchain")
+                var found: File? = null
+                if (root.isDirectory) {
+                    runCatching {
+                        root.walkTopDown().maxDepth(6).forEach { f ->
+                            if (found == null && f.isFile && f.name == binary && f.canExecute()) {
+                                found = f
+                            }
+                        }
+                    }
+                }
+                path = found?.absolutePath
+            }
+            loading = false
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "$title settings. The executable is located inside the installed toolchain.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SectionRow("Executable")
+            when {
+                loading -> NoteRow("Searching the toolchain…")
+                path == null -> NoteRow(
+                    "$title was not found. Install the LLVM or NDK toolchain to use it.",
+                )
+                else -> InfoRow("Path", path ?: "")
+            }
+            ActionRow("Refresh") { tick++ }
+            SectionRow("Options")
+            CheckRow(
+                checked = getBool("${binary}_enabled", true),
+                label = "Enable $title",
+                desc = "Runs $title during code analysis.",
+            ) { putBool("${binary}_enabled", it) }
+            FieldRow(
+                label = "Extra arguments:",
+                value = get("${binary}_args", ""),
+                numeric = false,
+                desc = "",
+            ) { put("${binary}_args", it) }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Languages & Frameworks > Android SDK (real SDK contents)
+    // ------------------------------------------------------------
+    @Composable
+    private fun AndroidSdkPage() {
+        var tick by remember { mutableStateOf(0) }
+        var loading by remember { mutableStateOf(true) }
+        var sdkFile by remember { mutableStateOf<File?>(null) }
+        var topPackages by remember { mutableStateOf<List<String>>(emptyList()) }
+        var platforms by remember { mutableStateOf<List<String>>(emptyList()) }
+        var buildToolsList by remember { mutableStateOf<List<String>>(emptyList()) }
+        var ndkList by remember { mutableStateOf<List<Pair<String, Boolean>>>(emptyList()) }
+        var cmakeList by remember { mutableStateOf<List<Pair<String, Boolean>>>(emptyList()) }
+        var adbPath by remember { mutableStateOf<String?>(null) }
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(tick) {
+            loading = true
+            withContext(Dispatchers.IO) {
+                val tc = ToolchainManager(this@SettingsActivity)
+                val sdk = BuildToolchain.sdkDir(this@SettingsActivity)
+                sdkFile = sdk
+                topPackages = sdk?.listFiles()?.map { it.name }?.sorted() ?: emptyList()
+                platforms = File(sdk, "platforms").listFiles()?.map { it.name }?.sorted() ?: emptyList()
+                buildToolsList = File(sdk, "build-tools").listFiles()?.map { it.name }?.sorted()
+                    ?: emptyList()
+                val activeNdk = tc.activeVersion(ToolchainManager.Kind.NDK)
+                ndkList = tc.installedVersions(ToolchainManager.Kind.NDK).map { it to (it == activeNdk) }
+                val activeCmake = tc.activeVersion(ToolchainManager.Kind.CMAKE)
+                cmakeList = tc.installedVersions(ToolchainManager.Kind.CMAKE).map {
+                    it to (it == activeCmake)
+                }
+                val adb = File(sdk, "platform-tools/adb")
+                adbPath = if (adb.isFile) adb.absolutePath else null
+            }
+            loading = false
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Android SDK location and installed components.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+
+            if (loading) {
+                NoteRow("Loading SDK…")
+            }
+
+            SectionRow("SDK location")
+            val sdk = sdkFile
+            if (sdk == null) {
+                NoteRow(
+                    "Android SDK not found. Install it from Tools > Download Manager or SDK Manager.",
+                )
+            } else {
+                InfoRow("Path", sdk.absolutePath)
+                ActionRow("Open SDK folder") {
+                    ToolchainFileExplorerActivity.startAt(
+                        this@SettingsActivity,
+                        "Android SDK",
+                        sdk,
+                    )
+                }
+            }
+
+            SectionRow("Platforms (${platforms.size})")
+            if (platforms.isEmpty()) NoteRow("No platforms installed.")
+            platforms.forEach { InfoRow(it, "platform") }
+
+            SectionRow("Build tools (${buildToolsList.size})")
+            if (buildToolsList.isEmpty()) NoteRow("No build tools installed.")
+            buildToolsList.forEach { InfoRow(it, "build-tools") }
+
+            SectionRow("Installed packages (${topPackages.size})")
+            if (topPackages.isEmpty()) NoteRow("No packages installed.")
+            topPackages.forEach { InfoRow(it, "") }
+
+            SectionRow("NDK (${ndkList.size})")
+            if (ndkList.isEmpty()) NoteRow("No NDK installed.")
+            ndkList.forEach { (version, active) ->
+                SelectRow(
+                    label = if (active) "$version  (active)" else version,
+                    sub = "",
+                    selected = active,
+                ) {
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            ToolchainManager(this@SettingsActivity)
+                                .setActiveVersion(ToolchainManager.Kind.NDK, version)
+                        }
+                        toast(if (ok) "Active NDK: $version" else "Could not activate $version")
+                        tick++
+                    }
+                }
+            }
+
+            SectionRow("CMake (${cmakeList.size})")
+            if (cmakeList.isEmpty()) NoteRow("No CMake installed.")
+            cmakeList.forEach { (version, active) ->
+                SelectRow(
+                    label = if (active) "$version  (active)" else version,
+                    sub = "",
+                    selected = active,
+                ) {
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            ToolchainManager(this@SettingsActivity)
+                                .setActiveVersion(ToolchainManager.Kind.CMAKE, version)
+                        }
+                        toast(if (ok) "Active CMake: $version" else "Could not activate $version")
+                        tick++
+                    }
+                }
+            }
+
+            SectionRow("Platform tools")
+            if (adbPath == null) NoteRow("platform-tools not installed (adb missing).")
+            else InfoRow("adb", adbPath ?: "")
+
+            ActionRow("Refresh") { tick++ }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Languages & Frameworks > JVM Logging (real log files)
+    // ------------------------------------------------------------
+    private fun formatSize(bytes: Long): String = when {
+        bytes >= 1024L * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
+        bytes >= 1024 -> "%.1f KB".format(bytes / 1024.0)
+        else -> "$bytes B"
+    }
+
+    @Composable
+    private fun JvmLoggingPage() {
+        var tick by remember { mutableStateOf(0) }
+        var logs by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+
+        LaunchedEffect(tick) {
+            withContext(Dispatchers.IO) {
+                val list = mutableListOf<Pair<String, String>>()
+                fun scan(dir: File, prefix: String) {
+                    dir.listFiles()?.forEach { f ->
+                        if (f.isFile && (f.name.endsWith(".log") || f.name.endsWith(".txt"))) {
+                            list += (prefix + f.name) to formatSize(f.length())
+                        }
+                    }
+                }
+                scan(filesDir, "")
+                scan(cacheDir, "cache/")
+                logs = list.sortedBy { it.first.lowercase() }
+            }
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Log files written by the IDE and its background services.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SectionRow("Log files (${logs.size})")
+            if (logs.isEmpty()) NoteRow("No log files yet.")
+            logs.forEach { (name, size) -> InfoRow(name, size) }
+            ActionRow("Refresh") { tick++ }
+            ActionRow("Open log directory") {
+                ToolchainFileExplorerActivity.startAt(this@SettingsActivity, "Logs", filesDir)
+            }
+            NoteRow(
+                "The background AI service appends its output to background_ai.log in the files " +
+                    "directory.",
+            )
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Languages & Frameworks > Kotlin > Kotlin Compiler
+    // ------------------------------------------------------------
+    @Composable
+    private fun KotlinCompilerPage() {
+        var tick by remember { mutableStateOf(0) }
+        var loading by remember { mutableStateOf(true) }
+        var kotlinHome by remember { mutableStateOf<String?>(null) }
+        var version by remember { mutableStateOf("") }
+
+        LaunchedEffect(tick) {
+            loading = true
+            withContext(Dispatchers.IO) {
+                val home = File(filesDir, "toolchain/kotlin")
+                if (home.isDirectory) {
+                    kotlinHome = home.absolutePath
+                    version = runCatching {
+                        home.walkTopDown().maxDepth(3)
+                            .map { it.name }
+                            .firstNotNullOfOrNull { name ->
+                                Regex("""kotlin-compiler-(\d+\.\d+\.\d+)""").find(name)
+                                    ?.groupValues?.get(1)
+                            } ?: ""
+                    }.getOrDefault("")
+                } else {
+                    kotlinHome = null
+                    version = ""
+                }
+            }
+            loading = false
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            SectionRow("Kotlin compiler")
+            when {
+                loading -> NoteRow("Loading…")
+                kotlinHome == null -> NoteRow("The Kotlin toolchain is not installed.")
+                else -> {
+                    InfoRow("Home", kotlinHome ?: "")
+                    InfoRow("Version", version.ifBlank { "unknown" })
+                }
+            }
+            ActionRow("Refresh") { tick++ }
+            ActionRow("Open Kotlin home") {
+                kotlinHome?.let {
+                    ToolchainFileExplorerActivity.startAt(
+                        this@SettingsActivity,
+                        "Kotlin",
+                        File(it),
+                    )
+                }
+            }
+            SectionRow("Compiler memory")
+            NumberRow(
+                label = "Kotlin heap (MB):",
+                value = btcInt("kotlin_heap") { BuildToolsConfig.kotlinHeapMb(this@SettingsActivity) },
+            ) { putBtc("kotlin_heap", it) }
+            NumberRow(
+                label = "Kotlin metaspace (MB):",
+                value = btcInt("kotlin_metaspace") { BuildToolsConfig.kotlinMetaspaceMb(this@SettingsActivity) },
+            ) { putBtc("kotlin_metaspace", it) }
+            NumberRow(
+                label = "Max worker threads:",
+                value = btcInt("max_workers") { BuildToolsConfig.maxWorkers(this@SettingsActivity) },
+            ) { putBtc("max_workers", it) }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Languages & Frameworks > Markdown
+    // ------------------------------------------------------------
+    @Composable
+    private fun MarkdownPage() {
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Markdown editing, preview, and export settings.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SectionRow("Preview")
+            ComboRow(
+                label = "Markdown engine:",
+                options = listOf("Internal", "GitHub", "CommonMark"),
+                value = get("md_engine", "Internal"),
+                desc = "Preview rendering engine.",
+            ) { put("md_engine", it) }
+            ComboRow(
+                label = "Layout:",
+                options = listOf("Split", "Editor", "Preview"),
+                value = get("md_layout", "Split"),
+                desc = "Default split of the Markdown editor.",
+            ) { put("md_layout", it) }
+            ComboRow(
+                label = "Split orientation:",
+                options = listOf("Horizontal", "Vertical"),
+                value = get("md_split", "Horizontal"),
+                desc = "",
+            ) { put("md_split", it) }
+            ComboRow(
+                label = "Font size:",
+                options = listOf("10sp", "12sp", "14sp", "16sp", "18sp"),
+                value = get("md_font_size", "14sp"),
+                desc = "Font size of the rendered preview.",
+            ) { put("md_font_size", it) }
+            SectionRow("Editor")
+            CheckRow(
+                checked = getBool("md_flashing", false),
+                label = "Enable Markdown flashing",
+                desc = "Highlights Markdown syntax while typing.",
+            ) { putBool("md_flashing", it) }
+            CheckRow(
+                checked = getBool("md_wikilinks", true),
+                label = "Enable Markdown wiki-links",
+                desc = "Supports [[Page]] style links.",
+            ) { putBool("md_wikilinks", it) }
+            CheckRow(
+                checked = getBool("md_emoji", true),
+                label = "Enable Markdown emoji",
+                desc = "Renders :smile: style emoji shortcodes.",
+            ) { putBool("md_emoji", it) }
+            CheckRow(
+                checked = getBool("md_open_links_external", false),
+                label = "Open links in external browser",
+                desc = "",
+            ) { putBool("md_open_links_external", it) }
+            CheckRow(
+                checked = getBool("md_line_numbers", false),
+                label = "Show line numbers",
+                desc = "",
+            ) { putBool("md_line_numbers", it) }
+            SectionRow("Diagrams")
+            CheckRow(
+                checked = getBool("md_plantuml", true),
+                label = "Enable PlantUML",
+                desc = "Renders PlantUML code blocks in the preview.",
+            ) { putBool("md_plantuml", it) }
+            ComboRow(
+                label = "PlantUML server:",
+                options = listOf("Default", "Local", "Custom"),
+                value = get("md_plantuml_server", "Default"),
+                desc = "",
+            ) { put("md_plantuml_server", it) }
+            Collapsible("Custom CSS") {
+                FieldRow(
+                    label = "CSS file path:",
+                    value = get("md_css_path", ""),
+                    numeric = false,
+                    desc = "A CSS file applied to the rendered preview.",
+                ) { put("md_css_path", it) }
+            }
+            Collapsible("Pandoc") {
+                FieldRow(
+                    label = "Pandoc executable:",
+                    value = get("md_pandoc_path", ""),
+                    numeric = false,
+                    desc = "Used to export Markdown to other formats when installed.",
+                ) { put("md_pandoc_path", it) }
+                ComboRow(
+                    label = "Export format:",
+                    options = listOf("HTML", "PDF", "DOCX", "LaTeX"),
+                    value = get("md_export_format", "HTML"),
+                    desc = "",
+                ) { put("md_export_format", it) }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Tools > AI (llama.cpp engine, real model inventory)
+    // ------------------------------------------------------------
+    @Composable
+    private fun AiPage() {
+        var tick by remember { mutableStateOf(0) }
+        var loading by remember { mutableStateOf(true) }
+        var models by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+        var logInfo by remember { mutableStateOf("") }
+        var serviceOn by remember { mutableStateOf(false) }
+
+        LaunchedEffect(tick) {
+            loading = true
+            withContext(Dispatchers.IO) {
+                val dir = File(filesDir, "AI/models")
+                models = dir.listFiles()
+                    ?.filter { it.isFile && it.name.endsWith(".gguf") }
+                    ?.sortedBy { it.name }
+                    ?.map { it.name to formatSize(it.length()) }
+                    ?: emptyList()
+                val log = File(filesDir, "background_ai.log")
+                logInfo = if (log.isFile) "${formatSize(log.length())}  ·  ${log.absolutePath}"
+                else "not written yet  ·  ${log.absolutePath}"
+            }
+            serviceOn = AIBackgroundService.isRunning
+            loading = false
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Local AI assistant powered by the llama.cpp engine. Models are stored on this " +
+                    "device and the assistant keeps running in a background service.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+
+            SectionRow("Engine")
+            InfoRow("Engine", "llama.cpp")
+            InfoRow("Service", if (serviceOn) "running" else "stopped")
+            InfoRow("Log", logInfo)
+
+            SectionRow("Background service")
+            ActionRow(if (serviceOn) "Stop background service" else "Start background service") {
+                if (serviceOn) {
+                    AIBackgroundService.stopService(this@SettingsActivity)
+                    toast("Background AI service stopped")
+                } else {
+                    AIBackgroundService.startService(this@SettingsActivity)
+                    toast("Background AI service started")
+                }
+                tick++
+            }
+            NoteRow(
+                "While the service runs, AI commands keep executing when the app is closed.",
+            )
+
+            SectionRow("Models (${models.size})")
+            if (loading) {
+                NoteRow("Scanning models directory…")
+            } else if (models.isEmpty()) {
+                NoteRow(
+                    "No .gguf model installed. Download one from the AI workspace's model tab, or " +
+                        "copy it into ${File(filesDir, "AI/models").absolutePath}.",
+                )
+            } else {
+                models.forEach { (name, size) -> InfoRow(name, size) }
+            }
+            ActionRow("Refresh") { tick++ }
+            ActionRow("Open models directory") {
+                ToolchainFileExplorerActivity.startAt(
+                    this@SettingsActivity,
+                    "AI models",
+                    File(filesDir, "AI/models"),
+                )
+            }
+
+            SectionRow("Workspace")
+            ActionRow("Open AI workspace") {
+                AiWorkspaceActivity.start(this@SettingsActivity, filesDir.absolutePath, null, null)
+            }
+            FieldRow(
+                label = "Default model:",
+                value = get("ai_default_model", ""),
+                numeric = false,
+                desc = "Leave empty to use the most recently downloaded model.",
+            ) { put("ai_default_model", it) }
+            NumberRow(
+                label = "Context size:",
+                value = getInt("ai_context_size", 4096),
+            ) { putInt("ai_context_size", it) }
+            NumberRow(
+                label = "GPU threads:",
+                value = getInt("ai_threads", 4),
+            ) { putInt("ai_threads", it) }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Tools > Device Explorer / Device Mirroring (real adb devices)
+    // ------------------------------------------------------------
+    @Composable
+    private fun DevicesPage() {
+        var tick by remember { mutableStateOf(0) }
+        var loading by remember { mutableStateOf(true) }
+        var devices by remember { mutableStateOf<List<AdbDeviceManager.AdbDevice>>(emptyList()) }
+        var adbPath by remember { mutableStateOf<String?>(null) }
+        var error by remember { mutableStateOf("") }
+        var host by remember { mutableStateOf("") }
+        var port by remember { mutableStateOf("5555") }
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(tick) {
+            loading = true
+            withContext(Dispatchers.IO) {
+                error = ""
+                val sdk = BuildToolchain.sdkDir(this@SettingsActivity)
+                val adb = File(sdk, "platform-tools/adb")
+                adbPath = if (adb.isFile) adb.absolutePath else null
+                try {
+                    devices = AdbDeviceManager.listDevices()
+                } catch (t: Throwable) {
+                    devices = emptyList()
+                    error = t.message ?: "adb failed"
+                }
+            }
+            loading = false
+        }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Devices reported by adb. Wireless devices can be paired by address.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+
+            SectionRow("adb")
+            if (adbPath == null) {
+                NoteRow(
+                    "platform-tools not installed. Install it from Tools > Download Manager to " +
+                        "use devices.",
+                )
+            } else {
+                InfoRow("Path", adbPath ?: "")
+            }
+
+            SectionRow("Connected devices (${devices.size})")
+            if (loading) {
+                NoteRow("Querying adb…")
+            } else if (devices.isEmpty()) {
+                NoteRow("No devices connected. Enable USB debugging or connect wirelessly.")
+            }
+            devices.forEach { d ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text(
+                        "●",
+                        color = if (d.state == AdbDeviceManager.DeviceState.DEVICE) {
+                            Color(0xFF4CAF50)
+                        } else Color(0xFFFFA000),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp, end = 8.dp),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            d.model.ifBlank { d.serial },
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            buildString {
+                                append(d.serial)
+                                append("  ·  ")
+                                append(d.state.name.lowercase())
+                                if (d.apiLevel > 0) {
+                                    append("  ·  API ")
+                                    append(d.apiLevel)
+                                }
+                                if (d.abi.isNotBlank()) {
+                                    append("  ·  ")
+                                    append(d.abi)
+                                }
+                                if (d.isEmulator) append("  ·  emulator")
+                            },
+                            color = Palette.dimText,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            lineHeight = 16.sp,
+                        )
+                    }
+                    ActionRow("Logcat") {
+                        LogcatActivity.start(
+                            this@SettingsActivity,
+                            d.product.ifBlank { d.model },
+                            0,
+                        )
+                    }
+                }
+            }
+            if (error.isNotBlank()) NoteRow("adb: $error")
+            ActionRow("Refresh") { tick++ }
+
+            SectionRow("Wireless debugging")
+            FieldRow(
+                label = "Host:",
+                value = host,
+                numeric = false,
+                desc = "Device IP address, e.g. 192.168.0.24",
+            ) { host = it }
+            FieldRow(
+                label = "Port:",
+                value = port,
+                numeric = true,
+                desc = "",
+            ) { port = it }
+            ActionRow("Connect") {
+                scope.launch {
+                    val targetHost = host.trim()
+                    val targetPort = port.trim().toIntOrNull() ?: 5555
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            AdbDeviceManager.connectWireless(targetHost, targetPort)
+                        }
+                    }
+                    result.fold(
+                        onSuccess = { ok ->
+                            if (ok) toast("Connected to $targetHost:$targetPort")
+                            else toast("Connect failed: no response from adb")
+                        },
+                        onFailure = { toast("Connect failed: ${it.message}") },
+                    )
+                    tick++
+                }
+            }
+            ActionRow("Open terminal for adb") {
+                AndroidShellActivity.start(this@SettingsActivity, filesDir)
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Advanced Settings (search + modified filter)
+    // ------------------------------------------------------------
+    private data class AdvRow(
+        val section: String,
+        val key: String,
+        val label: String,
+        val def: Any,
+    )
+
+    private val ADVANCED_ROWS: List<AdvRow> = listOf(
+        AdvRow("Compiler", "compiler_timeout", "Compiler process timeout (s)", 120),
+        AdvRow("Compiler", "auto_make_running", "Auto-make if compilation needed", true),
+        AdvRow("Compiler", "compile_lower_priority", "Compile in background with lower priority", true),
+        AdvRow("Compiler", "unified_compilation", "Use unified compilation", false),
+        AdvRow("Clangd", "clangd_indexer", "Enable clangd indexer", true),
+        AdvRow("Clangd", "clangd_keep_asts", "Keep ASTs in memory", false),
+        AdvRow("Clangd", "clangd_jobs", "clangd parallel jobs", 2),
+        AdvRow("Diff & Merge", "diff_ignore_whitespace", "Ignore whitespace differences", false),
+        AdvRow("Diff & Merge", "diff_ignore_comments", "Ignore comment differences", false),
+        AdvRow("Diff & Merge", "diff_show_line_numbers", "Show line numbers", true),
+        AdvRow("IDE", "debug_log_report", "Debug log report", false),
+        AdvRow("IDE", "recent_expressions", "Remember recent debug expressions", true),
+        AdvRow("IDE", "inline_run_cursor", "Show inline run cursor", true),
+        AdvRow("IDE", "quickdoc_auto", "Show quick documentation automatically", true),
+        AdvRow("IDE", "undo_caret", "Restore caret on undo", true),
+        AdvRow("IDE", "external_sources", "Download external sources", false),
+        AdvRow("Java", "java_generate_final_locals", "Generate final local variables", false),
+        AdvRow("Java", "java_show_parameter_names", "Show parameter name hints", true),
+        AdvRow("Java", "java_use_legacy_builder", "Use legacy builder chain", false),
+    )
+
+    @Composable
+    private fun AdvancedPage() {
+        var query by remember { mutableStateOf("") }
+        var modifiedOnly by remember { mutableStateOf(false) }
+        val q = query.trim().lowercase()
+
+        val rows = remember(q, modifiedOnly, draft.size) {
+            ADVANCED_ROWS.filter { r ->
+                (q.isEmpty() || r.label.lowercase().contains(q) || r.section.lowercase().contains(q)) &&
+                    (!modifiedOnly || isModified(r.key, r.def))
+            }
+        }
+        val sections = remember(rows) { rows.map { it.section }.distinct() }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Settings that are less commonly used. Changes are applied when you press Apply.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+            SearchBox(query) { query = it }
+            CheckRow(
+                checked = modifiedOnly,
+                label = "Show modified only",
+                desc = "",
+            ) { modifiedOnly = it }
+
+            sections.forEach { section ->
+                SectionRow(section)
+                rows.filter { it.section == section }.forEach { r ->
+                    when (val d = r.def) {
+                        is Boolean -> CheckRow(
+                            checked = getBool(r.key, d),
+                            label = r.label,
+                            desc = "",
+                        ) { putBool(r.key, it) }
+                        is Int -> NumberRow(label = "${r.label}:", value = getInt(r.key, d)) {
+                            putInt(r.key, it)
+                        }
+                        else -> FieldRow(
+                            label = r.label,
+                            value = get(r.key, d.toString()),
+                            numeric = false,
+                            desc = "",
+                        ) { put(r.key, it) }
+                    }
+                }
+            }
+            if (rows.isEmpty()) NoteRow("No matching settings.")
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Backup and Sync
+    // ------------------------------------------------------------
+    @Composable
+    private fun BackupSyncPage() {
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "Back up IDE settings and restore them on another device.",
+                color = Palette.desc,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SectionRow("Settings")
+            InfoRow("Preferences file", File(filesDir, "shared_prefs/$PREFS_NAME.xml").absolutePath)
+            ActionRow("Export settings to a file") { showExportSettingsDialog() }
+            ActionRow("Import settings from a file") { showImportSettingsDialog() }
+            SectionRow("Cloud sync")
+            FieldRow(
+                label = "Account:",
+                value = get("backup_email", ""),
+                numeric = false,
+                desc = "Google account used for settings synchronization.",
+            ) { put("backup_email", it) }
+            CheckRow(
+                checked = getBool("backup_enabled", false),
+                label = "Enable backup and sync",
+                desc = "Uploads IDE settings when the app is idle.",
+            ) { putBool("backup_enabled", it) }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Simple list editor (add / remove string entries)
+    // ------------------------------------------------------------
+    @Composable
+    private fun ListEditorPage(
+        key: String,
+        header: String,
+        emptyText: String,
+        itemHint: String,
+    ) {
+        val stored = get(key, "")
+        val items = remember(stored) {
+            stored.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        }
+        var newItem by remember { mutableStateOf("") }
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                header,
+                color = Palette.text,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            if (items.isEmpty()) {
+                NoteRow(emptyText)
+            }
+            items.forEach { item ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        item,
+                        color = Palette.text,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(
+                        Modifier
+                            .size(28.dp)
+                            .clickable {
+                                put(key, items.filterNot { it == item }.joinToString("\n"))
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("✕", color = Palette.dimText, fontSize = 12.sp)
+                    }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .background(Palette.fieldBg)
+                        .border(1.dp, Palette.border, RoundedCornerShape(4.dp)),
+                ) {
+                    BasicTextField(
+                        value = newItem,
+                        onValueChange = { newItem = it },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace,
+                        ),
+                        cursorBrush = SolidColor(Palette.link),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        val v = newItem.trim()
+                        if (v.isNotEmpty()) {
+                            val next = (items + v).joinToString("\n")
+                            put(key, next)
+                            newItem = ""
+                        }
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.link),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    Text("Add", fontSize = 13.sp)
+                }
+            }
+            if (itemHint.isNotBlank()) {
+                NoteRow(itemHint)
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Fallback form definitions for remaining leaf pages
+    // ------------------------------------------------------------
+    private fun rowsFor(id: String): List<RowItem> = when (id) {
+        // Appearance & Behavior
+        "menus_toolbars" -> listOf(
+            RowItem.Nte("Menu and toolbar customization is inherited from the built-in layout."),
+            RowItem.Chk("mt_show_icons", "Show icons in menus", def = true),
+            RowItem.Chk("mt_show_shortcuts", "Show shortcuts in menus", def = true),
+        )
+        "file_colors" -> listOf(
+            RowItem.Nte("File colors mark files by scope in the project tree."),
+            RowItem.Chk("fc_enabled", "Enable file colors", def = true),
+            RowItem.Cbo("fc_source", "Source files:", listOf("#2E7D32", "#1565C0", "#6A1B9A"), "#2E7D32"),
+            RowItem.Cbo("fc_tests", "Test files:", listOf("#AD1457", "#EF6C00", "#00838F"), "#AD1457"),
+        )
+        "scopes" -> listOf(
+            RowItem.Nte("Scopes restrict searches and inspections to a subset of files."),
+            RowItem.Chk("scope_project_files", "Include project files in default scope", def = true),
+        )
+        "notifications" -> listOf(
+            RowItem.Chk("notify_balloon", "Show notification balloons", def = true),
+            RowItem.Chk("notify_sound", "Play notification sound", def = false),
+            RowItem.Cbo("notify_duration", "Balloon duration:",
+                listOf("1 second", "3 seconds", "5 seconds", "10 seconds"), "3 seconds"),
+            RowItem.Chk("notify_non_modal", "Show non-modal notifications", def = true),
+        )
+        "quick_lists" -> listOf(
+            RowItem.Nte("Quick lists are shortcut-driven popups of grouped actions."),
+            RowItem.Chk("ql_enabled", "Enable quick lists", def = true),
+        )
+        "required_plugins" -> listOf(
+            RowItem.Nte("No plugins are marked as required in this build."),
+        )
+        "trusted_locations" -> listOf(
+            RowItem.Nte("Projects opened from untrusted locations require confirmation."),
+            RowItem.Chk("trust_remember", "Remember my choices for untrusted projects", def = true),
+            RowItem.Chk("trust_default_off", "Default to untrusted", def = false),
+        )
+        "path_variables" -> listOf(
+            RowItem.Nte("Path variables can be used in run configurations and templates."),
+            RowItem.Txt("pv_sdk", "ANDROID_SDK_ROOT:", def = ""),
+            RowItem.Txt("pv_ndk", "ANDROID_NDK_HOME:", def = ""),
+        )
+        "presentation_assistant" -> listOf(
+            RowItem.Chk("pa_enabled", "Enable presentation assistant", def = false),
+            RowItem.Chk("pa_show_gestures", "Show touch gestures", def = true),
+        )
+
+        // Editor
+        "ed_general" -> listOf(
+            RowItem.Sec("Editing"),
+            RowItem.Chk("ed_show_line_numbers", "Show line numbers", def = true),
+            RowItem.Chk("ed_show_whitespace", "Show whitespace", def = false),
+            RowItem.Chk("ed_highlight_current", "Highlight current line", def = true),
+            RowItem.Chk("ed_soft_wrap", "Soft wrap lines", def = false),
+            RowItem.Sec("Scrolling"),
+            RowItem.Cbo("ed_scroll_lines", "Default scroll amount:",
+                listOf("1 line", "5 lines", "10 lines"), "5 lines"),
+            RowItem.Chk("ed_smooth_scroll", "Smooth scrolling", def = true),
+        )
+        "ed_code_editing" -> listOf(
+            RowItem.Chk("ed_auto_indent", "Auto indent", def = true),
+            RowItem.Chk("ed_format_paste", "Format on paste", def = true),
+            RowItem.Chk("ed_complete_basic", "Show basic completion suggestions", def = true),
+            RowItem.Chk("ed_complete_doc", "Show documentation on completion", def = true),
+            RowItem.Cbo("ed_completion_delay", "Completion delay (ms):",
+                listOf("0", "50", "100", "250"), "100"),
+        )
+        "ed_code_style" -> listOf(
+            RowItem.Cbo("cs_language", "Language:", listOf("Kotlin", "Java", "XML", "Gradle"), "Kotlin"),
+            RowItem.Cbo("cs_indent", "Tab size:", listOf("2", "4", "8"), "4"),
+            RowItem.Cbo("cs_continuation", "Continuation indent:",
+                listOf("4", "8", "16"), "8"),
+            RowItem.Chk("cs_use_tabs", "Use tab characters", def = false),
+            RowItem.Chk("cs_smart_tabs", "Smart tabs", def = true),
+        )
+        "ed_inspections" -> listOf(
+            RowItem.Nte("Inspections run in the editor and in the build."),
+            RowItem.Chk("insp_enabled", "Enable inspections", def = true),
+            RowItem.Cbo("insp_scope", "Inspection scope:",
+                listOf("Project files", "Open files", "Modified files"), "Project files"),
+            RowItem.Chk("insp_on_the_fly", "Run inspections on the fly", def = true),
+        )
+        "ed_file_templates" -> listOf(
+            RowItem.Nte("File templates create the initial content of new files."),
+            RowItem.Chk("tpl_include_date", "Include date in generated headers", def = false),
+            RowItem.Chk("tpl_include_author", "Include author in generated headers", def = false),
+        )
+        "ed_encodings" -> listOf(
+            RowItem.Cbo("enc_default", "Default encoding:",
+                listOf("UTF-8", "UTF-16", "ISO-8859-1"), "UTF-8"),
+            RowItem.Chk("enc_bom", "Detect BOM automatically", def = true),
+        )
+        "ed_live_templates" -> listOf(
+            RowItem.Nte("Live templates expand abbreviations into code snippets."),
+            RowItem.Chk("lt_enabled", "Enable live templates", def = true),
+            RowItem.Chk("lt_complete_on_tab", "Expand with Tab", def = true),
+        )
+        "ed_file_types" -> listOf(
+            RowItem.Nte("File types map file extensions to language parsers."),
+            RowItem.Chk("ft_detect_by_content", "Detect file types by content", def = true),
+        )
+        "ed_ui_tools" -> listOf(
+            RowItem.Chk("uit_minimap", "Show editor minimap", def = false),
+            RowItem.Chk("uit_breadcrumbs", "Show breadcrumbs", def = true),
+            RowItem.Chk("uit_folding", "Show code folding", def = true),
+        )
+        "ed_copyright" -> listOf(
+            RowItem.Nte("Copyright templates are inserted into new source files."),
+            RowItem.Txt("cr_header", "Copyright header:", def = "Copyright (c) MobileStudio"),
+        )
+        "ed_inlay_hints" -> listOf(
+            RowItem.Chk("ih_parameters", "Show parameter name hints", def = true),
+            RowItem.Chk("ih_types", "Show type hints", def = false),
+            RowItem.Chk("ih_chain_calls", "Show method chain hints", def = false),
+        )
+        "ed_emmet" -> listOf(
+            RowItem.Chk("emmet_enabled", "Enable Emmet", def = true),
+            RowItem.Cbo("emmet_theme", "Emmet theme:", listOf("Default", "Inline"), "Default"),
+        )
+        "ed_intentions" -> listOf(
+            RowItem.Chk("int_enabled", "Enable intentions", def = true),
+            RowItem.Chk("int_show_gutter", "Show intention icons in the gutter", def = true),
+        )
+        "ed_language_injections" -> listOf(
+            RowItem.Chk("inj_enabled", "Enable language injections", def = true),
+            RowItem.Chk("inj_comments", "Inject into comments", def = false),
+        )
+        "ed_live_edit" -> listOf(
+            RowItem.Chk("le_enabled", "Enable live edit", def = false),
+            RowItem.Cbo("le_delay", "Update delay (ms):",
+                listOf("100", "300", "500"), "300"),
+        )
+        "ed_natural_languages" -> listOf(
+            RowItem.Cbo("nl_spell", "Spell checker:",
+                listOf("Disabled", "Typo detection only", "Typo and grammar"), "Typo detection only"),
+            RowItem.Cbo("nl_dialect", "Spelling dialect:",
+                listOf("American English", "British English", "Canadian English"), "American English"),
+        )
+
+        // Version Control
+        "vc_changelists" -> listOf(
+            RowItem.Chk("vc_single_changelist", "Use a single changelist", def = true),
+            RowItem.Chk("vc_auto_changelist", "Create changelists automatically", def = false),
+        )
+        "vc_commit" -> listOf(
+            RowItem.Chk("vc_show_unversioned", "Show unversioned files", def = true),
+            RowItem.Chk("vc_reformat", "Reformat code before committing", def = false),
+            RowItem.Chk("vc_optimize_imports", "Optimize imports before committing", def = false),
+            RowItem.Cbo("vc_commit_order", "Order files by:",
+                listOf("Default", "Name", "Path"), "Default"),
+        )
+        "vc_confirmation" -> listOf(
+            RowItem.Cbo("vc_add", "When adding a file:",
+                listOf("Ask", "Add silently", "Do not add"), "Ask"),
+            RowItem.Cbo("vc_remove", "When deleting a file:",
+                listOf("Ask", "Delete silently", "Do not delete"), "Ask"),
+        )
+        "vc_directory_mappings" -> listOf(
+            RowItem.Nte("Directory mappings associate project directories with repositories."),
+            RowItem.Chk("vc_auto_map", "Auto-detect repository roots", def = true),
+        )
+        "vc_file_status_colors" -> listOf(
+            RowItem.Chk("vc_colors", "Show file status colors", def = true),
+            RowItem.Cbo("vc_modified", "Modified:", listOf("#1E88E5", "#43A047", "#FB8C00"), "#1E88E5"),
+            RowItem.Cbo("vc_added", "Added:", listOf("#43A047", "#1E88E5", "#8E24AA"), "#43A047"),
+        )
+        "vc_issue_navigation" -> listOf(
+            RowItem.Nte("Issue navigation links commit messages to your tracker."),
+            RowItem.Txt("vc_issue_url", "Issue URL pattern:", def = ""),
+        )
+        "vc_shelf" -> listOf(
+            RowItem.Chk("vc_shelf_enabled", "Enable shelf", def = true),
+            RowItem.Cbo("vc_shelf_format", "Shelf format:",
+                listOf("Patch", "Working tree"), "Patch"),
+        )
+        "vc_github" -> listOf(
+            RowItem.Nte("GitHub integration requires an account in Settings > Backup and Sync."),
+            RowItem.Chk("gh_enabled", "Enable GitHub integration", def = false),
+        )
+        "vc_gitlab" -> listOf(
+            RowItem.Nte("GitLab integration is available for merge request workflows."),
+            RowItem.Chk("gl_enabled", "Enable GitLab integration", def = false),
+        )
+        "vc_mercurial" -> listOf(
+            RowItem.Nte("Mercurial support is not bundled with this build."),
+        )
+        "vc_perforce" -> listOf(
+            RowItem.Nte("Perforce support is not bundled with this build."),
+        )
+        "vc_subversion" -> listOf(
+            RowItem.Nte("Subversion support is not bundled with this build."),
+        )
+
+        // Build, Execution, Deployment
+        "b_coverage" -> listOf(
+            RowItem.Cbo("cov_engine", "Coverage engine:",
+                listOf("JaCoCo", "IntelliJ"), "JaCoCo"),
+            RowItem.Chk("cov_enabled", "Enable coverage", def = false),
+        )
+        "b_debugger" -> listOf(
+            RowItem.Chk("dbg_attach_auto", "Auto-attach debugger", def = false),
+            RowItem.Cbo("dbg_timeout", "Connection timeout (s):",
+                listOf("5", "10", "30"), "10"),
+            RowItem.Chk("dbg_hotswap", "Allow hot swap on edit", def = true),
+        )
+        "b_deployment" -> listOf(
+            RowItem.Cbo("dep_target", "Default deployment target:",
+                listOf("Same as selected device", "Emulator", "USB device"), "Same as selected device"),
+            RowItem.Chk("dep_install", "Install automatically on deploy", def = true),
+        )
+        "b_gradle_android_compiler" -> listOf(
+            RowItem.Chk("gac_parallel", "Build in parallel", def = true),
+            RowItem.Chk("gac_cache", "Use Gradle build cache", def = true),
+            RowItem.Cbo("gac_console", "Console:",
+                listOf("plain", "console", "rich"), "plain"),
+        )
+        "b_remote_repos" -> listOf(
+            RowItem.Nte("Remote jar repositories are declared in the project build scripts."),
+            RowItem.Chk("repo_offline", "Offline mode", def = false),
+        )
+
+        // Languages & Frameworks
+        "l_mermaid" -> listOf(
+            RowItem.Cbo("mm_engine", "Mermaid engine:",
+                listOf("Internal", "External CDN"), "Internal"),
+            RowItem.Chk("mm_line_numbers", "Show line numbers", def = false),
+            RowItem.Cbo("mm_zoom", "Zoom:",
+                listOf("Fit width", "100%", "150%"), "Fit width"),
+        )
+        "kotlin_gradle" -> listOf(
+            RowItem.Chk("kg_apply_kts", "Apply Kotlin script settings to .kts files", def = true),
+            RowItem.Chk("kg_auto_sync", "Auto-sync on Gradle change", def = true),
+        )
+        "kotlin_style" -> listOf(
+            RowItem.Cbo("ks_indent", "Tab size:", listOf("2", "4", "8"), "4"),
+            RowItem.Cbo("ks_continuation", "Continuation indent:",
+                listOf("4", "8", "16"), "8"),
+            RowItem.Chk("ks_chain_wrap", "Method chain wrap:", def = false),
+        )
+        "experimental" -> listOf(
+            RowItem.Nte("Experimental features may change or be removed in future builds."),
+            RowItem.Chk("exp_editor_2", "Next-generation editor", def = false),
+            RowItem.Chk("exp_compose_preview", "Compose preview v2", def = false),
+            RowItem.Chk("exp_background_ai", "Background AI service", def = true),
+        )
+        "studio_labs" -> listOf(
+            RowItem.Nte("Studio Labs collects opt-in prototypes. No data leaves the device."),
+            RowItem.Chk("labs_enabled", "Enable Studio Labs features", def = false),
+        )
+
+        else -> listOf(
+            RowItem.Nte(
+                "This page has no configurable options in this build. Settings for it are " +
+                    "stored with the rest of the IDE preferences.",
+            ),
+        )
+    }
+
+    // ------------------------------------------------------------
+    // Help / Export / Import dialogs
+    // ------------------------------------------------------------
+    private fun showHelpDialog(page: SPage?) {
+        val title = page?.label ?: "Settings"
+        val body = buildString {
+            appendLine(title)
+            appendLine()
+            if (page != null && page.desc.isNotBlank()) {
+                appendLine(page.desc)
+                appendLine()
+            }
+            appendLine("Use the tree on the left to browse settings. The search box filters the tree.")
+            appendLine("The pin icon marks a page as your start page.")
+            appendLine("Changes are staged until you press Apply or OK; Cancel discards them.")
+        }
+        AlertDialog.Builder(this@SettingsActivity)
+            .setTitle("Settings Help")
+            .setMessage(body)
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun showExportSettingsDialog() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val all = prefs.all
         val sb = StringBuilder()
         all.entries.sortedBy { it.key }.forEach { (k, v) ->
             sb.append("$k=$v\n")
         }
-        val density = this@SettingsActivity.resources.displayMetrics.density
+        if (sb.isEmpty()) sb.append("(no settings stored yet)")
+        val density = resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
-        val scroll = ScrollView(this@SettingsActivity)
-        val tv = TextView(this@SettingsActivity).apply {
+        val scroll = ScrollView(this)
+        val tv = TextView(this).apply {
             text = sb.toString()
             textSize = 12f
             setTypeface(Typeface.MONOSPACE)
@@ -1921,20 +2990,21 @@ class SettingsActivity : ComponentActivity() {
     }
 
     private fun showImportSettingsDialog() {
-        val density = this@SettingsActivity.resources.displayMetrics.density
+        val density = resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
-        val input = EditText(this@SettingsActivity).apply {
+        val input = EditText(this).apply {
             hint = "Paste settings (key=value per line)"
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setMinLines(6)
         }
         AlertDialog.Builder(this@SettingsActivity)
             .setTitle("Import Settings")
+            .setMessage("Paste exported settings, one key=value pair per line.")
             .setView(input)
             .setPositiveButton("Import") { _, _ ->
                 val text = input.text.toString().trim()
                 if (text.isBlank()) return@setPositiveButton
-                val editor = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                val editor = prefs.edit()
                 var count = 0
                 for (line in text.lines()) {
                     val idx = line.indexOf('=')
@@ -1945,14 +3015,11 @@ class SettingsActivity : ComponentActivity() {
                             "true" -> editor.putBoolean(key, true)
                             "false" -> editor.putBoolean(key, false)
                             else -> {
-                                try {
-                                    editor.putInt(key, value.toInt())
-                                } catch (_: NumberFormatException) {
-                                    try {
-                                        editor.putFloat(key, value.toFloat())
-                                    } catch (_: NumberFormatException) {
-                                        editor.putString(key, value)
-                                    }
+                                val intVal = value.toIntOrNull()
+                                when {
+                                    intVal != null -> editor.putInt(key, intVal)
+                                    value == "true" || value == "false" -> editor.putBoolean(key, value.toBoolean())
+                                    else -> editor.putString(key, value)
                                 }
                             }
                         }
@@ -1960,22 +3027,53 @@ class SettingsActivity : ComponentActivity() {
                     }
                 }
                 editor.apply()
-                Toast.makeText(this@SettingsActivity, "Imported $count settings", Toast.LENGTH_SHORT).show()
+                toast("Imported $count settings")
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
-
-    @Composable
-    private fun MobileStudioTheme(content: @Composable () -> Unit) {
-        MaterialTheme(
-            colorScheme = darkColorScheme(
-                primary = ComposeColor(0xFF82AAFF),
-                surface = ComposeColor(0xFF1E1E22),
-                background = ComposeColor(0xFF1E1E22)
-            )
-        ) {
-            content()
-        }
-    }
 }
+
+// ------------------------------------------------------------
+// Theme
+// ------------------------------------------------------------
+@Composable
+private fun MobileStudioTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = Palette.link,
+            onPrimary = Color.White,
+            surface = Palette.bg,
+            background = Palette.bg,
+            onSurface = Palette.text,
+            onBackground = Palette.text,
+        ),
+        content = content,
+    )
+}
+
+// ------------------------------------------------------------
+// Palette (fixed dark theme matching the reference screenshots)
+// ------------------------------------------------------------
+internal object Palette {
+    val bg = Color(0xFF2B2B2B)
+    val panel = Color(0xFF3C3F41)
+    val titleBar = Color(0xFF3C3F41)
+    val titleText = Color(0xFFBBBBBB)
+    val fieldBg = Color(0xFF45494A)
+    val border = Color(0xFF5E6060)
+    val divider = Color(0xFF5A5A5A)
+    val selection = Color(0xFF2F6CC4)
+    val link = Color(0xFF6BA5F0)
+    val okBlue = Color(0xFF3B78C9)
+    val text = Color(0xFFDDDDDD)
+    val dimText = Color(0xFF9A9A9A)
+    val desc = Color(0xFFB0B0B0)
+    val disabledText = Color(0xFF777777)
+}
+
+/** Preference key holding the last visited settings page. */
+internal const val KEY_LAST_PAGE = "settings_last_page"
+
+/** Draft key prefix for values committed into BuildToolsConfig. */
+private const val BTC_PREFIX = "btc:"

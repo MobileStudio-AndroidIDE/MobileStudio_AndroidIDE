@@ -430,74 +430,24 @@ class StudioMainActivity : AppCompatActivity() {
                     showDownloadManager = true
                     DownloadCenter.showIdleWindow()
                 }
-                // SDK & Development Tools
-                "sdk_manager" -> openTools(context, "sdk_manager")
-                "sdk_platforms" -> openTools(context, "sdk_platforms")
-                "sdk_tools" -> openTools(context, "sdk_tools")
-                "sdk_update_manager" -> openTools(context, "sdk_update_manager")
-                "sdk_installation" -> openTools(context, "sdk_installation")
-                "sdk_configuration" -> openTools(context, "sdk_configuration")
-                "ndk_manager" -> openTools(context, "ndk_manager")
-                "cmake_manager" -> openTools(context, "cmake_manager")
-                "build_tools_manager" -> openTools(context, "build_tools_manager")
-                "platform_tools_manager" -> openTools(context, "platform_tools_manager")
-                "emulator_manager" -> openTools(context, "emulator_manager")
-                // Java Development
-                "jdk_manager" -> openTools(context, "jdk_manager")
-                "jdk_installation" -> openTools(context, "jdk_installation")
-                "jdk_version_selection" -> openTools(context, "jdk_version_selection")
-                "jdk_configuration" -> openTools(context, "jdk_configuration")
-                "java_runtime_info" -> openTools(context, "java_runtime_info")
-                "java_env_variables" -> openTools(context, "java_env_variables")
-                // Android Development
+                // Android Studio Tools menu items
                 "device_manager" -> openTools(context, "device_manager")
-                "virtual_device_manager" -> openTools(context, "virtual_device_manager")
-                "avd_configuration" -> openTools(context, "avd_configuration")
-                "android_sdk_inspector" -> openTools(context, "android_sdk_inspector")
-                "apk_analyzer" -> openTools(context, "apk_analyzer")
+                "sdk_manager" -> openTools(context, "sdk_manager")
+                "resource_manager" -> openTools(context, "resource_manager")
+                "agp_upgrade" -> openTools(context, "agp_upgrade")
+                "android_sdk_upgrade" -> openTools(context, "android_sdk_upgrade")
+                "troubleshoot_device" -> openTools(context, "troubleshoot_device")
+                "app_links" -> openTools(context, "app_links")
+                "firebase" -> openTools(context, "firebase")
                 "layout_inspector" -> openTools(context, "layout_inspector")
-                "logcat" -> openTools(context, "logcat")
-                "device_explorer" -> openTools(context, "device_explorer")
-                // Build & Gradle
-                "gradle_settings" -> openTools(context, "gradle_settings")
-                "gradle_configuration" -> openTools(context, "gradle_configuration")
-                "gradle_cache_management" -> openTools(context, "gradle_cache_management")
-                "build_configuration" -> openTools(context, "build_configuration")
-                "build_tools_configuration" -> openTools(context, "build_tools_configuration")
-                // Additional Tools
-                "external_tools" -> openTools(context, "external_tools")
-                "split_editor" -> SplitEditorActivity.start(context)
-                "project_structure" -> openTools(context, "project_structure")
-                "plugins" -> openTools(context, "plugins")
-                "developer_tools" -> openTools(context, "developer_tools")
-                "quick_open" -> {
-                    val activity = context as? StudioMainActivity
-                    if (activity != null) showQuickOpenDialog(activity)
-                }
-                "apk_signing" -> {
-                    val activity = context as? StudioMainActivity
-                    val intent = Intent(context, ApkSigningActivity::class.java)
-                    activity?.currentProjectDir?.let { dir ->
-                        intent.putExtra("project_dir", dir.absolutePath)
-                    }
-                    context.startActivity(intent)
-                }
-                "code_formatter" -> {
-                    EditorPaneState.editor?.text?.let { text ->
-                        val lines = text.lines()
-                        val formatted = lines.joinToString("\n") { line ->
-                            val trimmed = line.trimStart()
-                            val indent = "    ".repeat(line.indexOfFirst { it != ' ' && it != '\t' }.coerceAtLeast(0) / 4)
-                            indent + trimmed
-                        }
-                        EditorPaneState.editor?.setText(formatted)
-                        Toast.makeText(context, "Code formatted (indent normalized)", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                "project_stats" -> {
-                    val activity = context as? StudioMainActivity
-                    if (activity != null) showProjectStatsDialog(activity)
-                }
+                "generate_javadoc" -> openTools(context, "generate_javadoc")
+                "create_cli_launcher" -> openTools(context, "create_cli_launcher")
+                "services" -> openTools(context, "services")
+                "markdown" -> openTools(context, "markdown")
+                "xml_actions" -> openTools(context, "xml_actions")
+                "cling" -> openTools(context, "cling")
+                "groovy_console" -> openTools(context, "groovy_console")
+                "kotlin" -> openTools(context, "kotlin")
                 "file_manager" -> FileManagerActivity.start(context)
                 "git" -> {
                     val activity = context as? StudioMainActivity
@@ -1418,55 +1368,23 @@ private fun TopMenuBar(
                 StudioMenuItem("Terminal", "terminal", "Alt+F12"),
                 StudioMenuItem("AI Assistant", "assistant"),
                 StudioMenuItem("", divider = true),
-                // --- SDK & Development Tools ---
-                StudioMenuItem("SDK Manager", "sdk_manager"),
-                StudioMenuItem("SDK Platforms", "sdk_platforms"),
-                StudioMenuItem("SDK Tools", "sdk_tools"),
-                StudioMenuItem("SDK Update Manager", "sdk_update_manager"),
-                StudioMenuItem("SDK Installation", "sdk_installation"),
-                StudioMenuItem("SDK Configuration", "sdk_configuration"),
-                StudioMenuItem("", divider = true),
-                StudioMenuItem("NDK Manager", "ndk_manager"),
-                StudioMenuItem("CMake Manager", "cmake_manager"),
-                StudioMenuItem("Build Tools Manager", "build_tools_manager"),
-                StudioMenuItem("Platform Tools Manager", "platform_tools_manager"),
-                StudioMenuItem("Emulator Manager", "emulator_manager"),
-                StudioMenuItem("", divider = true),
-                // --- Java Development ---
-                StudioMenuItem("JDK Manager", "jdk_manager"),
-                StudioMenuItem("JDK Installation", "jdk_installation"),
-                StudioMenuItem("JDK Version Selection", "jdk_version_selection"),
-                StudioMenuItem("JDK Configuration", "jdk_configuration"),
-                StudioMenuItem("Java Runtime Information", "java_runtime_info"),
-                StudioMenuItem("Java Environment Variables", "java_env_variables"),
-                StudioMenuItem("", divider = true),
-                // --- Android Development ---
                 StudioMenuItem("Device Manager", "device_manager"),
-                StudioMenuItem("Virtual Device Manager", "virtual_device_manager"),
-                StudioMenuItem("AVD Configuration", "avd_configuration"),
-                StudioMenuItem("Android SDK Inspector", "android_sdk_inspector"),
-                StudioMenuItem("APK Analyzer", "apk_analyzer"),
+                StudioMenuItem("SDK Manager", "sdk_manager"),
+                StudioMenuItem("Resource Manager", "resource_manager"),
+                StudioMenuItem("AGP Upgrade Assistant...", "agp_upgrade"),
+                StudioMenuItem("Android SDK Upgrade Assistant", "android_sdk_upgrade"),
+                StudioMenuItem("Troubleshoot Device Connections", "troubleshoot_device"),
+                StudioMenuItem("App Links Assistant", "app_links"),
+                StudioMenuItem("Firebase", "firebase"),
                 StudioMenuItem("Layout Inspector", "layout_inspector"),
-                StudioMenuItem("Logcat", "logcat"),
-                StudioMenuItem("Device Explorer", "device_explorer"),
-                StudioMenuItem("", divider = true),
-                // --- Build & Gradle ---
-                StudioMenuItem("Gradle Settings", "gradle_settings"),
-                StudioMenuItem("Gradle Configuration", "gradle_configuration"),
-                StudioMenuItem("Gradle Cache Management", "gradle_cache_management"),
-                StudioMenuItem("Build Configuration", "build_configuration"),
-                StudioMenuItem("Build Tools Configuration", "build_tools_configuration"),
-                StudioMenuItem("", divider = true),
-                // --- Additional Tools ---
-                StudioMenuItem("External Tools", "external_tools"),
-                StudioMenuItem("Split Editor", "split_editor"),
-                StudioMenuItem("Project Structure", "project_structure"),
-                StudioMenuItem("Plugins", "plugins"),
-                StudioMenuItem("Developer Tools", "developer_tools"),
-                StudioMenuItem("Quick Open...", "quick_open"),
-                StudioMenuItem("APK Signing", "apk_signing"),
-                StudioMenuItem("Code Formatter", "code_formatter"),
-                StudioMenuItem("Project Statistics", "project_stats"),
+                StudioMenuItem("Generate Javadoc...", "generate_javadoc"),
+                StudioMenuItem("Create Command Line Launcher...", "create_cli_launcher"),
+                StudioMenuItem("Services", "services"),
+                StudioMenuItem("Markdown", "markdown"),
+                StudioMenuItem("XML Actions", "xml_actions"),
+                StudioMenuItem("Cling", "cling"),
+                StudioMenuItem("Groovy Console", "groovy_console"),
+                StudioMenuItem("Kotlin", "kotlin"),
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Git", "git"),
                 StudioMenuItem("File Manager", "file_manager"),

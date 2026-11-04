@@ -28,6 +28,11 @@ import kotlin.concurrent.thread
  */
 class AIBackgroundService : Service() {
 
+    /** True while the foreground service is alive. Read by the Settings UI. */
+    @Volatile
+    var runningFlag: Boolean = false
+        private set
+
     private lateinit var notificationManager: NotificationManager
     private val commandQueue = ConcurrentLinkedQueue<String>()
     private val aiQueue = ConcurrentLinkedQueue<String>()
@@ -39,6 +44,8 @@ class AIBackgroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
+        runningFlag = true
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification("Background AI ready", "AI and shell commands are running"))
@@ -68,6 +75,8 @@ class AIBackgroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        instance = null
+        runningFlag = false
         executor.shutdown()
         stopForeground(true)
         super.onDestroy()
@@ -173,6 +182,13 @@ class AIBackgroundService : Service() {
         private const val ACTION_RUN_COMMAND = "com.aide.mobilestudio.action.RUN_COMMAND"
         private const val ACTION_AI_MESSAGE = "com.aide.mobilestudio.action.AI_MESSAGE"
         private const val ACTION_STOP_SERVICE = "com.aide.mobilestudio.action.STOP_SERVICE"
+
+        @Volatile
+        private var instance: AIBackgroundService? = null
+
+        /** True while the background service is running. */
+        val isRunning: Boolean
+            get() = instance != null && instance?.runningFlag == true
 
         fun startService(context: Context) {
             context.startIntentService(Intent(context, AIBackgroundService::class.java))
