@@ -320,5 +320,10 @@
         <service
             android:name=".AIBackgroundService"
             android:exported="false" />
+
+        <activity
+            android:name=".MTManagerActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
     </application>
 </manifest>

@@ -425,9 +425,7 @@ class StudioMainActivity : AppCompatActivity() {
                 "comment" -> toggleComment()
                 "reformat" -> Toast.makeText(context, "Reformat Code is not available yet", Toast.LENGTH_SHORT).show()
                 "optimize" -> Toast.makeText(context, "Optimize Imports is not available yet", Toast.LENGTH_SHORT).show()
-                "build", "rebuild", "run" -> startBuild()
-                "clean" -> Toast.makeText(context, "Clean is disabled on this device (legacy CMake path). Use Rebuild.", Toast.LENGTH_LONG).show()
-                "sync" -> Toast.makeText(context, "Gradle sync: project files are up to date", Toast.LENGTH_SHORT).show()
+                "run" -> startBuild()
                 "downloads" -> {
                     showDownloadManager = true
                     DownloadCenter.showIdleWindow()
@@ -1412,13 +1410,6 @@ private fun TopMenuBar(
                 StudioMenuItem("Comment / Uncomment", "comment", "Ctrl+/"),
                 StudioMenuItem("Reformat Code", "reformat", "Ctrl+Alt+L"),
                 StudioMenuItem("Optimize Imports", "optimize", "Ctrl+Alt+O")
-            )),
-            StudioMenu("build", listOf(
-                StudioMenuItem("Make Project", "build", "Ctrl+F9"),
-                StudioMenuItem("Rebuild Project", "rebuild"),
-                StudioMenuItem("", divider = true),
-                StudioMenuItem("Clean Project", "clean"),
-                StudioMenuItem("Sync Project", "sync")
             )),
             StudioMenu("run", listOf(
                 StudioMenuItem("Run 'app'", "run", "Shift+F10")
