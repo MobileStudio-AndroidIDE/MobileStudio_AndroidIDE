@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#0B0C0F</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="ms_primary">#21262D</color>
+    <color name="ms_accent">#58A6FF</color>
+    <color name="ms_background">#0D1117</color>
+    <color name="ms_statusbar">#0D1117</color>
+    <color name="ms_navigationbar">#0D1117</color>
+    <!-- Light theme colors -->
+    <color name="ms_primary_light">#4F8EF7</color>
+    <color name="ms_accent_light">#3A7BD5</color>
+    <color name="ms_background_light">#F5F7FA</color>
+    <color name="ms_statusbar_light">#F5F7FA</color>
+    <color name="ms_navigationbar_light">#F5F7FA</color>
+    <color name="ms_surface_light">#FFFFFF</color>
+    <color name="ms_text_light">#1A1A1A</color>
+    <color name="ms_text_secondary_light">#57606A</color>
+</resources>

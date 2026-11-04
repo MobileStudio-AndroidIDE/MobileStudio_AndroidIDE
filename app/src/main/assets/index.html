@@ -1,0 +1,1745 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>AndroidDev — 다국어 채팅</title>
+<meta name="description" content="실시간 자동 번역 채팅. 코드 하이라이팅, 답장, 검색, 라이트박스 등을 지원하는 11개 언어 다국어 채팅 커뮤니티." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link id="prism-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+<style>
+:root{
+  --bg:#0b0d10;--surface:#12161b;--surface-2:#1a2027;--surface-3:#20272f;--card:#171c22;
+  --border:#252b33;--border-soft:#1d232b;--muted:#8b96a3;--muted-2:#5d6773;--fg:#e6ebf2;
+  --primary:#3ddc84;--primary-fg:#06231a;--primary-soft:rgba(61,220,132,.14);
+  --danger:#ff6b6b;--danger-soft:rgba(255,107,107,.14);--warn:#f5a623;
+  --ring:rgba(61,220,132,.4);--shadow:0 8px 24px rgba(0,0,0,.35);
+  --radius-lg:16px;--radius-md:12px;--radius-sm:8px;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"Inter",system-ui,sans-serif;
+  --code-bg:#0d1117;--code-border:#2a313c;
+  --topbar-h:52px;
+}
+[data-theme="light"]{
+  --bg:#f5f6f8;--surface:#ffffff;--surface-2:#eef1f4;--surface-3:#e4e8ed;--card:#ffffff;
+  --border:#e1e5ea;--border-soft:#ebeef2;--muted:#677281;--muted-2:#97a1ad;--fg:#171c22;
+  --primary:#1ab36a;--primary-fg:#ffffff;--primary-soft:rgba(26,179,106,.12);
+  --danger:#e0405a;--danger-soft:rgba(224,64,90,.1);--warn:#c9820a;
+  --ring:rgba(26,179,106,.35);--shadow:0 8px 24px rgba(20,30,40,.08);
+  --code-bg:#f6f8fa;--code-border:#d8dee5;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:transparent}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,a:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--primary);outline-offset:2px;border-radius:6px;
+}
+a{color:var(--primary)}
+::selection{background:var(--primary-soft);color:var(--fg)}
+*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+*::-webkit-scrollbar-thumb:hover{background:var(--muted-2)}
+
+.app{display:flex;flex-direction:column;height:100dvh;max-width:720px;margin:0 auto;background:var(--surface);position:relative;overflow:hidden}
+@media (min-width:721px){ .app{border-left:1px solid var(--border);border-right:1px solid var(--border)} }
+
+.topbar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border);background:color-mix(in srgb, var(--surface) 92%, transparent);backdrop-filter:blur(10px);position:sticky;top:0;z-index:5;min-height:var(--topbar-h)}
+.topbar h1{font-size:15px;margin:0;flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.01em}
+.topbar .sub{font-size:11px;color:var(--muted);font-weight:500}
+.icon-btn{padding:7px 9px;border-radius:9px;color:var(--muted);position:relative;display:inline-flex;align-items:center;justify-content:center;transition:background .15s,color .15s,transform .1s}
+.icon-btn:hover{background:var(--surface-2);color:var(--fg)}
+.icon-btn:active{transform:scale(.92)}
+.icon-btn.active{color:var(--primary);background:var(--primary-soft)}
+.icon-btn .dot{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--danger);border:1.5px solid var(--surface)}
+.btn{padding:9px 16px;border-radius:10px;background:var(--primary);color:var(--primary-fg);font-weight:700;font-size:13px;transition:filter .15s,transform .1s;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:not-allowed;filter:none}
+.btn.ghost{background:var(--surface-2);color:var(--fg)}
+.btn.ghost:hover{background:var(--surface-3)}
+.btn.sm{padding:6px 11px;font-size:12px;border-radius:8px}
+.btn.danger{background:var(--danger);color:#fff}
+.btn.block{width:100%}
+.input,.select,.textarea{width:100%;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;outline:none;transition:border-color .15s,box-shadow .15s}
+.input:focus,.select:focus,.textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--ring)}
+.textarea{resize:vertical;min-height:80px;font-family:inherit}
+.muted{color:var(--muted);font-size:12px}
+.center{display:flex;align-items:center;justify-content:center;flex:1;padding:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow)}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.row.between{justify-content:space-between}
+.col{display:flex;flex-direction:column;gap:10px}
+hr{border:0;border-top:1px solid var(--border);margin:12px 0}
+.list{flex:1;overflow:auto;padding:8px}
+.room-item{display:flex;gap:10px;align-items:center;padding:12px;border-radius:var(--radius-md);cursor:pointer;transition:background .15s;position:relative}
+.room-item:hover{background:var(--surface-2)}
+.room-item .avatar{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-weight:700;color:#06231a;flex-shrink:0;font-size:16px}
+.room-item .badge-count{position:absolute;right:12px;top:10px;background:var(--primary);color:var(--primary-fg);font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px;min-width:18px;text-align:center}
+.empty{padding:48px 20px;text-align:center;color:var(--muted)}
+.empty .big{font-size:36px;margin-bottom:10px;opacity:.7}
+
+.chat-list{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:2px;background:var(--bg);scroll-behavior:smooth;position:relative}
+.msg-group{display:flex;flex-direction:column;gap:3px;margin:5px 0}
+.msg{display:flex;flex-direction:column;gap:3px;max-width:84%;position:relative;animation:msgIn .18s ease}
+@keyframes msgIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.msg.mine{align-self:flex-end;align-items:flex-end}
+.msg-row{display:flex;gap:6px;align-items:flex-end}
+.msg.mine .msg-row{flex-direction:row-reverse}
+.bubble{padding:9px 13px;border-radius:17px;background:var(--card);border:1px solid var(--border);white-space:pre-wrap;word-break:break-word;line-height:1.5;position:relative}
+.msg.mine .bubble{background:var(--primary);color:var(--primary-fg);border-color:transparent;border-bottom-right-radius:5px}
+.msg:not(.mine) .bubble{border-bottom-left-radius:5px}
+.bubble.deleted{font-style:italic;color:var(--muted);background:var(--surface-2)!important;border-color:var(--border)!important}
+.bubble.highlight{animation:flashHi 1.6s ease}
+@keyframes flashHi{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 3px var(--warn)}}
+.bubble .edited-tag{font-size:9.5px;opacity:.65;margin-left:5px}
+.msg.search-dim{opacity:.25;filter:saturate(.4)}
+
+.msg-actions{display:flex;gap:1px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:2px;box-shadow:var(--shadow);opacity:0;transform:translateY(2px) scale(.96);transition:opacity .12s,transform .12s;pointer-events:none}
+.msg:hover .msg-actions,.msg.actions-pinned .msg-actions{opacity:1;transform:none;pointer-events:auto}
+.msg-actions button{padding:6px 7px;border-radius:7px;font-size:13px;color:var(--muted)}
+.msg-actions button:hover{background:var(--surface-2);color:var(--fg)}
+
+.reply-quote{display:flex;flex-direction:column;gap:2px;background:rgba(125,125,125,.08);border-left:3px solid var(--primary);border-radius:8px;padding:6px 10px;margin-bottom:6px;font-size:12px;cursor:pointer;max-width:100%;transition:background .15s}
+.reply-quote:hover{background:rgba(125,125,125,.14)}
+.msg.mine .reply-quote{border-left-color:rgba(255,255,255,.5);background:rgba(0,0,0,.15)}
+.msg.mine .reply-quote:hover{background:rgba(0,0,0,.22)}
+.reply-quote .rq-header{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.reply-quote .rq-author{font-weight:700;color:var(--primary);font-size:11px}
+.msg.mine .reply-quote .rq-author{color:rgba(255,255,255,.85)}
+.reply-quote .rq-jump{font-size:10px;color:var(--muted);padding:1px 6px;border-radius:5px;background:rgba(125,125,125,.12);white-space:nowrap;flex-shrink:0}
+.reply-quote:hover .rq-jump{background:var(--primary-soft);color:var(--primary)}
+.msg.mine .reply-quote .rq-jump{color:rgba(255,255,255,.55)}
+.msg.mine .reply-quote:hover .rq-jump{background:rgba(255,255,255,.15);color:rgba(255,255,255,.9)}
+.reply-quote .rq-text{color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;opacity:.8}
+.msg.mine .reply-quote .rq-text{color:rgba(255,255,255,.6)}
+/* 500자 초과 메시지 더보기 */
+.msg-truncated{position:relative}
+.msg-truncated .bubble{-webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent 100%);mask-image:linear-gradient(to bottom,#000 70%,transparent 100%)}
+.msg-truncated.expanded .bubble{-webkit-mask-image:none;mask-image:none}
+.read-more{font-size:11px;font-weight:700;color:var(--primary);padding:3px 0 1px;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+.msg.mine .read-more{color:var(--primary-fg);opacity:.85}
+.read-more:hover{opacity:.75}
+
+.meta{font-size:10.5px;color:var(--muted);padding:0 4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.meta .read{color:var(--primary)}
+.author{font-size:11.5px;color:var(--muted);padding:0 4px;font-weight:600;display:flex;align-items:center;gap:5px}
+.author .presence-dot{width:6px;height:6px;border-radius:50%;background:var(--muted-2)}
+.author .presence-dot.online{background:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
+.translate-info{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.translate-info button{color:var(--primary);text-decoration:underline;padding:0 2px}
+.event{align-self:center;font-size:11px;color:var(--muted);background:var(--surface-2);padding:3px 10px;border-radius:999px;margin:4px 0}
+.date-div{align-self:center;font-size:11px;color:var(--muted);padding:8px 0;display:flex;align-items:center;gap:8px;width:100%}
+.date-div::before,.date-div::after{content:"";flex:1;height:1px;background:var(--border)}
+.unread-div{align-self:stretch;display:flex;align-items:center;gap:8px;margin:6px 0;color:var(--danger);font-size:11px;font-weight:700}
+.unread-div::before,.unread-div::after{content:"";flex:1;height:1px;background:var(--danger)}
+.avatar-mini{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:11px;color:#06231a;flex-shrink:0}
+
+.reactions{display:flex;gap:4px;flex-wrap:wrap;padding:2px}
+.reaction{background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:12px;font-size:11.5px;cursor:pointer;transition:transform .1s,background .15s}
+.reaction:hover{transform:translateY(-1px)}
+.reaction.mine{background:var(--primary-soft);border-color:var(--primary)}
+.reaction.add{color:var(--muted)}
+
+.pinned-bar{background:var(--surface-2);border-bottom:1px solid var(--border);padding:0;font-size:12px;overflow:hidden}
+.pinned-bar .pin-row{display:flex;gap:8px;align-items:center;padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--border-soft)}
+.pinned-bar .pin-row:last-child{border-bottom:0}
+.pinned-bar .pin-row:hover{background:var(--surface-3)}
+.pinned-bar .pin-ico{color:var(--primary)}
+.pinned-bar .pin-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pinned-bar .pin-unpin{color:var(--muted);font-size:11px;padding:3px 6px;border-radius:6px}
+.pinned-bar .pin-unpin:hover{background:var(--danger-soft);color:var(--danger)}
+
+.composer-wrap{position:relative;border-top:1px solid var(--border);background:var(--surface)}
+.reply-bar{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border-soft);font-size:12px;background:var(--surface-2)}
+.reply-bar .rb-text{flex:1;min-width:0;overflow:hidden}
+.reply-bar .rb-author{font-weight:700;color:var(--primary)}
+.reply-bar .rb-content{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.edit-bar{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border-soft);font-size:12px;background:rgba(245,166,35,.1);color:var(--warn)}
+.edit-bar b{font-weight:700}
+.composer{padding:8px;display:flex;gap:6px;align-items:flex-end;position:relative}
+.composer textarea{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:18px;padding:10px 14px;resize:none;max-height:160px;outline:none;font-family:var(--sans)}
+.composer textarea:focus{border-color:var(--primary)}
+.composer textarea.code-mode{font-family:var(--mono);font-size:12.5px;border-radius:10px}
+.attach{padding:8px;border-radius:50%;color:var(--muted);flex-shrink:0;transition:background .15s,color .15s}
+.attach:hover{background:var(--surface-2);color:var(--fg)}
+.attach.active{color:var(--primary);background:var(--primary-soft)}
+.send{padding:9px 14px;border-radius:50%;background:var(--primary);color:var(--primary-fg);font-weight:700;flex-shrink:0;transition:transform .12s,filter .12s}
+.send:hover{filter:brightness(1.08)}
+.send:active{transform:scale(.9)}
+.send:disabled{opacity:.4}
+.drop-overlay{position:absolute;inset:0;background:rgba(61,220,132,.12);border:2px dashed var(--primary);border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--primary);z-index:20;backdrop-filter:blur(2px);pointer-events:none}
+
+.file-card{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:8px 10px;display:flex;gap:8px;align-items:center;min-width:200px;max-width:300px}
+.file-card .name{flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upload-progress{height:3px;background:var(--surface-3);border-radius:2px;overflow:hidden;margin-top:4px}
+.upload-progress .bar{height:100%;background:var(--primary);width:0%;transition:width .2s}
+.img-attach-wrap{position:relative;border-radius:12px;overflow:hidden;cursor:zoom-in;max-width:240px}
+.img-attach-wrap img{display:block;width:100%;border-radius:12px}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;animation:fadeIn .15s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);max-width:520px;width:100%;max-height:90dvh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow);animation:popIn .18s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes popIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.modal-card.wide{max-width:680px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700}
+.modal-body{padding:16px;overflow:auto;flex:1}
+.modal-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:60;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none}
+.lightbox img{max-width:92vw;max-height:88vh;cursor:grab;transition:transform .08s;user-select:none}
+.lightbox img:active{cursor:grabbing}
+.lightbox .lb-close{position:absolute;top:16px;right:16px;color:#fff;font-size:22px;background:rgba(255,255,255,.1);width:40px;height:40px;border-radius:50%;display:grid;place-items:center}
+.lightbox .lb-close:hover{background:rgba(255,255,255,.2)}
+.lightbox .lb-hint{position:absolute;bottom:16px;left:0;right:0;text-align:center;color:rgba(255,255,255,.6);font-size:11px}
+
+.typing{padding:4px 16px;font-size:11px;color:var(--muted);font-style:italic;min-height:22px;display:flex;align-items:center;gap:6px}
+.typing .dots{display:inline-flex;gap:2px}
+.typing .dots span{width:4px;height:4px;border-radius:50%;background:var(--muted);animation:tdot 1.2s infinite}
+.typing .dots span:nth-child(2){animation-delay:.15s}
+.typing .dots span:nth-child(3){animation-delay:.3s}
+@keyframes tdot{0%,60%,100%{opacity:.3;transform:scale(.8)}30%{opacity:1;transform:scale(1.1)}}
+
+.tabs{display:flex;gap:4px;padding:4px;background:var(--surface-2);border-radius:10px;margin-bottom:12px}
+.tabs button{flex:1;padding:8px;border-radius:7px;color:var(--muted);font-weight:600;transition:background .15s,color .15s}
+.tabs button.active{background:var(--card);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+
+.emoji-pop{position:absolute;bottom:64px;left:8px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;display:flex;flex-wrap:wrap;gap:4px;max-width:280px;z-index:10;box-shadow:var(--shadow);animation:popIn .15s}
+.emoji-pop button{font-size:20px;padding:4px;border-radius:6px}
+.emoji-pop button:hover{background:var(--surface-2);transform:scale(1.15)}
+
+.code-block{position:relative;background:var(--code-bg);border:1px solid var(--code-border);border-radius:10px;margin:6px 0;overflow:hidden;font-size:12.5px}
+.code-block .cb-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(125,125,125,.08);border-bottom:1px solid var(--code-border)}
+.code-block .cb-lang{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:6px}
+.code-block .cb-lang .dot3{display:inline-flex;gap:3px}
+.code-block .cb-lang .dot3 span{width:7px;height:7px;border-radius:50%}
+.code-block .cb-head-actions{display:flex;align-items:center;gap:2px}
+.code-block .cb-copy{font-family:var(--sans);font-size:11px;font-weight:600;color:var(--muted);padding:3px 8px;border-radius:6px;display:flex;align-items:center;gap:4px}
+.code-block .cb-copy:hover{background:rgba(125,125,125,.15);color:var(--fg)}
+.code-block .cb-copy.copied{color:var(--primary)}
+.code-block .cb-wrap-toggle{font-family:var(--sans);font-size:11px;font-weight:600;color:var(--muted);padding:3px 7px;border-radius:6px}
+.code-block .cb-wrap-toggle:hover{background:rgba(125,125,125,.15);color:var(--fg)}
+.code-block .cb-wrap-toggle.active{color:var(--primary)}
+.code-block pre{margin:0;padding:10px 12px;overflow:auto;max-height:420px;font-family:var(--mono)!important;font-size:12.5px!important;line-height:1.6!important}
+.code-block pre[class*="language-"]{background:transparent!important}
+.code-block code[class*="language-"]{font-family:var(--mono)!important}
+.code-block.wrap-on pre{white-space:pre-wrap!important;word-break:break-word!important;overflow-x:hidden}
+.code-block.wrap-on pre[class*="language-"]{white-space:pre-wrap!important;word-break:break-word!important}
+.code-block .line-numbers-rows{border-right-color:var(--code-border)!important}
+.code-block.collapsed pre{max-height:0;padding-top:0;padding-bottom:0;overflow:hidden}
+.code-block .cb-expand{width:100%;padding:6px;font-size:11px;color:var(--muted);background:rgba(125,125,125,.06);border-top:1px solid var(--code-border)}
+.code-block .cb-expand:hover{background:rgba(125,125,125,.12);color:var(--fg)}
+.code-block .cb-foot{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;border-top:1px solid var(--code-border);font-size:10.5px;color:var(--muted-2)}
+.diff-add{background:rgba(61,220,132,.14);display:block;margin:0 -12px;padding:0 12px}
+.diff-del{background:rgba(255,107,107,.14);display:block;margin:0 -12px;padding:0 12px}
+.diff-hunk{color:var(--muted);display:block;margin:0 -12px;padding:0 12px;opacity:.7}
+.msg .bubble .inline-code{font-family:var(--mono);background:rgba(125,125,125,.18);padding:1px 5px;border-radius:5px;font-size:.9em}
+.msg.mine .bubble .inline-code{background:rgba(0,0,0,.18)}
+.bubble .md-bold{font-weight:700}
+.bubble .md-italic{font-style:italic}
+.bubble .md-strike{text-decoration:line-through;opacity:.7}
+.bubble a.md-link{text-decoration:underline}
+.msg.mine .bubble a.md-link{color:var(--primary-fg)}
+.bubble .mention{font-weight:700;color:var(--primary);background:var(--primary-soft);padding:0 4px;border-radius:5px}
+.msg.mine .bubble .mention{background:rgba(0,0,0,.18);color:var(--primary-fg)}
+
+.code-view{background:var(--code-bg);color:var(--fg);font-family:var(--mono);font-size:12px;padding:12px;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:60dvh;overflow:auto;border:1px solid var(--code-border)}
+img.preview{max-width:100%;border-radius:8px;display:block;margin:0 auto}
+label{font-size:12px;color:var(--muted);margin-bottom:4px;display:block;font-weight:600}
+.notice{background:var(--primary-soft);border:1px solid rgba(61,220,132,.3);padding:10px 12px;border-radius:10px;font-size:13px;margin-bottom:10px}
+.ann{background:var(--surface-2);border-bottom:1px solid var(--border);padding:8px 12px;font-size:12px;display:flex;gap:8px;align-items:flex-start}
+.ann .pin{color:var(--primary)}
+.ann .ann-close{margin-left:auto;color:var(--muted);flex-shrink:0}
+
+.search-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+.search-bar input{flex:1;background:transparent;border:0;outline:none;font-size:13px}
+.search-nav{display:flex;align-items:center;gap:2px;font-size:11px;color:var(--muted)}
+.search-nav button{padding:4px 6px;border-radius:6px}
+.search-nav button:hover{background:var(--surface-3)}
+
+.toast-wrap{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:100%;max-width:680px}
+.toast{background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:11px;padding:10px 16px;font-size:13px;display:flex;align-items:center;gap:8px;animation:toastIn .2s ease;max-width:90%}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.toast.success{border-color:rgba(61,220,132,.4)}
+.toast.success .toast-ico{color:var(--primary)}
+.toast.error{border-color:rgba(255,107,107,.4)}
+.toast.error .toast-ico{color:var(--danger)}
+
+.scroll-fab{position:absolute;bottom:14px;right:14px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:999px;padding:9px 14px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;color:var(--fg);z-index:8;animation:popIn .18s}
+.scroll-fab .badge{background:var(--primary);color:var(--primary-fg);border-radius:999px;padding:1px 7px;font-size:11px}
+
+.member-row{display:flex;align-items:center;gap:10px;padding:8px 4px}
+.member-row .presence-dot{width:8px;height:8px;border-radius:50%;background:var(--muted-2);flex-shrink:0}
+.member-row .presence-dot.online{background:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.member-row .role-tag{font-size:10px;color:var(--muted);background:var(--surface-2);padding:2px 7px;border-radius:999px;margin-left:auto}
+
+.kbd{font-family:var(--mono);font-size:10.5px;background:var(--surface-3);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+.shortcut-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-soft)}
+.shortcut-row:last-child{border-bottom:0}
+
+@media (max-width:380px){
+  .topbar h1{font-size:14px}
+  .msg{max-width:90%}
+}
+</style>
+</head>
+<body>
+<div id="root" class="app"></div>
+<div id="toastRoot" class="toast-wrap"></div>
+
+<!-- Prism.js core + 언어 컴포넌트 (코드 하이라이팅) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+<script>
+  if(window.Prism){ Prism.plugins.autoloader.languages_path = "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/"; }
+</script>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+// ==================================================================
+// config
+// ==================================================================
+const SUPABASE_URL = "https://uglfaoqtyjlbfabdgnis.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnbGZhb3F0eWpsYmZhYmRnbmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NjE5MTUsImV4cCI6MjA5ODEzNzkxNX0.Xvp3G4D9RkSEWFwczdt6LHf7wDEcMEhVIH5PxPhdbm0";
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth:{ persistSession:true, autoRefreshToken:true }});
+const SYNTH_DOMAIN = "accounts.androiddev.local"; // 같은 gmail로 여러 계정 허용
+const PAGE_SIZE = 30; // 무한 스크롤 페이지당 메시지 수
+
+// ==================================================================
+// i18n
+// ==================================================================
+const LANGS = [
+  ["ko","🇰🇷","한국어"],["en","🇺🇸","English"],["ja","🇯🇵","日本語"],["zh","🇨🇳","中文"],
+  ["es","🇪🇸","Español"],["fr","🇫🇷","Français"],["de","🇩🇪","Deutsch"],["ru","🇷🇺","Русский"],
+  ["pt","🇵🇹","Português"],["vi","🇻🇳","Tiếng Việt"]
+];
+const T = {
+  ko:{signin:"로그인",signup:"회원가입",username:"아이디",password:"비밀번호",displayName:"이름",gmail:"Gmail (선택)",rooms:"채팅방",newRoom:"새 채팅방",roomName:"방 이름",description:"설명",create:"만들기",cancel:"취소",send:"전송",leave:"나가기",settings:"설정",rules:"규칙",viewRules:"규칙 보기",announcement:"공지",ok:"확인",save:"저장",accept:"동의",showOriginal:"원본보기",translate:"번역하기",translated:"번역됨",read:"읽음",typing:"입력 중…",joined:"님이 입장했습니다",left:"님이 나갔습니다",cannotPreview:"이 파일은 미리보기 할 수 없습니다",download:"다운로드",copy:"복사",copied:"복사됨",view:"보기",viewFile:"파일 보기",accent:"강조색",signOut:"로그아웃",language:"언어",empty:"아직 채팅방이 없습니다",joinedAt:"입장 시점 이후 메시지만 표시됩니다",today:"오늘",yesterday:"어제",noRules:"규칙이 없습니다",rulesIntro:"이 방의 규칙입니다. 동의하시면 확인을 눌러주세요.",noAnnouncement:"공지가 없습니다",messagePlaceholder:"메시지를 입력하세요…",welcome:"AndroidDev 다국어 채팅",welcomeDesc:"10개 언어 자동 번역으로 어디서든 대화하세요",loading:"로딩 중…",
+    reply:"답장",edit:"수정",delete:"삭제",pin:"고정",unpin:"고정 해제",deleted:"삭제된 메시지입니다",edited:"(수정됨)",editing:"메시지 수정 중",cancelEdit:"취소",search:"메시지 검색",searchPlaceholder:"메시지 검색…",noResults:"결과 없음",pinnedMessages:"고정된 메시지",loadMore:"이전 메시지 불러오기",newMessages:"새 메시지",members:"참여자",online:"온라인",offline:"오프라인",theme:"테마",dark:"다크",light:"라이트",shortcuts:"단축키",confirmDelete:"이 메시지를 삭제할까요?",replyingTo:"에게 답장",notifEnable:"데스크탑 알림 켜기",notifOn:"알림 켜짐",dropToUpload:"여기에 놓아 업로드",codeMode:"코드 모드",jumpToMessage:"원문으로 이동",pinnedEmpty:"고정된 메시지가 없습니다",you:"나",wrapOn:"줄바꿈 켜짐",wrapOff:"줄바꿈 꺼짐",collapse:"접기",expand:"펼치기",lines:"줄",readMore:"더보기",showLess:"접기"},
+};
+T.en={signin:"Sign in",signup:"Sign up",username:"Username",password:"Password",displayName:"Display name",gmail:"Gmail (optional)",rooms:"Rooms",newRoom:"New room",roomName:"Room name",description:"Description",create:"Create",cancel:"Cancel",send:"Send",leave:"Leave",settings:"Settings",rules:"Rules",viewRules:"View rules",announcement:"Announcement",ok:"OK",save:"Save",accept:"Accept",showOriginal:"Show original",translate:"Translate",translated:"translated",read:"Read",typing:"typing…",joined:"joined",left:"left",cannotPreview:"This file cannot be previewed",download:"Download",copy:"Copy",copied:"Copied",view:"View",viewFile:"View file",accent:"Accent color",signOut:"Sign out",language:"Language",empty:"No rooms yet",joinedAt:"Showing messages from when you joined",today:"Today",yesterday:"Yesterday",noRules:"No rules",rulesIntro:"Room rules. Press OK to accept.",noAnnouncement:"No announcement",messagePlaceholder:"Type a message…",welcome:"AndroidDev Multilingual Chat",welcomeDesc:"Chat in any language with auto-translation",loading:"Loading…",
+  reply:"Reply",edit:"Edit",delete:"Delete",pin:"Pin",unpin:"Unpin",deleted:"This message was deleted",edited:"(edited)",editing:"Editing message",cancelEdit:"Cancel",search:"Search messages",searchPlaceholder:"Search messages…",noResults:"No results",pinnedMessages:"Pinned messages",loadMore:"Load earlier messages",newMessages:"New messages",members:"Members",online:"Online",offline:"Offline",theme:"Theme",dark:"Dark",light:"Light",shortcuts:"Shortcuts",confirmDelete:"Delete this message?",replyingTo:"Replying to",notifEnable:"Enable desktop notifications",notifOn:"Notifications on",dropToUpload:"Drop to upload",codeMode:"Code mode",jumpToMessage:"Go to original",pinnedEmpty:"No pinned messages",you:"You",wrapOn:"Wrap on",wrapOff:"Wrap off",collapse:"Collapse",expand:"Expand",lines:"lines",readMore:"Read more",showLess:"Show less"};
+["ja","zh","es","fr","de","ru","pt","vi"].forEach(l=>T[l]=T.en);
+let LANG = localStorage.getItem("lang") || (navigator.language||"en").slice(0,2);
+if(!T[LANG]) LANG="en";
+const t = (k)=> T[LANG]?.[k] ?? T.en[k] ?? k;
+
+// ==================================================================
+// 테마 (다크/라이트)
+// ==================================================================
+let THEME = localStorage.getItem("theme") || "dark";
+function applyTheme(){
+  document.documentElement.setAttribute("data-theme", THEME);
+  const prismLink = document.getElementById("prism-theme");
+  prismLink.href = THEME==="light"
+    ? "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css"
+    : "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css";
+}
+function toggleTheme(){ THEME = THEME==="dark"?"light":"dark"; localStorage.setItem("theme",THEME); applyTheme(); }
+applyTheme();
+
+// ==================================================================
+// 토스트
+// ==================================================================
+const toastRoot = document.getElementById("toastRoot");
+function toast(msg, kind="success"){
+  const ico = kind==="success" ? "✓" : "⚠";
+  const node = document.createElement("div");
+  node.className = `toast ${kind}`;
+  node.innerHTML = `<span class="toast-ico">${ico}</span><span>${escapeHtml(msg)}</span>`;
+  toastRoot.appendChild(node);
+  setTimeout(()=>{ node.style.opacity="0"; node.style.transform="translateY(8px)"; node.style.transition="all .2s"; setTimeout(()=>node.remove(),200); }, 2400);
+}
+
+// ==================================================================
+// free translation (Google gtx, unlimited, no key)
+// ==================================================================
+const tCache = new Map();
+async function translate(text, target, source){
+  if(!text || !target) return text;
+  const key = `${target}|${(source||"")}|${text}`;
+  if(tCache.has(key)) return tCache.get(key);
+  const cached = localStorage.getItem("tr:"+key);
+  if(cached){ tCache.set(key,cached); return cached; }
+  try{
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(source||"auto")}&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(text)}`;
+    const r = await fetch(url);
+    const j = await r.json();
+    const out = (j[0]||[]).map(s=>s[0]).join("");
+    const detected = j[2];
+    tCache.set(key,out);
+    try{ localStorage.setItem("tr:"+key,out); }catch{}
+    return { text: out, detected };
+  }catch(e){ return { text, detected:source||"en" }; }
+}
+async function detectLang(text){
+  try{
+    const r = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(text.slice(0,200))}`);
+    const j = await r.json();
+    return j[2] || "en";
+  }catch{ return "en"; }
+}
+
+// ==================================================================
+// helpers
+// ==================================================================
+const el = (tag, props={}, ...children)=>{
+  const e = document.createElement(tag);
+  for(const [k,v] of Object.entries(props)){
+    if(k==="class") e.className=v;
+    else if(k==="style") Object.assign(e.style,v);
+    else if(k.startsWith("on")) e.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==="html") e.innerHTML=v;
+    else if(v!=null && v!==false) e.setAttribute(k,v);
+  }
+  for(const c of children.flat()){
+    if(c==null||c===false) continue;
+    e.appendChild(typeof c==="string"?document.createTextNode(c):c);
+  }
+  return e;
+};
+const root = document.getElementById("root");
+const mount = (node)=>{ root.replaceChildren(node); };
+const fmtTime = (iso)=>{ const d=new Date(iso); return d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); };
+const dayKey = (iso)=>{ const d=new Date(iso); return d.toISOString().slice(0,10); };
+const dayLabel = (iso)=>{
+  const d=new Date(iso); const today=new Date(); const yest=new Date(Date.now()-86400000);
+  if(d.toDateString()===today.toDateString()) return t("today");
+  if(d.toDateString()===yest.toDateString()) return t("yesterday");
+  return d.toLocaleDateString();
+};
+const hash = (s)=>{ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return Math.abs(h); };
+const accent = (s)=>{ const colors=["#3ddc84","#6cb4ee","#f59e0b","#ec4899","#a78bfa","#f87171"]; return colors[hash(s)%colors.length]; };
+function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function debounce(fn, ms){ let h; return (...a)=>{ clearTimeout(h); h=setTimeout(()=>fn(...a),ms); }; }
+
+// ==================================================================
+// state
+// ==================================================================
+let session=null, profile=null, currentRoom=null, channel=null, presenceChannel=null;
+let onlineUserIds = new Set();
+let oldestLoadedAt = null, hasMoreHistory = true, loadingMore = false;
+let currentMembers = []; // [{user_id, display_name}]
+let mentionNamesSet = new Set();
+let pinnedMessages = [];
+let replyTarget = null; // {id, author, content}
+let editTarget = null;  // {id, content}
+let notifPermission = (typeof Notification!=="undefined") ? Notification.permission : "denied";
+let unreadSinceScroll = 0;
+let isAtBottom = true;
+let searchActive = false, searchResults = [], searchIndex = -1;
+// 동시 타이핑 사용자 추적: userId -> {name, timeout}
+let typingUsers = new Map();
+// 낙관적 렌더된 메시지 ID — Realtime INSERT 이벤트 중복 방지
+const renderedMsgIds = new Set();
+
+async function loadProfile(){
+  if(!session) return null;
+  const { data } = await sb.from("profiles").select("*").eq("id",session.user.id).single();
+  profile = data;
+  if(profile?.preferred_lang && T[profile.preferred_lang]){ LANG=profile.preferred_lang; localStorage.setItem("lang",LANG); }
+  return data;
+}
+
+// ==================================================================
+// AUTH
+// ==================================================================
+function renderAuth(){
+  let mode="signin";
+  const form = el("div",{class:"col"});
+  const tabs = el("div",{class:"tabs"},
+    el("button",{class:"active",onclick:()=>{mode="signin";refresh()}},t("signin")),
+    el("button",{onclick:()=>{mode="signup";refresh()}},t("signup")),
+  );
+  const langSel = el("select",{class:"select",onchange:e=>{LANG=e.target.value;localStorage.setItem("lang",LANG);renderAuth()}},
+    ...LANGS.map(([c,f,n])=>el("option",{value:c,selected:c===LANG||undefined},`${f} ${n}`)));
+
+  function refresh(){
+    [...tabs.children].forEach((b,i)=>b.className=(i===0&&mode==="signin")||(i===1&&mode==="signup")?"active":"");
+    form.replaceChildren(...buildForm());
+  }
+  function buildForm(){
+    const u=el("input",{class:"input",placeholder:t("username"),autocomplete:"username"});
+    const p=el("input",{class:"input",type:"password",placeholder:t("password"),autocomplete:"current-password"});
+    const fields=[el("label",{},t("username")),u,el("label",{},t("password")),p];
+    let d,g;
+    if(mode==="signup"){
+      d=el("input",{class:"input",placeholder:t("displayName")});
+      g=el("input",{class:"input",type:"email",placeholder:t("gmail")});
+      fields.push(el("label",{},t("displayName")),d,el("label",{},t("gmail")),g);
+    }
+    const err = el("div",{class:"muted",style:{color:"var(--danger)"}});
+    const submit = el("button",{class:"btn block",onclick:async()=>{
+      err.textContent="";
+      const username=u.value.trim().toLowerCase();
+      if(!/^[a-z0-9_]{3,20}$/.test(username)){ err.textContent="아이디는 3-20자 영숫자/_"; return; }
+      if(!p.value || p.value.length<6){ err.textContent="비밀번호 6자 이상"; return; }
+      const email = `${username}@${SYNTH_DOMAIN}`;
+      try{
+        if(mode==="signup"){
+          const { data, error } = await sb.auth.signUp({ email, password:p.value, options:{ data:{ display_name:d.value.trim()||username, preferred_lang:LANG, gmail:g.value.trim()||null }}});
+          if(error) throw error;
+          if(!data.session){ const { error:e2 } = await sb.auth.signInWithPassword({ email, password:p.value }); if(e2) throw e2; }
+        } else {
+          const { error } = await sb.auth.signInWithPassword({ email, password:p.value }); if(error) throw error;
+        }
+      }catch(e){ err.textContent=e.message||String(e); }
+    }},mode==="signin"?t("signin"):t("signup"));
+    // Enter 키로 제출
+    p.addEventListener("keydown", e=>{ if(e.key==="Enter") submit.click(); });
+    return [...fields,err,submit];
+  }
+  refresh();
+  mount(el("div",{class:"app"},
+    el("div",{class:"topbar"},el("h1",{},t("welcome")),
+      el("button",{class:"icon-btn",title:t("theme"),onclick:()=>{toggleTheme();renderAuth();}},THEME==="dark"?"☀":"🌙"),
+      langSel),
+    el("div",{class:"center"},
+      el("div",{class:"card",style:{width:"100%",maxWidth:"360px"}},
+        el("div",{class:"muted",style:{marginBottom:"12px"}},t("welcomeDesc")),
+        tabs, form,
+        el("div",{class:"muted",style:{marginTop:"10px",fontSize:"11px"}},"같은 Gmail로 여러 계정 생성 가능")
+      )
+    )
+  ));
+}
+
+// ==================================================================
+// ROOM LIST
+// ==================================================================
+async function renderRooms(){
+  const list = el("div",{class:"list"});
+  mount(el("div",{class:"app"},
+    el("div",{class:"topbar"},
+      el("h1",{},t("rooms")),
+      el("button",{class:"icon-btn",title:t("theme"),onclick:()=>{toggleTheme();renderRooms();}},THEME==="dark"?"☀":"🌙"),
+      el("select",{class:"select",style:{width:"auto",padding:"4px 8px"},onchange:async e=>{
+        LANG=e.target.value; localStorage.setItem("lang",LANG);
+        await sb.from("profiles").update({preferred_lang:LANG}).eq("id",session.user.id);
+        renderRooms();
+      }},...LANGS.map(([c,f,n])=>el("option",{value:c,selected:c===LANG||undefined},`${f} ${n}`))),
+      el("button",{class:"btn sm",onclick:openCreateRoom},"＋"),
+      el("button",{class:"icon-btn",onclick:async()=>{await sb.auth.signOut();}},"⎋")
+    ),
+    list
+  ));
+  // Public rooms + my rooms
+  const { data: my } = await sb.from("room_members").select("room_id").eq("user_id",session.user.id);
+  const myIds = (my||[]).map(r=>r.room_id);
+  const { data: pub } = await sb.from("rooms").select("*").or(`is_public.eq.true${myIds.length?`,id.in.(${myIds.join(",")})`:""}`).order("updated_at",{ascending:false});
+  const rooms = pub||[];
+  if(!rooms.length){ list.appendChild(el("div",{class:"empty"},el("div",{class:"big"},"💬"),t("empty"))); return; }
+  rooms.forEach(r=>{
+    list.appendChild(el("div",{class:"room-item",onclick:()=>openRoom(r.id)},
+      el("div",{class:"avatar",style:{background:r.accent_color||accent(r.name)}},r.name.slice(0,1).toUpperCase()),
+      el("div",{style:{flex:1,minWidth:0}},
+        el("div",{style:{fontWeight:700}},r.name),
+        el("div",{class:"muted",style:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},r.description||"")
+      )
+    ));
+  });
+}
+
+// ==================================================================
+// ROOM
+// ==================================================================
+async function openRoom(roomId){
+  currentRoom = roomId;
+  // ensure member
+  let { data: mem } = await sb.from("room_members").select("*").eq("room_id",roomId).eq("user_id",session.user.id).maybeSingle();
+  if(!mem){
+    await sb.from("room_members").insert({ room_id:roomId, user_id:session.user.id });
+    await sb.from("room_events").insert({ room_id:roomId, user_id:session.user.id, type:"join" });
+    ({ data: mem } = await sb.from("room_members").select("*").eq("room_id",roomId).eq("user_id",session.user.id).maybeSingle());
+  }
+  const { data: room } = await sb.from("rooms").select("*").eq("id",roomId).single();
+  renderRoom(room, mem);
+}
+
+async function renderRoom(room, mem){
+  document.documentElement.style.setProperty("--primary", room.accent_color||"#3ddc84");
+  oldestLoadedAt = null; hasMoreHistory = true; loadingMore = false;
+  replyTarget = null; editTarget = null; unreadSinceScroll = 0; isAtBottom = true;
+  searchActive = false; searchResults = []; searchIndex = -1;
+  typingUsers = new Map();
+
+  const chatList = el("div",{class:"chat-list"});
+  const typingBar = el("div",{class:"typing"});
+  const pinnedBar = el("div",{class:"pinned-bar",style:{display:"none"}});
+  const annBox = el("div",{});
+  const scrollFab = el("button",{class:"scroll-fab",style:{display:"none"},onclick:()=>{
+    chatList.scrollTo({top:chatList.scrollHeight,behavior:"smooth"});
+    unreadSinceScroll=0; updateScrollFab();
+  }},"↓ ",el("span",{class:"badge"},"0"));
+  const dropOverlay = el("div",{class:"drop-overlay",style:{display:"none"}}, "📎 "+t("dropToUpload"));
+
+  function renderAnnouncement(){
+    annBox.replaceChildren();
+    if(room.announcement){
+      annBox.appendChild(el("div",{class:"ann"},el("span",{class:"pin"},"📌"),el("div",{style:{flex:1}},room.announcement)));
+    }
+  }
+  renderAnnouncement();
+
+  const composerObj = renderComposer(room, chatList);
+
+  const header = el("div",{class:"topbar"},
+    el("button",{class:"icon-btn",onclick:async()=>{
+      cleanupRoom();
+      await sb.from("room_events").insert({ room_id:room.id, user_id:session.user.id, type:"leave" });
+      renderRooms();
+    }},"←"),
+    el("div",{style:{flex:1,minWidth:0}},
+      el("h1",{},room.name),
+    ),
+    el("button",{class:"icon-btn",title:t("search")+" (Ctrl+K)",onclick:()=>toggleSearch(room,chatList)},"🔍"),
+    el("button",{class:"icon-btn",title:t("members"),onclick:()=>openMembers(room)},"👥"),
+    typeof Notification!=="undefined" ? el("button",{class:"icon-btn"+(notifPermission==="granted"?" active":""),title:notifPermission==="granted"?t("notifOn"):t("notifEnable"),onclick:async()=>{
+      if(notifPermission==="granted"){ toast(t("notifOn")); return; }
+      const perm = await Notification.requestPermission();
+      notifPermission = perm;
+      if(perm==="granted") toast(t("notifOn")); else toast("알림 권한이 거부되었습니다","error");
+      renderRoom(room, mem);
+    }}, notifPermission==="granted"?"🔔":"🔕") : null,
+    el("button",{class:"icon-btn",title:t("theme"),onclick:()=>{ toggleTheme(); renderRoom(room, mem); }},THEME==="dark"?"☀":"🌙"),
+    el("button",{class:"icon-btn",title:t("shortcuts"),onclick:openShortcutsModal},"⌨"),
+    room.rules?el("button",{class:"icon-btn",title:t("viewRules"),onclick:()=>showRules(room,false)},"📜"):null,
+    room.owner_id===session.user.id?el("button",{class:"icon-btn",onclick:()=>openSettings(room)},"⚙"):null,
+    el("button",{class:"icon-btn",onclick:async()=>{
+      cleanupRoom();
+      await sb.from("room_members").delete().eq("room_id",room.id).eq("user_id",session.user.id);
+      await sb.from("room_events").insert({ room_id:room.id, user_id:session.user.id, type:"leave" });
+      renderRooms();
+    }},"⏻")
+  );
+
+  const searchBar = el("div",{class:"search-bar",style:{display:"none"}});
+
+  mount(el("div",{class:"app"},header,searchBar,pinnedBar,annBox,
+    el("div",{style:{position:"relative",flex:1,display:"flex",flexDirection:"column",minHeight:0}},
+      chatList, scrollFab, dropOverlay
+    ),
+    typingBar,composerObj.wrap));
+
+  // 무한 스크롤: 위로 올리면 이전 메시지 로드
+  chatList.addEventListener("scroll", debounce(()=>{
+    if(chatList.scrollTop < 80 && hasMoreHistory && !loadingMore){
+      loadOlderMessages(room, mem, chatList);
+    }
+    isAtBottom = (chatList.scrollHeight - chatList.scrollTop - chatList.clientHeight) < 60;
+    if(isAtBottom){ unreadSinceScroll=0; }
+    updateScrollFab();
+  }, 120));
+
+  function updateScrollFab(){
+    if(isAtBottom || unreadSinceScroll===0){ scrollFab.style.display="none"; return; }
+    scrollFab.style.display="flex";
+    scrollFab.querySelector(".badge").textContent = unreadSinceScroll>99?"99+":String(unreadSinceScroll);
+  }
+
+  // 드래그&드롭 업로드
+  let dragCounter=0;
+  const appNode = root.firstElementChild;
+  appNode.addEventListener("dragover", e=>{ e.preventDefault(); });
+  appNode.addEventListener("dragenter", e=>{ e.preventDefault(); dragCounter++; dropOverlay.style.display="flex"; });
+  appNode.addEventListener("dragleave", e=>{ dragCounter--; if(dragCounter<=0){ dropOverlay.style.display="none"; dragCounter=0; } });
+  appNode.addEventListener("drop", async e=>{
+    e.preventDefault(); dragCounter=0; dropOverlay.style.display="none";
+    const files = [...(e.dataTransfer?.files||[])];
+    for(const f of files) await uploadFile(room, f, chatList);
+  });
+
+  // notice about visibility from join time
+  chatList.appendChild(el("div",{class:"event"},t("joinedAt")));
+
+  // Load members + pinned + timeline
+  await Promise.all([
+    loadMembers(room),
+    loadPinned(room, pinnedBar, chatList),
+  ]);
+  await loadTimeline(room, mem, chatList);
+  chatList.scrollTop = chatList.scrollHeight;
+
+  // Show rules modal if not accepted
+  if(room.rules && !mem.rules_accepted_at){
+    showRules(room, true);
+  }
+
+  // Realtime
+  setupRealtime(room, mem, chatList, typingBar, pinnedBar, composerObj);
+
+  // 키보드 단축키
+  setupRoomShortcuts(room, chatList, composerObj, searchBar);
+
+  window.__currentRoomCtx = { room, mem, chatList, typingBar, pinnedBar, composerObj, header, searchBar };
+}
+
+function cleanupRoom(){
+  if(channel){ sb.removeChannel(channel); channel=null; }
+  if(presenceChannel){ sb.removeChannel(presenceChannel); presenceChannel=null; }
+  typingUsers.forEach(u=>clearTimeout(u.timeout));
+  typingUsers = new Map();
+  document.documentElement.style.setProperty("--primary", THEME==="light" ? "#1ab36a" : "#3ddc84");
+  document.removeEventListener("keydown", window.__roomKeyHandler||(()=>{}));
+}
+
+function setupRoomShortcuts(room, chatList, composerObj, searchBar){
+  if(window.__roomKeyHandler) document.removeEventListener("keydown", window.__roomKeyHandler);
+  window.__roomKeyHandler = (e)=>{
+    const tag=(document.activeElement?.tagName||"").toLowerCase();
+    const typing = tag==="textarea" || tag==="input";
+    if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k"){
+      e.preventDefault(); toggleSearch(room, chatList, true);
+    } else if(e.key==="Escape"){
+      if(searchActive) toggleSearch(room, chatList, false);
+      else if(replyTarget){ replyTarget=null; composerObj.refreshBars(); }
+      else if(editTarget){ editTarget=null; composerObj.refreshBars(); }
+      closeModal();
+    } else if(e.key==="ArrowUp" && typing && composerObj.ta.value===""){
+      // 마지막 내 메시지 빠른 수정
+      const mine = [...chatList.querySelectorAll(".msg.mine[data-mid]")].pop();
+      if(mine && mine._raw && !mine._raw._deleted){
+        e.preventDefault();
+        composerObj.startEdit(mine._raw);
+      }
+    }
+  };
+  document.addEventListener("keydown", window.__roomKeyHandler);
+}
+
+async function loadMembers(room){
+  const { data: members } = await sb.from("room_members").select("user_id, role, profiles(display_name)").eq("room_id",room.id);
+  currentMembers = (members||[]).map(m=>({ user_id:m.user_id, display_name:m.profiles?.display_name||"?", role:m.role }));
+  mentionNamesSet = new Set(currentMembers.map(m=>m.display_name));
+}
+
+async function loadPinned(room, pinnedBar, chatList){
+  const { data: pins } = await sb.from("messages").select("*").eq("room_id",room.id).eq("pinned",true).order("created_at",{ascending:false});
+  pinnedMessages = pins||[];
+  renderPinnedBar(pinnedBar, chatList);
+}
+function renderPinnedBar(pinnedBar, chatList){
+  if(!pinnedMessages.length){ pinnedBar.style.display="none"; pinnedBar.replaceChildren(); return; }
+  pinnedBar.style.display="block";
+  pinnedBar.replaceChildren(...pinnedMessages.slice(0,3).map(p=>
+    el("div",{class:"pin-row"},
+      el("span",{class:"pin-ico"},"📌"),
+      el("div",{class:"pin-text",onclick:()=>jumpToMessage(p.id, chatList)}, (p.content||"📎 첨부파일").slice(0,80)),
+      el("button",{class:"pin-unpin",onclick:async(e)=>{
+        e.stopPropagation();
+        await sb.from("messages").update({pinned:false}).eq("id",p.id);
+      }}, t("unpin"))
+    )
+  ));
+}
+function jumpToMessage(mid, chatList){
+  const node = chatList.querySelector(`[data-mid="${mid}"]`);
+  if(node){
+    node.scrollIntoView({behavior:"smooth", block:"center"});
+    const bubble = node.querySelector(".bubble");
+    bubble?.classList.add("highlight");
+    setTimeout(()=>bubble?.classList.remove("highlight"), 1600);
+  }
+}
+
+// 메시지 ID 목록에 대해 읽음 수 / 리액션 맵을 한번에 조회
+async function fetchReadsAndReactions(msgIds){
+  let readMap = new Map(), rxMap = new Map();
+  if(!msgIds.length) return { readMap, rxMap };
+  const { data: reads } = await sb.from("message_reads").select("message_id").in("message_id",msgIds);
+  (reads||[]).forEach(r=>readMap.set(r.message_id,(readMap.get(r.message_id)||0)+1));
+  const { data: rx } = await sb.from("message_reactions").select("*").in("message_id",msgIds);
+  (rx||[]).forEach(r=>{
+    if(!rxMap.has(r.message_id)) rxMap.set(r.message_id,{});
+    const map=rxMap.get(r.message_id); if(!map[r.emoji]) map[r.emoji]=[];
+    map[r.emoji].push(r.user_id);
+  });
+  return { readMap, rxMap };
+}
+async function fetchReadCount(messageId){
+  const { count } = await sb.from("message_reads").select("*",{count:"exact",head:true}).eq("message_id",messageId);
+  return count||0;
+}
+async function fetchReactionsFor(messageId){
+  const { data: rx } = await sb.from("message_reactions").select("*").eq("message_id",messageId);
+  const map={}; (rx||[]).forEach(r=>{ if(!map[r.emoji])map[r.emoji]=[]; map[r.emoji].push(r.user_id); });
+  return map;
+}
+
+async function loadTimeline(room, mem, chatList){
+  const since = mem.joined_at;
+  const [{ data: msgs }, { data: evts }] = await Promise.all([
+    sb.from("messages").select("*").eq("room_id",room.id).gte("created_at",since).order("created_at",{ascending:false}).limit(PAGE_SIZE),
+    sb.from("room_events").select("*").eq("room_id",room.id).gte("created_at",since).order("created_at"),
+  ]);
+  const msgsAsc = (msgs||[]).slice().reverse();
+  if(msgsAsc.length) oldestLoadedAt = msgsAsc[0].created_at;
+  hasMoreHistory = (msgs||[]).length === PAGE_SIZE;
+
+  const userIds = new Set([...(msgsAsc).map(m=>m.user_id),...(evts||[]).map(e=>e.user_id)]);
+  const { data: profs } = await sb.from("profiles").select("id,display_name").in("id",[...userIds]);
+  const nameMap = new Map((profs||[]).map(p=>[p.id,p.display_name]));
+
+  const msgIds = msgsAsc.map(m=>m.id);
+  const { readMap, rxMap } = await fetchReadsAndReactions(msgIds);
+  const msgById = new Map(msgsAsc.map(m=>[m.id,m]));
+
+  const items = [
+    ...msgsAsc.map(m=>({kind:"msg",at:m.created_at,data:m})),
+    ...(evts||[]).map(e=>({kind:"evt",at:e.created_at,data:e})),
+  ].sort((a,b)=>a.at.localeCompare(b.at));
+
+  let lastDay = "";
+  for(const it of items){
+    const dk = dayKey(it.at);
+    if(dk!==lastDay){ chatList.appendChild(el("div",{class:"date-div"},dayLabel(it.at))); lastDay=dk; }
+    if(it.kind==="evt"){
+      chatList.appendChild(el("div",{class:"event"},`${nameMap.get(it.data.user_id)||"?"} ${it.data.type==="join"?t("joined"):t("left")}`));
+    } else {
+      const m=it.data;
+      chatList.appendChild(renderMessage(m, nameMap.get(m.user_id)||"?", readMap.get(m.id)||0, rxMap.get(m.id)||{}, room, msgById));
+      if(m.user_id!==session.user.id){
+        sb.from("message_reads").upsert({ message_id:m.id, user_id:session.user.id },{ onConflict:"message_id,user_id" });
+      }
+    }
+  }
+}
+
+async function loadOlderMessages(room, mem, chatList){
+  if(!oldestLoadedAt || loadingMore) return;
+  loadingMore = true;
+  const prevHeight = chatList.scrollHeight;
+  const loadingNode = el("div",{class:"event"}, t("loading"));
+  chatList.prepend(loadingNode);
+
+  const { data: msgs } = await sb.from("messages").select("*").eq("room_id",room.id).gte("created_at",mem.joined_at).lt("created_at",oldestLoadedAt).order("created_at",{ascending:false}).limit(PAGE_SIZE);
+  loadingNode.remove();
+  const msgsAsc = (msgs||[]).slice().reverse();
+  if(!msgsAsc.length){ hasMoreHistory=false; loadingMore=false; return; }
+  oldestLoadedAt = msgsAsc[0].created_at;
+  hasMoreHistory = msgsAsc.length===PAGE_SIZE;
+
+  const userIds = new Set(msgsAsc.map(m=>m.user_id));
+  const { data: profs } = await sb.from("profiles").select("id,display_name").in("id",[...userIds]);
+  const nameMap = new Map((profs||[]).map(p=>[p.id,p.display_name]));
+  const msgIds = msgsAsc.map(m=>m.id);
+  const { readMap, rxMap } = await fetchReadsAndReactions(msgIds);
+  const msgById = new Map(msgsAsc.map(m=>[m.id,m]));
+
+  // 날짜 구분선을 올바르게 포함해서 prepend (기존 첫 메시지의 날짜와 비교)
+  const firstExistingDateDiv = chatList.querySelector(".date-div");
+  const firstExistingDayLabel = firstExistingDateDiv?.textContent;
+
+  const frag = document.createDocumentFragment();
+  let lastDay = "";
+  for(let i=0;i<msgsAsc.length;i++){
+    const m = msgsAsc[i];
+    const dk = dayKey(m.created_at);
+    if(dk!==lastDay){
+      frag.appendChild(el("div",{class:"date-div"},dayLabel(m.created_at)));
+      lastDay = dk;
+    }
+    frag.appendChild(renderMessage(m, nameMap.get(m.user_id)||"?", readMap.get(m.id)||0, rxMap.get(m.id)||{}, room, msgById));
+  }
+  // 만약 새로 불러온 마지막 날짜가 기존 화면의 첫 날짜와 같다면, 기존 첫 date-div는 중복이므로 제거
+  if(firstExistingDateDiv && lastDay && dayLabel(msgsAsc[msgsAsc.length-1].created_at)===firstExistingDayLabel){
+    firstExistingDateDiv.remove();
+  }
+  chatList.prepend(frag);
+  chatList.scrollTop = chatList.scrollHeight - prevHeight;
+  loadingMore = false;
+}
+
+function openCreateRoom(){
+  const name=el("input",{class:"input",placeholder:t("roomName")});
+  const desc=el("textarea",{class:"textarea",placeholder:t("description")});
+  const rules=el("textarea",{class:"textarea",placeholder:t("rules")});
+  const ann=el("textarea",{class:"textarea",placeholder:t("announcement")});
+  showModal(t("newRoom"),
+    el("div",{class:"col"},
+      el("label",{},t("roomName")),name,
+      el("label",{},t("description")),desc,
+      el("label",{},t("rules")),rules,
+      el("label",{},t("announcement")),ann
+    ),[
+      {label:t("cancel"),onclick:closeModal,ghost:true},
+      {label:t("create"),onclick:async()=>{
+        if(!name.value.trim()) return;
+        const { data, error } = await sb.from("rooms").insert({
+          name:name.value.trim(), description:desc.value.trim()||null,
+          rules:rules.value.trim()||null, announcement:ann.value.trim()||null,
+          owner_id:session.user.id, accent_color:accent(name.value)
+        }).select().single();
+        if(error){ toast(error.message,"error"); return; }
+        closeModal(); openRoom(data.id);
+      }}
+    ]
+  );
+}
+
+
+function renderMessage(m, author, readCount, reactions, room, msgById){
+  const isMine = m.user_id===session.user.id;
+  const isDeleted = !!m.deleted_at;
+  const wrap = el("div",{class:"msg"+(isMine?" mine":""),"data-mid":m.id});
+  wrap._raw = m;
+
+  if(!isMine){
+    const isOnline = onlineUserIds.has(m.user_id);
+    wrap.appendChild(el("div",{class:"author"}, el("span",{class:"presence-dot"+(isOnline?" online":"")}), author));
+  }
+
+  // 답장 인용 — 작성자 + 원문 미리보기 2줄 + 이동 버튼
+  if(m.reply_to_id){
+    const target = msgById?.get(m.reply_to_id);
+    const snippet = m.reply_to_snippet || target?.content || "";
+    const quoteEl = el("div",{class:"reply-quote"},
+      el("div",{class:"rq-header"},
+        el("span",{class:"rq-author"}, "↩ " + (m.reply_to_author || "?")),
+        el("span",{class:"rq-jump"}, t("jumpToMessage")+" →")
+      ),
+      el("div",{class:"rq-text"}, snippet.slice(0,120) || "📎")
+    );
+    quoteEl.addEventListener("click", ()=>jumpToMessage(m.reply_to_id, wrap.closest(".chat-list")));
+    wrap.appendChild(quoteEl);
+  }
+
+  const TRUNCATE_LIMIT = 500;
+  let bubble = null;
+  if(isDeleted){
+    bubble = el("div",{class:"bubble deleted"}, "🚫 "+t("deleted"));
+    wrap.appendChild(bubble);
+  } else if(m.content && m.content.trim()){
+    const isTruncatable = !(/```/.test(m.content)) && m.content.length > TRUNCATE_LIMIT;
+    if(isTruncatable) wrap.classList.add("msg-truncated");
+
+    bubble = el("div",{class:"bubble"});
+
+    // 번역이 필요한지 먼저 판단
+    const hasCodeBlock = /```/.test(m.content);
+    const src=(m.source_lang||"").slice(0,2);
+    const needsTranslate = !hasCodeBlock && src && src!==LANG;
+
+    function renderBubbleContent(text){
+      bubble.replaceChildren();
+      bubble.appendChild(renderMessageContent(text, mentionNamesSet));
+      if(m.edited_at) bubble.appendChild(el("span",{class:"edited-tag"}, t("edited")));
+    }
+    renderBubbleContent(m.content);
+    wrap.appendChild(bubble);
+
+    // 더보기 버튼 (500자 초과 시)
+    if(isTruncatable){
+      const readMoreBtn = el("button",{class:"read-more"},`… ${t("readMore")} ▾`);
+      readMoreBtn.addEventListener("click", ()=>{
+        const expanded = wrap.classList.toggle("expanded");
+        readMoreBtn.textContent = expanded ? `▴ ${t("showLess")}` : `… ${t("readMore")} ▾`;
+      });
+      wrap.appendChild(readMoreBtn);
+    }
+
+    // auto translate
+    if(needsTranslate){
+      const info = el("div",{class:"translate-info"},"…");
+      wrap.appendChild(info);
+      let showingOriginal=false, translated=null;
+      translate(m.content, LANG, src).then(res=>{
+        translated = typeof res==="string"?res:res.text;
+        renderInfo();
+      });
+      function renderInfo(){
+        info.replaceChildren();
+        const showText = (translated && !showingOriginal) ? translated : m.content;
+        renderBubbleContent(showText);
+        info.append(
+          document.createTextNode(`${src} → ${LANG} ${t("translated")} · `),
+          el("button",{onclick:()=>{showingOriginal=!showingOriginal;renderInfo();}}, showingOriginal?t("translate"):t("showOriginal"))
+        );
+      }
+    }
+  }
+
+  // attachments
+  const atts = m.attachments||[];
+  if(!isDeleted && Array.isArray(atts) && atts.length){
+    atts.forEach(a=>wrap.appendChild(renderFile(a)));
+  }
+
+  // 호버 액션 툴바 (답장/복사/반응/수정/삭제/핀)
+  if(!isDeleted){
+    const actions = el("div",{class:"msg-actions"});
+    actions.appendChild(el("button",{title:t("reply"),onclick:()=>{
+      const ctx = window.__currentRoomCtx;
+      replyTarget = { id:m.id, author: isMine?t("you"):author, content:(m.content||"📎").slice(0,80) };
+      ctx?.composerObj.refreshBars();
+      ctx?.composerObj.ta.focus();
+    }},"↩"));
+    if(m.content) actions.appendChild(el("button",{title:t("copy"),onclick:async()=>{
+      try{ await navigator.clipboard.writeText(m.content); toast(t("copied")); }catch{ toast("실패","error"); }
+    }},"⎘"));
+    actions.appendChild(el("button",{title:"😊",onclick:e=>openEmojiPick(e.currentTarget,async(emo)=>{
+      await sb.from("message_reactions").upsert({ message_id:m.id, user_id:session.user.id, emoji:emo },{ onConflict:"message_id,user_id,emoji" });
+    })},"😊"));
+    const isOwnerOrAdmin = room.owner_id===session.user.id;
+    if(isMine || isOwnerOrAdmin){
+      actions.appendChild(el("button",{title:m.pinned?t("unpin"):t("pin"),onclick:async()=>{
+        await sb.from("messages").update({pinned:!m.pinned}).eq("id",m.id);
+      }}, m.pinned?"📌":"📍"));
+    }
+    if(isMine && m.content){
+      actions.appendChild(el("button",{title:t("edit"),onclick:()=>{
+        window.__currentRoomCtx?.composerObj.startEdit(m);
+      }},"✎"));
+    }
+    if(isMine || isOwnerOrAdmin){
+      actions.appendChild(el("button",{title:t("delete"),onclick:async()=>{
+        if(!confirm(t("confirmDelete"))) return;
+        // 첨부파일이 있었다면 Storage에서도 삭제 (DB row는 비우되 실제 파일은 남지 않도록)
+        const prevAtts = m.attachments||[];
+        if(Array.isArray(prevAtts) && prevAtts.length){
+          const paths = prevAtts.map(a=>a.path).filter(Boolean);
+          if(paths.length){
+            try{ await sb.storage.from("attachments").remove(paths); }catch(e){ /* 스토리지 정리 실패는 무시하고 진행 */ }
+          }
+        }
+        await sb.from("messages").update({ deleted_at:new Date().toISOString(), content:null, attachments:[] }).eq("id",m.id);
+      }},"🗑"));
+    }
+    wrap.appendChild(actions);
+  }
+
+  // reactions
+  if(!isDeleted){
+    const rx = el("div",{class:"reactions"});
+    const renderRx = ()=>{
+      rx.replaceChildren();
+      for(const [emo,users] of Object.entries(reactions)){
+        if(!users.length) continue;
+        const mine = users.includes(session.user.id);
+        rx.appendChild(el("button",{class:"reaction"+(mine?" mine":""),onclick:async()=>{
+          if(mine){ await sb.from("message_reactions").delete().eq("message_id",m.id).eq("user_id",session.user.id).eq("emoji",emo); }
+          else { await sb.from("message_reactions").insert({ message_id:m.id, user_id:session.user.id, emoji:emo }); }
+        }},`${emo} ${users.length}`));
+      }
+    };
+    renderRx();
+    wrap.appendChild(rx);
+    wrap._renderRx = (newRx)=>{ reactions=newRx; renderRx(); };
+  }
+
+  const meta = el("div",{class:"meta"},fmtTime(m.created_at));
+  if(isMine && readCount>0 && !isDeleted) meta.appendChild(el("span",{class:"read"},`· ${t("read")} ${readCount}`));
+  wrap.appendChild(meta);
+  wrap._setRead = (n)=>{ if(!isMine) return; const r=meta.querySelector(".read"); if(r){ if(n>0) r.textContent=`· ${t("read")} ${n}`; else r.remove(); } else if(n>0) meta.appendChild(el("span",{class:"read"},`· ${t("read")} ${n}`)); };
+
+  return wrap;
+}
+
+const BLOCKED = new Set(["apk","jar","lock","zip","rar","7z","tar","gz","exe","dll","so","bin"]);
+function previewKind(name, mime){
+  const ext=(name.split(".").pop()||"").toLowerCase();
+  if(BLOCKED.has(ext)) return "none";
+  if((mime||"").startsWith("image/")) return "image";
+  if((mime||"").startsWith("text/")||["json","js","ts","tsx","jsx","md","xml","yml","yaml","kt","java","py","css","html","gradle","properties","sh","txt","c","cpp","go","rs","rb","php","swift","diff","patch"].includes(ext)) return "text";
+  return "none";
+}
+async function signedUrl(path){
+  const { data } = await sb.storage.from("attachments").createSignedUrl(path,3600);
+  return data?.signedUrl;
+}
+function renderFile(a){
+  const kind = previewKind(a.name,a.mime);
+  if(kind==="image"){
+    const wrap = el("div",{class:"img-attach-wrap"});
+    const img = el("img",{alt:a.name,loading:"lazy"});
+    wrap.appendChild(img);
+    signedUrl(a.path).then(url=>{ if(url) img.src=url; });
+    wrap.addEventListener("click", async ()=>{
+      const url = img.src || await signedUrl(a.path);
+      openLightbox(url, a.name);
+    });
+    return wrap;
+  }
+  const box = el("div",{class:"file-card"},
+    el("span",{},"📄"),
+    el("div",{class:"name"},a.name),
+    el("span",{class:"muted",style:{fontSize:"10px"}},`${(a.size/1024).toFixed(0)}KB`)
+  );
+  const acts = el("div",{style:{display:"flex",gap:"2px"}});
+  if(kind!=="none") acts.appendChild(el("button",{class:"icon-btn",title:t("view"),onclick:async()=>{
+    const url=await signedUrl(a.path); if(!url) return;
+    const txt=await (await fetch(url)).text();
+    const ext = (a.name.split(".").pop()||"").toLowerCase();
+    const codeView = el("pre",{class:"code-view line-numbers"}, el("code",{class:`language-${ext}`}, txt));
+    showModal(a.name,codeView,[{label:t("copy"),onclick:async()=>{await navigator.clipboard.writeText(txt);toast(t("copied"));}},{label:t("ok"),onclick:closeModal}]);
+    requestAnimationFrame(()=>{ try{ window.Prism?.highlightAllUnder(codeView.parentElement||document.body); }catch{} });
+  }},"👁"));
+  if(kind==="text") acts.appendChild(el("button",{class:"icon-btn",title:t("copy"),onclick:async()=>{
+    const url=await signedUrl(a.path); const txt=await (await fetch(url)).text(); await navigator.clipboard.writeText(txt); toast(t("copied"));
+  }},"⎘"));
+  acts.appendChild(el("button",{class:"icon-btn",title:t("download"),onclick:async()=>{
+    const url=await signedUrl(a.path); if(!url) return;
+    const x=document.createElement("a"); x.href=url; x.download=a.name; x.click();
+  }},"⬇"));
+  box.appendChild(acts);
+  if(kind==="none") box.appendChild(el("span",{class:"muted",style:{fontSize:"10px",width:"100%",marginTop:"4px"}},t("cannotPreview")));
+  return box;
+}
+
+// 이미지 라이트박스 (확대/줌/드래그)
+function openLightbox(url, name){
+  if(!url) return;
+  let scale=1, tx=0, ty=0, dragging=false, sx=0, sy=0;
+  const img = el("img",{src:url,alt:name||""});
+  const lb = el("div",{class:"lightbox",onclick:(e)=>{ if(e.target===lb) close(); }},
+    img,
+    el("button",{class:"lb-close",onclick:close},"✕"),
+    el("div",{class:"lb-hint"},"드래그로 이동 · 휠로 확대/축소 · ESC로 닫기")
+  );
+  function applyT(){ img.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; }
+  img.addEventListener("wheel", e=>{ e.preventDefault(); scale = Math.min(5,Math.max(.5, scale + (e.deltaY<0?0.15:-0.15))); applyT(); }, {passive:false});
+  img.addEventListener("mousedown", e=>{ dragging=true; sx=e.clientX-tx; sy=e.clientY-ty; });
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+  function onMove(e){ if(!dragging) return; tx=e.clientX-sx; ty=e.clientY-sy; applyT(); }
+  function onUp(){ dragging=false; }
+  img.addEventListener("dblclick", ()=>{ scale = scale>1 ? 1 : 2; tx=0; ty=0; applyT(); });
+  function onKey(e){ if(e.key==="Escape") close(); }
+  document.addEventListener("keydown", onKey);
+  function close(){ lb.remove(); window.removeEventListener("mousemove",onMove); window.removeEventListener("mouseup",onUp); document.removeEventListener("keydown",onKey); }
+  document.body.appendChild(lb);
+}
+
+function renderMessageContent(rawText, mentionNames){
+  const frag = document.createDocumentFragment();
+  const codeBlockRe = /```([a-zA-Z0-9+#._-]*)\n?([\s\S]*?)```/g;
+  let lastIndex = 0, m;
+  while((m = codeBlockRe.exec(rawText))){
+    if(m.index > lastIndex){
+      frag.appendChild(renderInlineMarkdown(rawText.slice(lastIndex, m.index), mentionNames));
+    }
+    frag.appendChild(renderCodeBlock(m[2].replace(/\n$/,""), m[1]||""));
+    lastIndex = m.index + m[0].length;
+  }
+  if(lastIndex < rawText.length){
+    frag.appendChild(renderInlineMarkdown(rawText.slice(lastIndex), mentionNames));
+  }
+  return frag;
+}
+
+// 코드블록 줄바꿈 설정은 세션 동안 전역으로 기억 (사용자가 한번 켜면 이후 블록도 동일하게)
+let __codeWrapPref = localStorage.getItem("codeWrap")==="1";
+let __cbid = 0;
+const DIFF_LANGS = new Set(["diff","patch"]);
+
+function renderCodeBlock(code, lang){
+  const wrap = el("div",{class:"code-block"+(__codeWrapPref?" wrap-on":"")});
+  const normalizedLang = (lang||"").toLowerCase().replace(/^js$/,"javascript").replace(/^ts$/,"typescript").replace(/^py$/,"python").replace(/^kt$/,"kotlin").replace(/^sh$/,"bash") || "plaintext";
+  const isDiff = DIFF_LANGS.has(normalizedLang) || /^([+-]{1}[^+-]|@@ )/m.test(code);
+
+  const wrapBtn = el("button",{class:"cb-wrap-toggle"+(__codeWrapPref?" active":""),title:t("wrapOn")+"/"+t("wrapOff"),onclick:()=>{
+    __codeWrapPref = !__codeWrapPref;
+    localStorage.setItem("codeWrap", __codeWrapPref?"1":"0");
+    // 현재 페이지의 모든 코드블록에 동일하게 적용
+    document.querySelectorAll(".code-block").forEach(cb=>{
+      cb.classList.toggle("wrap-on", __codeWrapPref);
+      cb.querySelector(".cb-wrap-toggle")?.classList.toggle("active", __codeWrapPref);
+    });
+  }},"↵");
+
+  const head = el("div",{class:"cb-head"},
+    el("span",{class:"cb-lang"},
+      el("span",{class:"dot3"}, el("span",{style:{background:"#ff5f56"}}), el("span",{style:{background:"#ffbd2e"}}), el("span",{style:{background:"#27c93f"}})),
+      isDiff ? "diff" : normalizedLang
+    ),
+    el("div",{class:"cb-head-actions"},
+      wrapBtn,
+      el("button",{class:"cb-copy",onclick:async (e)=>{
+        try{
+          await navigator.clipboard.writeText(code);
+          const btn = e.currentTarget;
+          btn.classList.add("copied"); btn.textContent="✓ "+t("copied");
+          setTimeout(()=>{ btn.classList.remove("copied"); btn.innerHTML="⎘ "+t("copy"); },1500);
+        }catch{ toast("복사 실패", "error"); }
+      }},"⎘ "+t("copy"))
+    )
+  );
+
+  const pre = el("pre",{class:"line-numbers"});
+  let codeEl;
+  if(isDiff){
+    // diff/patch는 +,-,@@ 라인을 색칠해서 직접 렌더 (Prism diff 컴포넌트에 의존하지 않음)
+    codeEl = el("code",{class:"language-diff"});
+    const lines = code.split("\n");
+    lines.forEach((line,i)=>{
+      const lineWrap = document.createElement("span");
+      if(/^@@.*@@/.test(line)) lineWrap.className="diff-hunk";
+      else if(/^\+/.test(line) && !/^\+\+\+/.test(line)) lineWrap.className="diff-add";
+      else if(/^-/.test(line) && !/^---/.test(line)) lineWrap.className="diff-del";
+      lineWrap.textContent = line + (i<lines.length-1 ? "\n" : "");
+      codeEl.appendChild(lineWrap);
+    });
+  } else {
+    codeEl = el("code",{class:`language-${normalizedLang}`}, code);
+  }
+  pre.appendChild(codeEl);
+  wrap.appendChild(head);
+  wrap.appendChild(pre);
+
+  // 줄수 표시 + 긴 코드 접기/펼치기 (50줄 이상이면 기본 접힘)
+  const lineCount = code.split("\n").length;
+  const COLLAPSE_THRESHOLD = 50;
+  if(lineCount > COLLAPSE_THRESHOLD){
+    wrap.classList.add("collapsed");
+    const expandBtn = el("button",{class:"cb-expand"}, `▾ ${t("expand")} (${lineCount} ${t("lines")})`);
+    expandBtn.addEventListener("click", ()=>{
+      const collapsed = wrap.classList.toggle("collapsed");
+      expandBtn.textContent = collapsed ? `▾ ${t("expand")} (${lineCount} ${t("lines")})` : `▴ ${t("collapse")}`;
+    });
+    wrap.appendChild(expandBtn);
+  }
+
+  // Prism 하이라이팅은 DOM에 붙은 후 비동기로 실행 (diff는 자체 렌더이므로 skip)
+  if(!isDiff){
+    requestAnimationFrame(()=>{
+      try{ window.Prism && window.Prism.highlightElement(codeEl); }catch(e){}
+    });
+  }
+  return wrap;
+}
+
+function renderInlineMarkdown(text, mentionNames){
+  const frag = document.createDocumentFragment();
+  if(!text) return frag;
+  // 줄 단위로 처리하되 토큰화: `code`, **bold**, *italic*, ~~strike~~, [text](url), URL, @mention
+  const tokenRe = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(~~[^~\n]+~~)|(\*[^*\n]+\*)|(\[[^\]\n]+\]\([^)\s]+\))|((?:https?:\/\/)[^\s]+)|(@[\w.\-가-힣]{2,32})/g;
+  let last = 0, m;
+  while((m = tokenRe.exec(text))){
+    if(m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+    if(m[1]) frag.appendChild(el("code",{class:"inline-code"}, m[1].slice(1,-1)));
+    else if(m[2]) frag.appendChild(el("b",{class:"md-bold"}, m[2].slice(2,-2)));
+    else if(m[3]) frag.appendChild(el("s",{class:"md-strike"}, m[3].slice(2,-2)));
+    else if(m[4]) frag.appendChild(el("i",{class:"md-italic"}, m[4].slice(1,-1)));
+    else if(m[5]){
+      const mm = m[5].match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      frag.appendChild(el("a",{class:"md-link",href:mm[2],target:"_blank",rel:"noopener noreferrer"}, mm[1]));
+    }
+    else if(m[6]) frag.appendChild(el("a",{class:"md-link",href:m[6],target:"_blank",rel:"noopener noreferrer"}, m[6]));
+    else if(m[7]){
+      const name = m[7].slice(1);
+      const known = !mentionNames || mentionNames.has(name);
+      if(known) frag.appendChild(el("span",{class:"mention"}, "@"+name));
+      else frag.appendChild(document.createTextNode(m[7]));
+    }
+    last = m.index + m[0].length;
+  }
+  if(last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+  return frag;
+}
+
+// ==================================================================
+// 컴포저 (입력창): 답장바/수정바, 코드모드, 드래그&드롭+클립보드 업로드, 이모지
+// ==================================================================
+function renderComposer(room, chatList){
+  const barsWrap = el("div",{});
+  const mentionPop = el("div",{class:"emoji-pop",style:{display:"none",flexDirection:"column",maxWidth:"220px",bottom:"64px"}});
+  let mentionActive=false, mentionStart=-1;
+
+  function closeMentionPop(){ mentionActive=false; mentionPop.style.display="none"; mentionPop.replaceChildren(); }
+  function updateMentionPop(){
+    const pos = ta.selectionStart;
+    const before = ta.value.slice(0, pos);
+    const m = before.match(/@([\w.\-가-힣]{0,32})$/);
+    if(!m){ closeMentionPop(); return; }
+    const query = m[1].toLowerCase();
+    mentionStart = pos - m[0].length;
+    const matches = currentMembers.filter(mem=>mem.display_name.toLowerCase().includes(query)).slice(0,6);
+    if(!matches.length){ closeMentionPop(); return; }
+    mentionActive = true;
+    mentionPop.style.display = "flex";
+    mentionPop.replaceChildren(...matches.map(mem=>
+      el("button",{style:{display:"flex",alignItems:"center",gap:"6px",width:"100%",justifyContent:"flex-start",fontSize:"13px",padding:"6px 8px"},onclick:()=>{
+        const after = ta.value.slice(pos);
+        ta.value = ta.value.slice(0,mentionStart) + "@"+mem.display_name+" " + after;
+        closeMentionPop();
+        ta.focus();
+      }},
+        el("span",{class:"avatar-mini",style:{background:accent(mem.display_name)}}, mem.display_name.slice(0,1).toUpperCase()),
+        el("span",{}, mem.display_name)
+      )
+    ));
+  }
+
+  const ta = el("textarea",{rows:1,placeholder:t("messagePlaceholder"),oninput:()=>{
+    ta.style.height="auto"; ta.style.height=Math.min(160,ta.scrollHeight)+"px";
+    broadcastTyping();
+    updateMentionPop();
+  },onkeydown:e=>{
+    if(mentionActive && e.key==="Escape"){ closeMentionPop(); return; }
+    if((e.metaKey||e.ctrlKey) && e.key==="Enter"){ e.preventDefault(); closeMentionPop(); send(); }
+  },onpaste:async e=>{
+    const items = [...(e.clipboardData?.items||[])];
+    const imgItem = items.find(i=>i.type.startsWith("image/"));
+    if(imgItem){
+      e.preventDefault();
+      const file = imgItem.getAsFile();
+      if(file) await uploadFile(room, file, chatList);
+    }
+  },onblur:()=>{ setTimeout(closeMentionPop, 150); }});
+  let codeMode=false;
+  const fileInp = el("input",{type:"file",style:{display:"none"},onchange:async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    await uploadFile(room, f, chatList);
+    fileInp.value="";
+  }});
+
+  function refreshBars(){
+    barsWrap.replaceChildren();
+    if(editTarget){
+      barsWrap.appendChild(el("div",{class:"edit-bar"},
+        el("span",{},"✎"),
+        el("span",{style:{flex:1}}, el("b",{},t("editing"))),
+        el("button",{class:"icon-btn",onclick:()=>{ editTarget=null; ta.value=""; refreshBars(); }},"✕")
+      ));
+    } else if(replyTarget){
+      barsWrap.appendChild(el("div",{class:"reply-bar"},
+        el("span",{},"↩"),
+        el("div",{class:"rb-text"},
+          el("span",{class:"rb-author"}, replyTarget.author),
+          el("span",{class:"rb-content"}, replyTarget.content)
+        ),
+        el("button",{class:"icon-btn",onclick:()=>{ replyTarget=null; refreshBars(); }},"✕")
+      ));
+    }
+  }
+
+  function startEdit(m){
+    editTarget = { id:m.id, content:m.content };
+    replyTarget = null;
+    ta.value = m.content||"";
+    ta.style.height="auto"; ta.style.height=Math.min(160,ta.scrollHeight)+"px";
+    refreshBars();
+    ta.focus();
+  }
+
+  let emojiPop=null;
+  async function send(){
+    const txt=ta.value.trim(); if(!txt) return;
+    if(editTarget){
+      const id = editTarget.id;
+      ta.value=""; ta.style.height="auto";
+      editTarget=null; refreshBars();
+      await sb.from("messages").update({ content:txt, edited_at:new Date().toISOString() }).eq("id",id);
+      return;
+    }
+    ta.value=""; ta.style.height="auto";
+    const src = await detectLang(txt);
+    const payload = { room_id:room.id, user_id:session.user.id, content:txt, source_lang:src };
+    if(replyTarget){
+      payload.reply_to_id = replyTarget.id;
+      payload.reply_to_author = replyTarget.author;
+      payload.reply_to_snippet = replyTarget.content;
+      replyTarget=null; refreshBars();
+    }
+    // INSERT 후 반환된 row로 즉시 렌더 (Realtime 지연 없이 바로 표시)
+    const { data: inserted, error } = await sb.from("messages").insert(payload).select().single();
+    if(error){ toast(error.message, "error"); ta.value=txt; ta.style.height="auto"; ta.style.height=Math.min(160,ta.scrollHeight)+"px"; return; }
+    renderedMsgIds.add(inserted.id);
+    const lastDayEl = chatList.querySelector(".date-div:last-of-type");
+    const dk = dayLabel(inserted.created_at);
+    if(!lastDayEl || lastDayEl.textContent !== dk)
+      chatList.appendChild(el("div",{class:"date-div"}, dk));
+    chatList.appendChild(renderMessage(inserted, profile?.display_name||"?", 0, {}, room, new Map()));
+    chatList.scrollTop = chatList.scrollHeight;
+  }
+  let lastTyping=0;
+  function broadcastTyping(){
+    const now=Date.now(); if(now-lastTyping<1500) return; lastTyping=now;
+    presenceChannel?.send({ type:"broadcast", event:"typing", payload:{ id:session.user.id, name:profile?.display_name||"?" }});
+  }
+  const codeBtn = el("button",{class:"attach",title:t("codeMode"),onclick:()=>{
+    codeMode=!codeMode;
+    codeBtn.classList.toggle("active",codeMode);
+    ta.classList.toggle("code-mode",codeMode);
+    if(codeMode && !/```/.test(ta.value)){
+      ta.value = "```\n"+ta.value;
+      ta.selectionStart = ta.selectionEnd = ta.value.length;
+    }
+    ta.focus();
+  }},"</>");
+
+  const wrap = el("div",{class:"composer-wrap"},
+    barsWrap,
+    mentionPop,
+    el("div",{class:"composer"},
+      el("button",{class:"attach",onclick:()=>fileInp.click(),title:"파일 첨부"},"📎"),
+      codeBtn,
+      el("button",{class:"attach",onclick:e=>{
+        if(emojiPop){emojiPop.remove();emojiPop=null;return;}
+        emojiPop = el("div",{class:"emoji-pop"});
+        ["😀","😂","😍","🥲","😎","🤔","👍","🙏","🔥","❤️","🎉","💯","🚀","✨","😢","😡","👀","🙌","👏","💡"].forEach(em=>
+          emojiPop.appendChild(el("button",{onclick:()=>{ta.value+=em;emojiPop.remove();emojiPop=null;ta.focus();}},em)));
+        wrap.querySelector(".composer").appendChild(emojiPop);
+      }},"😊"),
+      ta, fileInp,
+      el("button",{class:"send",onclick:send},"➤")
+    )
+  );
+  refreshBars();
+  return { wrap, ta, refreshBars, startEdit };
+}
+
+async function uploadFile(room, f, chatList){
+  if(f.size>25*1024*1024){ toast("최대 25MB까지 업로드 가능합니다", "error"); return; }
+  const path=`${room.id}/${Date.now()}_${f.name}`;
+  // 업로드 진행 표시용 임시 메시지 카드
+  const progressNode = el("div",{class:"file-card",style:{alignSelf:"flex-end",margin:"4px 12px"}},
+    el("span",{},"📤"),
+    el("div",{style:{flex:1,minWidth:0}},
+      el("div",{class:"name"},f.name),
+      el("div",{class:"upload-progress"}, el("div",{class:"bar",style:{width:"30%"}}))
+    )
+  );
+  chatList.appendChild(progressNode);
+  chatList.scrollTop = chatList.scrollHeight;
+  const { error } = await sb.storage.from("attachments").upload(path,f);
+  if(error){ toast(error.message,"error"); progressNode.remove(); return; }
+  progressNode.querySelector(".bar").style.width="100%";
+  const attPayload = { room_id:room.id, user_id:session.user.id, content:"", attachments:[{path,name:f.name,size:f.size,mime:f.type}] };
+  const { data: inserted, error: insErr } = await sb.from("messages").insert(attPayload).select().single();
+  if(insErr){ toast(insErr.message,"error"); progressNode.remove(); return; }
+  // 낙관적 렌더: 진행 카드 제거 후 실제 파일 메시지 즉시 표시
+  renderedMsgIds.add(inserted.id);
+  progressNode.remove();
+  const lastDayEl = chatList.querySelector(".date-div:last-of-type");
+  const dk = dayLabel(inserted.created_at);
+  if(!lastDayEl || lastDayEl.textContent !== dk)
+    chatList.appendChild(el("div",{class:"date-div"}, dk));
+  chatList.appendChild(renderMessage(inserted, profile?.display_name||"?", 0, {}, room, new Map()));
+  chatList.scrollTop = chatList.scrollHeight;
+}
+
+// ==================================================================
+// 검색 (방 내 메시지 검색)
+// ==================================================================
+async function toggleSearch(room, chatList, forceOpen){
+  const ctx = window.__currentRoomCtx;
+  searchActive = forceOpen===false ? false : (forceOpen===true ? true : !searchActive);
+  const bar = ctx.searchBar;
+  bar.style.display = searchActive ? "flex" : "none";
+  if(!searchActive){
+    bar.replaceChildren();
+    [...chatList.querySelectorAll(".msg")].forEach(m=>m.classList.remove("search-dim"));
+    return;
+  }
+  const input = el("input",{placeholder:t("searchPlaceholder")});
+  const nav = el("div",{class:"search-nav"});
+  bar.replaceChildren(
+    el("span",{},"🔍"), input, nav,
+    el("button",{class:"icon-btn",onclick:()=>toggleSearch(room,chatList,false)},"✕")
+  );
+  input.focus();
+
+  const runSearch = debounce(async ()=>{
+    const q = input.value.trim();
+    if(!q){ nav.replaceChildren(); [...chatList.querySelectorAll(".msg")].forEach(m=>m.classList.remove("search-dim")); return; }
+    const { data } = await sb.from("messages").select("id,created_at").eq("room_id",room.id).is("deleted_at",null).ilike("content",`%${q}%`).order("created_at",{ascending:true}).limit(200);
+    searchResults = data||[];
+    searchIndex = searchResults.length ? searchResults.length-1 : -1;
+    renderNav();
+    highlightCurrent();
+  }, 250);
+  input.addEventListener("input", runSearch);
+  input.addEventListener("keydown", e=>{
+    if(e.key==="Enter"){ e.preventDefault(); if(e.shiftKey) stepSearch(-1); else stepSearch(1); }
+  });
+
+  function renderNav(){
+    nav.replaceChildren();
+    if(!searchResults.length){
+      nav.appendChild(el("span",{},t("noResults")));
+      return;
+    }
+    nav.append(
+      el("button",{onclick:()=>stepSearch(-1)},"↑"),
+      el("span",{}, `${searchIndex+1}/${searchResults.length}`),
+      el("button",{onclick:()=>stepSearch(1)},"↓"),
+    );
+  }
+  function stepSearch(dir){
+    if(!searchResults.length) return;
+    searchIndex = (searchIndex + dir + searchResults.length) % searchResults.length;
+    renderNav();
+    highlightCurrent();
+  }
+  function highlightCurrent(){
+    const allMsgs = [...chatList.querySelectorAll(".msg[data-mid]")];
+    const resultIds = new Set(searchResults.map(r=>r.id));
+    allMsgs.forEach(m=>m.classList.toggle("search-dim", resultIds.size>0 && !resultIds.has(m.dataset.mid)));
+    const cur = searchResults[searchIndex];
+    if(cur){
+      const node = chatList.querySelector(`[data-mid="${cur.id}"]`);
+      if(node){ node.scrollIntoView({behavior:"smooth",block:"center"}); node.querySelector(".bubble")?.classList.add("highlight"); setTimeout(()=>node.querySelector(".bubble")?.classList.remove("highlight"),1600); }
+      else toast(t("jumpToMessage")+": "+t("loadMore"));
+    }
+  }
+}
+
+// ==================================================================
+// 참여자(멤버) 모달 + presence
+// ==================================================================
+function openMembers(room){
+  const body = el("div",{class:"col"});
+  function render(){
+    body.replaceChildren(...currentMembers.map(m=>{
+      const isOnline = onlineUserIds.has(m.user_id);
+      return el("div",{class:"member-row"},
+        el("span",{class:"presence-dot"+(isOnline?" online":"")}),
+        el("div",{style:{flex:1}}, m.display_name + (m.user_id===session.user.id?` (${t("you")})`:"")),
+        el("span",{class:"muted",style:{fontSize:"11px"}}, isOnline?t("online"):t("offline")),
+        m.role==="owner"||room.owner_id===m.user_id?el("span",{class:"role-tag"},"👑"):null
+      );
+    }));
+  }
+  render();
+  showModal(t("members")+` (${currentMembers.length})`, body, [{label:t("ok"),onclick:closeModal}]);
+}
+
+function openShortcutsModal(){
+  const rows = [
+    ["Ctrl/⌘+Enter", t("send")],
+    ["Enter", "줄바꿈"],
+    ["Ctrl/⌘+K", t("search")],
+    ["↑ (빈 입력창)", "마지막 메시지 수정"],
+    ["Esc", "닫기 / 취소"],
+  ];
+  showModal(t("shortcuts"),
+    el("div",{}, ...rows.map(([k,v])=>el("div",{class:"shortcut-row"}, el("span",{},v), el("span",{class:"kbd"},k)))),
+    [{label:t("ok"),onclick:closeModal}]
+  );
+}
+
+// ==================================================================
+// Rules modal
+// ==================================================================
+function showRules(room, requireAccept){
+  let showOrig=false, translated=null;
+  const body = el("div",{},el("div",{class:"muted"},t("loading")));
+  const info = el("div",{class:"translate-info",style:{marginTop:"8px"}});
+  const wrap = el("div",{class:"col"},
+    el("div",{class:"notice"},t("rulesIntro")),
+    body, info
+  );
+  async function render(){
+    body.replaceChildren();
+    if(!room.rules){ body.appendChild(el("div",{class:"muted"},t("noRules"))); return; }
+    const src = room.rules_lang || await detectLang(room.rules);
+    if(src!==LANG && !translated){
+      const r = await translate(room.rules, LANG, src);
+      translated = typeof r==="string"?r:r.text;
+    }
+    body.appendChild(el("div",{style:{whiteSpace:"pre-wrap"}}, (translated && !showOrig)?translated:room.rules));
+    info.replaceChildren();
+    if(translated){
+      info.append(document.createTextNode(`${src} → ${LANG} ${t("translated")} · `),
+        el("button",{style:{color:"var(--primary)",textDecoration:"underline"},onclick:()=>{showOrig=!showOrig;render();}}, showOrig?t("translate"):t("showOriginal")));
+    }
+  }
+  render();
+  showModal(t("rules"),wrap,[
+    !requireAccept?{label:t("ok"),onclick:closeModal}:null,
+    requireAccept?{label:t("accept"),onclick:async()=>{
+      await sb.from("room_members").update({ rules_accepted_at:new Date().toISOString() }).eq("room_id",room.id).eq("user_id",session.user.id);
+      closeModal();
+    }}:null
+  ].filter(Boolean));
+}
+
+// ==================================================================
+// Owner settings
+// ==================================================================
+function openSettings(room){
+  const name=el("input",{class:"input",value:room.name});
+  const desc=el("textarea",{class:"textarea",value:room.description||""});
+  const rules=el("textarea",{class:"textarea",value:room.rules||""});
+  const ann=el("textarea",{class:"textarea",value:room.announcement||""});
+  const color=el("input",{type:"color",value:room.accent_color||"#3ddc84",style:{width:"60px",height:"40px",background:"transparent",border:"1px solid var(--border)",borderRadius:"8px"}});
+  showModal(t("settings"),
+    el("div",{class:"col"},
+      el("label",{},t("roomName")),name,
+      el("label",{},t("accent")),color,
+      el("label",{},t("description")),desc,
+      el("label",{},t("announcement")),ann,
+      el("label",{},t("rules")),rules,
+    ),[
+      {label:t("cancel"),onclick:closeModal,ghost:true},
+      {label:t("save"),onclick:async()=>{
+        const updates={ name:name.value.trim(), description:desc.value.trim()||null, rules:rules.value.trim()||null, announcement:ann.value.trim()||null, accent_color:color.value };
+        if(rules.value.trim() && rules.value!==room.rules){ updates.rules_lang = await detectLang(rules.value); }
+        await sb.from("rooms").update(updates).eq("id",room.id);
+        closeModal(); openRoom(room.id);
+      }}
+    ]
+  );
+}
+
+// ==================================================================
+// Modal / emoji
+// ==================================================================
+let modalEl=null;
+function showModal(title, body, actions){
+  closeModal();
+  modalEl = el("div",{class:"modal",onclick:e=>{if(e.target===modalEl)closeModal();}},
+    el("div",{class:"modal-card"},
+      el("div",{class:"modal-head"},title,
+        el("button",{class:"icon-btn",onclick:closeModal},"✕")),
+      el("div",{class:"modal-body"},body),
+      el("div",{class:"modal-foot"},...actions.map(a=>el("button",{class:"btn"+(a.ghost?" ghost":""),onclick:a.onclick},a.label)))
+    )
+  );
+  document.body.appendChild(modalEl);
+}
+function closeModal(){ modalEl?.remove(); modalEl=null; }
+
+function openEmojiPick(anchor, cb){
+  const rect = anchor.getBoundingClientRect();
+  const pop = el("div",{class:"emoji-pop",style:{position:"fixed",left:rect.left+"px",top:Math.max(8,rect.top-180)+"px"}});
+  ["👍","❤️","😂","😮","😢","🔥","🎉","💯","🙏","👀"].forEach(em=>
+    pop.appendChild(el("button",{onclick:()=>{cb(em);pop.remove();}},em)));
+  document.body.appendChild(pop);
+  setTimeout(()=>document.addEventListener("click",function h(e){if(!pop.contains(e.target)){pop.remove();document.removeEventListener("click",h);}}),50);
+}
+
+// ==================================================================
+// 데스크탑 알림
+// ==================================================================
+function maybeNotify(title, body){
+  if(typeof Notification==="undefined" || notifPermission!=="granted") return;
+  if(document.visibilityState==="visible" && isAtBottom) return;
+  try{ new Notification(title, { body, icon:"" }); }catch{}
+}
+
+// ==================================================================
+// Realtime: 메시지/이벤트/반응/읽음 + presence(온라인 상태)
+// ==================================================================
+function setupRealtime(room, mem, chatList, typingBar, pinnedBar, composerObj){
+  channel = sb.channel(`room:${room.id}`)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`room_id=eq.${room.id}`},async ({ new:m })=>{
+      // 낙관적 렌더로 이미 표시된 내 메시지는 중복 렌더 건너뜀
+      if(renderedMsgIds.has(m.id)){ renderedMsgIds.delete(m.id); return; }
+      const { data: prof } = await sb.from("profiles").select("display_name").eq("id",m.user_id).single();
+      const node = renderMessage(m, prof?.display_name||"?", 0, {}, room, new Map());
+      const lastDayEl = chatList.querySelector(".date-div:last-of-type");
+      const dk=dayLabel(m.created_at);
+      if(!lastDayEl || lastDayEl.textContent!==dk) chatList.appendChild(el("div",{class:"date-div"},dk));
+      chatList.appendChild(node);
+      if(isAtBottom){
+        chatList.scrollTop=chatList.scrollHeight;
+      } else if(m.user_id!==session.user.id){
+        unreadSinceScroll++;
+        const fab = chatList.parentElement.querySelector(".scroll-fab");
+        if(fab){ fab.style.display="flex"; fab.querySelector(".badge").textContent=String(unreadSinceScroll); }
+      }
+      if(m.user_id!==session.user.id){
+        sb.from("message_reads").upsert({ message_id:m.id, user_id:session.user.id },{ onConflict:"message_id,user_id" });
+        maybeNotify(`${prof?.display_name||"?"} · ${room.name}`, m.content || "📎 파일을 보냈습니다");
+        // 새 메시지가 도착하면 그 발신자의 타이핑 표시는 제거
+        if(typingUsers.has(m.user_id)){
+          clearTimeout(typingUsers.get(m.user_id).timeout);
+          typingUsers.delete(m.user_id);
+          renderTypingBar(typingBar);
+        }
+      }
+    })
+    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"messages",filter:`room_id=eq.${room.id}`},async ({ new:m })=>{
+      const node = chatList.querySelector(`[data-mid="${m.id}"]`);
+      if(!node) return;
+      const { data: prof } = await sb.from("profiles").select("display_name").eq("id",m.user_id).single();
+      // 읽음 수와 리액션을 실제 DB에서 다시 조회해서 손실 없이 반영
+      const [readCount, reactions] = await Promise.all([
+        fetchReadCount(m.id),
+        fetchReactionsFor(m.id),
+      ]);
+      const fresh = renderMessage(m, prof?.display_name||"?", readCount, reactions, room, new Map());
+      node.replaceWith(fresh);
+      if(m.pinned !== undefined){ await loadPinned(room, pinnedBar, chatList); renderPinnedBar(pinnedBar, chatList); }
+    })
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"room_events",filter:`room_id=eq.${room.id}`},async ({ new:e })=>{
+      const { data: prof } = await sb.from("profiles").select("display_name").eq("id",e.user_id).single();
+      chatList.appendChild(el("div",{class:"event"},`${prof?.display_name||"?"} ${e.type==="join"?t("joined"):t("left")}`));
+      if(isAtBottom) chatList.scrollTop=chatList.scrollHeight;
+      await loadMembers(room);
+    })
+    .on("postgres_changes",{event:"*",schema:"public",table:"message_reactions"},async ({ new:n,old:o,eventType })=>{
+      const mid=(n||o)?.message_id; if(!mid) return;
+      const node=chatList.querySelector(`[data-mid="${mid}"]`); if(!node||!node._renderRx) return;
+      const map = await fetchReactionsFor(mid);
+      node._renderRx(map);
+    })
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"message_reads"},async ({ new:r })=>{
+      const node=chatList.querySelector(`[data-mid="${r.message_id}"]`); if(!node||!node._setRead) return;
+      const count = await fetchReadCount(r.message_id);
+      node._setRead(count);
+    })
+    .subscribe();
+
+  presenceChannel = sb.channel(`typing:${room.id}`,{ config:{ presence:{ key:session.user.id }, broadcast:{ self:false }}})
+    .on("broadcast",{event:"typing"},({ payload })=>{
+      // 여러 명이 동시에 타이핑해도 각자 독립적으로 표시되도록 Map으로 관리
+      if(typingUsers.has(payload.id)) clearTimeout(typingUsers.get(payload.id).timeout);
+      const timeout = setTimeout(()=>{ typingUsers.delete(payload.id); renderTypingBar(typingBar); }, 2000);
+      typingUsers.set(payload.id, { name: payload.name, timeout });
+      renderTypingBar(typingBar);
+    })
+    .on("presence",{event:"sync"},()=>{
+      const state = presenceChannel.presenceState();
+      onlineUserIds = new Set(Object.keys(state));
+      // 작성자 presence 점 갱신
+      chatList.querySelectorAll(".msg:not(.mine) .author .presence-dot").forEach(dot=>{
+        const msgNode = dot.closest(".msg");
+        const uid = msgNode?._raw?.user_id;
+        dot.classList.toggle("online", uid ? onlineUserIds.has(uid) : false);
+      });
+    })
+    .subscribe(async (status)=>{
+      if(status==="SUBSCRIBED"){ await presenceChannel.track({ online_at: new Date().toISOString() }); }
+    });
+}
+
+// 동시에 여러 명이 타이핑 중일 때: "A, B님이 입력 중…" 형태로 표시
+function renderTypingBar(typingBar){
+  const names = [...typingUsers.values()].map(u=>u.name);
+  if(!names.length){ typingBar.replaceChildren(); return; }
+  const label = names.length<=2 ? names.join(", ") : `${names.slice(0,2).join(", ")} 외 ${names.length-2}명`;
+  typingBar.replaceChildren(
+    document.createTextNode(`${label} ${t("typing")} `),
+    el("span",{class:"dots"}, el("span",{}), el("span",{}), el("span",{}))
+  );
+}
+
+// ==================================================================
+// bootstrap
+// ==================================================================
+async function boot(){
+  if(typeof Notification!=="undefined"){ notifPermission = Notification.permission; }
+  const { data } = await sb.auth.getSession();
+  session = data.session;
+  if(session){ await loadProfile(); renderRooms(); } else { renderAuth(); }
+  sb.auth.onAuthStateChange(async (event, s)=>{
+    session = s;
+    if(event==="SIGNED_IN"){ await loadProfile(); renderRooms(); }
+    else if(event==="SIGNED_OUT"){ cleanupRoom(); renderAuth(); }
+  });
+}
+boot();
+</script>
+</body>
+</html>
+

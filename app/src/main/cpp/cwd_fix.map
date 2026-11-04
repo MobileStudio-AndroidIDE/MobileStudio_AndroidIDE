@@ -1,0 +1,8 @@
+{
+  global:
+    getcwd;
+    __getcwd;
+    get_current_dir_name;
+  local:
+    *;
+};

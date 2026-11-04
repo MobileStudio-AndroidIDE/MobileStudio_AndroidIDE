@@ -1,0 +1,13 @@
+/build/
+/.gradle/
+/.idea/
+*.iml
+*.apk
+*.aab
+/local.properties
+/*.iml
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/

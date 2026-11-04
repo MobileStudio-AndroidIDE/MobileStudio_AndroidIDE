@@ -1,0 +1,78 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.MobileStudio" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/ms_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/ms_accent</item>
+        <item name="android:windowBackground">@color/ms_background</item>
+        <item name="android:statusBarColor">@color/ms_statusbar</item>
+        <item name="android:navigationBarColor">@color/ms_navigationbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/ms_statusbar</item>
+        <item name="android:alertDialogTheme">@style/Theme.MobileStudio.Dialog</item>
+        <item name="android:datePickerDialogTheme">@style/Theme.MobileStudio.Dialog</item>
+        <item name="android:timePickerDialogTheme">@style/Theme.MobileStudio.Dialog</item>
+    </style>
+    <style name="Base.Theme.MobileStudio.Light" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/ms_primary_light</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/ms_accent_light</item>
+        <item name="android:windowBackground">@color/ms_background_light</item>
+        <item name="android:statusBarColor">@color/ms_statusbar_light</item>
+        <item name="android:navigationBarColor">@color/ms_navigationbar_light</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowSplashScreenBackground">@color/ms_background_light</item>
+        <item name="android:alertDialogTheme">@style/Theme.MobileStudio.Dialog.Light</item>
+        <item name="android:datePickerDialogTheme">@style/Theme.MobileStudio.Dialog.Light</item>
+        <item name="android:timePickerDialogTheme">@style/Theme.MobileStudio.Dialog.Light</item>
+    </style>
+    <style name="Theme.MobileStudio" parent="Base.Theme.MobileStudio" />
+    <style name="Theme.MobileStudio.Light" parent="Base.Theme.MobileStudio.Light" />
+    <style name="Theme.MobileStudio.Dialog" parent="Theme.Material3.Dark.Dialog.Alert">
+        <item name="android:windowBackground">#1C2128</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.65</item>
+        <item name="android:textColorPrimary">#F0F6FC</item>
+        <item name="android:textColorSecondary">#8B949E</item>
+        <item name="colorAccent">#58A6FF</item>
+        <item name="colorPrimary">#58A6FF</item>
+        <item name="buttonBarPositiveButtonStyle">@style/MsDialogButton.Positive</item>
+        <item name="buttonBarNegativeButtonStyle">@style/MsDialogButton.Negative</item>
+        <item name="buttonBarNeutralButtonStyle">@style/MsDialogButton.Neutral</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/MsDialogButton.Positive</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/MsDialogButton.Negative</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/MsDialogButton.Neutral</item>
+    </style>
+    <style name="Theme.MobileStudio.Dialog.Light" parent="Theme.Material3.Light.Dialog.Alert">
+        <item name="android:windowBackground">@color/ms_surface_light</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.6</item>
+        <item name="android:textColorPrimary">@color/ms_text_light</item>
+        <item name="android:textColorSecondary">@color/ms_text_secondary_light</item>
+        <item name="colorAccent">@color/ms_accent_light</item>
+        <item name="colorPrimary">@color/ms_accent_light</item>
+        <item name="buttonBarPositiveButtonStyle">@style/MsDialogButton.Positive</item>
+        <item name="buttonBarNegativeButtonStyle">@style/MsDialogButton.Negative</item>
+        <item name="buttonBarNeutralButtonStyle">@style/MsDialogButton.Neutral</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/MsDialogButton.Positive</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/MsDialogButton.Negative</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/MsDialogButton.Neutral</item>
+    </style>
+
+    <style name="MsDialogButton.Positive" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">#58A6FF</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="MsDialogButton.Negative" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">#3FB950</item>
+    </style>
+    <style name="MsDialogButton.Neutral" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">#F85149</item>
+    </style>
+
+    <style name="Theme.MobileStudio.Inner" parent="Theme.MobileStudio">
+        <!-- Inner theme for embedded activities like AsterOS -->
+        <!-- necessary items can be overridden here -->
+    </style>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 앱 내부 저장소 전체 (빌드 결과 APK 포함) -->
+    <files-path
+        android:name="internal_files"
+        android:path="." />
+
+    <!-- 캐시 디렉토리 -->
+    <cache-path
+        android:name="cache"
+        android:path="." />
+
+    <!-- 외부 저장소 (Android 10 이하) -->
+    <external-path
+        android:name="external"
+        android:path="." />
+
+    <!-- 앱 전용 외부 저장소 -->
+    <external-files-path
+        android:name="external_files"
+        android:path="." />
+</paths>

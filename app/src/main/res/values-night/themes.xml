@@ -1,0 +1,15 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme (dark by default - IntelliJ Darcula-ish). -->
+    <style name="Base.Theme.MobileStudio" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/ms_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/ms_accent</item>
+        <item name="android:windowBackground">@color/ms_background</item>
+        <item name="android:statusBarColor">@color/ms_statusbar</item>
+        <item name="android:navigationBarColor">@color/ms_navigationbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/ms_statusbar</item>
+        <item name="android:alertDialogTheme">@style/Theme.MobileStudio.Dialog</item>
+    </style>
+</resources>

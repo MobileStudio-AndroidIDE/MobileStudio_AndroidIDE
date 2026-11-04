@@ -1,0 +1,157 @@
+--- a/editor/docks/editor_dock_manager.h	2026-08-17 10:18:38.000000000 +0900
++++ b/editor/docks/editor_dock_manager.h	2026-10-24 11:19:50.673000000 +0900
+@@ -139,6 +139,7 @@
+ 	void set_bottom_hsplit(DockSplitContainer *p_split);
+ 	void register_dock_slot(DockTabContainer *p_tab_container);
+ 	int get_vsplit_count() const;
++	const LocalVector<EditorDock *> &get_all_docks() const { return all_docks; }
+ 	PopupMenu *get_docks_menu();
+ 
+ 	void save_docks_to_config(Ref<ConfigFile> p_layout, const String &p_section) const;
+--- a/platform/android/editor/editor_utils_jni.h	2026-08-17 10:18:38.000000000 +0900
++++ b/platform/android/editor/editor_utils_jni.h	2026-10-24 11:20:22.521000000 +0900
+@@ -35,4 +35,10 @@
+ extern "C" {
+ JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_runScene(JNIEnv *p_env, jclass, jstring p_scene, jobjectArray p_scene_args);
+ JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_toggleTitleBar(JNIEnv *p_env, jclass, jboolean p_enable);
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioSave(JNIEnv *p_env, jclass);
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioPlayMain(JNIEnv *p_env, jclass);
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioStop(JNIEnv *p_env, jclass);
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioSelectMainScreen(JNIEnv *p_env, jclass, jint p_index);
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioFocusDock(JNIEnv *p_env, jclass, jstring p_dock);
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioApplyMobileLayout(JNIEnv *p_env, jclass);
+ }
+--- a/platform/android/editor/editor_utils_jni.cpp	2026-08-17 10:18:38.000000000 +0900
++++ b/platform/android/editor/editor_utils_jni.cpp	2026-10-24 11:39:57.478733777 +0900
+@@ -33,12 +33,20 @@
+ #ifdef TOOLS_ENABLED
+ #include "jni_utils.h"
+ 
++#include "core/io/config_file.h"
+ #include "core/os/os.h"
+ #include "editor/debugger/editor_debugger_node.h"
+ #include "editor/debugger/script_editor_debugger.h"
++#include "editor/docks/editor_dock_manager.h"
++#include "editor/docks/filesystem_dock.h"
++#include "editor/docks/inspector_dock.h"
++#include "editor/docks/scene_tree_dock.h"
++#include "editor/editor_interface.h"
++#include "editor/editor_main_screen.h"
+ #include "editor/editor_node.h"
+ #include "editor/gui/editor_title_bar.h"
+ #include "editor/run/editor_run_bar.h"
++#include "editor/settings/editor_settings.h"
+ #include "main/main.h"
+ #endif
+ 
+@@ -106,4 +114,110 @@
+ 	}
+ #endif
+ }
++
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioSave(JNIEnv *p_env, jclass) {
++#ifdef TOOLS_ENABLED
++	if (EditorInterface::get_singleton() != nullptr) {
++		EditorInterface::get_singleton()->save_scene();
++	}
++#endif
++}
++
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioPlayMain(JNIEnv *p_env, jclass) {
++#ifdef TOOLS_ENABLED
++	EditorRunBar *editor_run_bar = EditorRunBar::get_singleton();
++	if (editor_run_bar != nullptr) {
++		editor_run_bar->play_main_scene(false);
++	}
++#endif
++}
++
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioStop(JNIEnv *p_env, jclass) {
++#ifdef TOOLS_ENABLED
++	EditorRunBar *editor_run_bar = EditorRunBar::get_singleton();
++	if (editor_run_bar != nullptr) {
++		editor_run_bar->stop_playing();
++	}
++#endif
++}
++
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioSelectMainScreen(JNIEnv *p_env, jclass, jint p_index) {
++#ifdef TOOLS_ENABLED
++	EditorNode *editor_node = EditorNode::get_singleton();
++	if (editor_node == nullptr) {
++		return;
++	}
++	EditorMainScreen *main_screen = editor_node->get_editor_main_screen();
++	if (main_screen == nullptr) {
++		return;
++	}
++	if (p_index < EditorMainScreen::EDITOR_2D || p_index > EditorMainScreen::EDITOR_ASSETLIB) {
++		return;
++	}
++	main_screen->select(p_index);
++#endif
++}
++
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioFocusDock(JNIEnv *p_env, jclass, jstring p_dock) {
++#ifdef TOOLS_ENABLED
++	String dock_key = jstring_to_string(p_dock, p_env);
++	if (dock_key == "script") {
++		EditorNode *editor_node = EditorNode::get_singleton();
++		if (editor_node != nullptr && editor_node->get_editor_main_screen() != nullptr) {
++			editor_node->get_editor_main_screen()->select(EditorMainScreen::EDITOR_SCRIPT);
++		}
++		return;
++	}
++
++	EditorDock *dock = nullptr;
++	if (dock_key == "scene") {
++		dock = SceneTreeDock::get_singleton();
++	} else if (dock_key == "inspector") {
++		dock = InspectorDock::get_singleton();
++	} else if (dock_key == "files" || dock_key == "filesystem") {
++		dock = FileSystemDock::get_singleton();
++	}
++
++	EditorDockManager *dock_manager = EditorDockManager::get_singleton();
++	if (dock != nullptr && dock_manager != nullptr) {
++		dock_manager->focus_dock(dock);
++	}
++#endif
++}
++
++JNIEXPORT void JNICALL Java_org_godotengine_godot_editor_utils_EditorUtils_mobileStudioApplyMobileLayout(JNIEnv *p_env, jclass) {
++#ifdef TOOLS_ENABLED
++	EditorDockManager *dock_manager = EditorDockManager::get_singleton();
++	if (dock_manager == nullptr) {
++		return;
++	}
++
++	Vector<String> dock_names;
++	for (EditorDock *dock : dock_manager->get_all_docks()) {
++		if (dock != nullptr) {
++			dock_names.push_back(dock->get_effective_layout_key());
++		}
++	}
++
++	if (!dock_names.is_empty()) {
++		Ref<ConfigFile> layout;
++		layout.instantiate();
++		layout->set_value("docks", "dock_10", String(",").join(dock_names));
++		layout->set_value("docks", "dock_10_selected_tab_idx", 0);
++		dock_manager->load_docks_from_config(layout, "docks", false);
++	}
++
++	EditorSettings *editor_settings = EditorSettings::get_singleton();
++	if (editor_settings != nullptr) {
++		editor_settings->set_setting("interface/touchscreen/enable_touch_optimizations", true);
++		editor_settings->set_setting("interface/touchscreen/enable_long_press_as_right_click", true);
++		editor_settings->set_setting("interface/touchscreen/enable_pan_and_scale_gestures", true);
++	}
++
++	EditorNode *editor_node = EditorNode::get_singleton();
++	if (editor_node != nullptr && editor_node->get_editor_main_screen() != nullptr) {
++		editor_node->get_editor_main_screen()->select(EditorMainScreen::EDITOR_SCRIPT);
++	}
++#endif
++}
+ }

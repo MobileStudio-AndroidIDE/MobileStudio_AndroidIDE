@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileStudio</string>
+
+    <!-- Common actions -->
+    <string name="action_open">열기</string>
+    <string name="action_open_text">텍스트 열기</string>
+    <string name="action_save">저장</string>
+    <string name="action_save_all">모두 저장</string>
+    <string name="action_delete">삭제</string>
+    <string name="action_rename">이름 바꾸기</string>
+    <string name="action_copy">복사</string>
+    <string name="action_copy_path">경로 복사</string>
+    <string name="action_copy_content">내용 복사</string>
+    <string name="action_paste">붙여넣기</string>
+    <string name="action_cut">잘라내기</string>
+    <string name="action_move">이동</string>
+    <string name="action_cancel">취소</string>
+    <string name="action_ok">확인</string>
+    <string name="action_close">닫기</string>
+    <string name="action_create">만들기</string>
+    <string name="action_apply">적용</string>
+    <string name="action_edit">편집</string>
+    <string name="action_search">검색</string>
+    <string name="action_replace">바꾸기</string>
+    <string name="action_refresh">새로고침</string>
+    <string name="action_stop">중지</string>
+    <string name="action_install">설치</string>
+    <string name="action_download">다운로드</string>
+    <string name="action_build">빌드</string>
+    <string name="action_run">실행</string>
+    <string name="action_clear">지우기</string>
+    <string name="action_back">뒤로</string>
+    <string name="action_next">다음</string>
+    <string name="action_skip">건너뛰기</string>
+    <string name="action_retry">재시도</string>
+    <string name="action_settings">설정</string>
+    <string name="action_yes">예</string>
+    <string name="action_no">아니오</string>
+    <string name="action_use">사용</string>
+    <string name="action_extract">추출</string>
+    <string name="action_install_apk">APK 설치</string>
+    <string name="action_run_jar">JAR 실행</string>
+    <string name="action_set_executable">실행 권한 설정</string>
+    <string name="action_permissions">권한</string>
+    <string name="action_duplicate">복제</string>
+    <string name="action_format">포맷</string>
+    <string name="action_undo">실행 취소</string>
+    <string name="action_redo">다시 실행</string>
+
+    <!-- File types -->
+    <string name="file_new_file">새 파일</string>
+    <string name="file_new_folder">새 폴더</string>
+    <string name="file_new_project">새 프로젝트</string>
+    <string name="file_open_project">프로젝트 열기</string>
+    <string name="file_folder_name">폴더 이름</string>
+    <string name="file_file_name">파일 이름</string>
+    <string name="file_empty">빈 파일</string>
+
+    <!-- Menu labels -->
+    <string name="menu_file">파일</string>
+    <string name="menu_edit">편집</string>
+    <string name="menu_view">보기</string>
+    <string name="menu_tools">도구</string>
+    <string name="menu_code">코드</string>
+    <string name="menu_refactor">리팩터</string>
+    <string name="menu_run">실행</string>
+    <string name="menu_navigate">이동</string>
+    <string name="menu_ide">IDE</string>
+
+    <!-- Panel tabs -->
+    <string name="tab_build">빌드</string>
+    <string name="tab_output">출력</string>
+    <string name="tab_logcat">로그캣</string>
+    <string name="tab_problems">문제</string>
+    <string name="tab_search">검색</string>
+    <string name="tab_pip">PIP</string>
+    <string name="tab_shell">셸</string>
+    <string name="tab_preview">미리보기</string>
+    <string name="tab_source">소스</string>
+    <string name="tab_outline">개요</string>
+    <string name="tab_project">프로젝트</string>
+    <string name="tab_community">커뮤니티</string>
+    <string name="tab_apk">APK</string>
+    <string name="tab_extensions">확장</string>
+    <string name="tab_explorer">탐색기</string>
+
+    <!-- Status -->
+    <string name="status_ready">준비</string>
+    <string name="status_building">빌드 중…</string>
+    <string name="status_build_stopped">빌드 중지됨</string>
+    <string name="status_saved">저장됨</string>
+    <string name="status_encoding">UTF-8</string>
+    <string name="status_rebuild_needed">재빌드 필요</string>
+    <string name="status_synced">동기화됨</string>
+    <string name="status_sync_failed">동기화 실패</string>
+    <string name="status_sync_now">지금 동기화</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_confirm_delete">삭제 확인</string>
+    <string name="dialog_confirm_delete_title">\"%s\"을(를) 삭제할까요?</string>
+    <string name="dialog_cannot_be_undone">이 작업은 되돌릴 수 없습니다.</string>
+    <string name="dialog_confirm_replace_title">프로젝트 교체</string>
+    <string name="dialog_confirm_replace_message">MobileStudio/%s이(가) 이미 존재합니다. 선택한 /sdcard 프로젝트로 교체할까요?</string>
+    <string name="dialog_replace">교체</string>
+    <string name="dialog_project_closed_warning">현재 열려 있는 프로젝트가 닫힙니다. 계속할까요?</string>
+    <string name="dialog_unsaved_changes">저장되지 않은 변경사항</string>
+    <string name="dialog_save_changes">변경사항을 저장할까요?</string>
+    <string name="dialog_discard">버리기</string>
+    <string name="dialog_select_project">프로젝트 선택</string>
+    <string name="dialog_new_project">새 프로젝트</string>
+    <string name="dialog_new_folder">새 폴더</string>
+    <string name="dialog_rename">이름 바꾸기</string>
+
+    <!-- File tree context menu -->
+    <string name="filetree_new_file_here">여기에 새 파일</string>
+    <string name="filetree_new_folder_here">여기에 새 폴더</string>
+    <string name="filetree_ask_ai">AI에게 이 파일 물어보기</string>
+    <string name="filetree_open">열기</string>
+    <string name="filetree_rename">이름 바꾸기</string>
+    <string name="filetree_duplicate">복제</string>
+    <string name="filetree_delete">삭제</string>
+    <string name="filetree_copy_path">경로 복사</string>
+    <string name="filetree_copy_content">내용 복사</string>
+    <string name="filetree_extract_here">여기에 추출</string>
+
+    <!-- Toast messages -->
+    <string name="toast_deleted">삭제됨</string>
+    <string name="toast_delete_failed">삭제 실패</string>
+    <string name="toast_renamed">이름 변경됨</string>
+    <string name="toast_rename_failed">이름 변경 실패</string>
+    <string name="toast_copied">복사됨</string>
+    <string name="toast_path_copied">경로 복사됨</string>
+    <string name="toast_content_copied">내용 복사됨 (%d바이트)</string>
+    <string name="toast_open_file_first">먼저 파일을 여세요</string>
+    <string name="toast_open_project_first">먼저 프로젝트를 여세요</string>
+    <string name="toast_no_apk_found">APK를 찾을 수 없습니다. 먼저 빌드하세요.</string>
+    <string name="toast_install_failed">설치 실패: %s</string>
+    <string name="toast_build_started">빌드가 시작되었습니다. 잠시만 기다려주세요…</string>
+    <string name="toast_build_complete">빌드 완료</string>
+
+    <!-- Build output -->
+    <string name="build_successful">빌드 성공</string>
+    <string name="build_failed">빌드 실패</string>
+    <string name="build_cancelled">빌드 취소됨</string>
+    <string name="build_cancelled_lower">빌드 취소됨</string>
+    <string name="build_started">빌드 시작됨</string>
+    <string name="build_preparing">빌드 도구 준비 중… %d%%</string>
+    <string name="build_stopped">빌드 중지됨</string>
+    <string name="build_ignored">빌드 무시됨: 먼저 프로젝트를 여세요.</string>
+    <string name="build_no_start">빌드를 시작할 수 없습니다: %s</string>
+    <string name="build_environment_ready">빌드 환경 준비 완료!</string>
+    <string name="build_installing_jdk_gradle">JDK 17 + Gradle 설치 중… (첫 실행, 약 200MB)</string>
+    <string name="build_jdk_gradle_failed">JDK/Gradle 설치 실패</string>
+
+    <!-- Editor -->
+    <string name="editor_search_hint">프로젝트 검색…</string>
+    <string name="editor_command_or_ai_hint">명령어 또는 AI 프롬프트</string>
+    <string name="editor_shell_description">시스템 키보드 · 셸 명령어 입력</string>
+
+    <!-- Projects -->
+    <string name="projects_app_name">앱 이름</string>
+    <string name="projects_package_name">패키지 이름</string>
+    <string name="projects_project_folder">프로젝트 폴더</string>
+    <string name="projects_project_type">프로젝트 유형</string>
+    <string name="projects_template">템플릿</string>
+    <string name="projects_app_name_empty">앱 이름을 입력하세요.</string>
+    <string name="projects_app_name_invalid">앱 이름에 잘못된 문자가 포함되어 있습니다.</string>
+    <string name="projects_package_invalid">올바르지 않은 패키지 이름입니다.</string>
+    <string name="projects_already_exists">이미 \"%s\" 프로젝트가 존재합니다.</string>
+    <string name="projects_created">프로젝트 생성됨: %s</string>
+    <string name="projects_create_failed">프로젝트 생성 실패: %s</string>
+
+    <!-- Toolchain file explorer -->
+    <string name="explorer_empty">비어 있음 또는 권한 없음</string>
+    <string name="explorer_nothing_to_paste">붙여넣을 항목이 없음</string>
+    <string name="explorer_source_gone">원본이 더 이상 존재하지 않음</string>
+    <string name="explorer_paste_failed">붙여넣기 실패: %s</string>
+    <string name="explorer_invalid_name">올바르지 않은 이름</string>
+    <string name="explorer_already_exists">이미 존재함</string>
+    <string name="explorer_extracted">%s(으)로 추출됨</string>
+    <string name="explorer_extract_failed">추출 실패: %s</string>
+    <string name="explorer_copy_ready">복사 준비 완료: %s. 폴더를 열고 붙여넣기를 누르세요.</string>
+    <string name="explorer_move_ready">이동 준비 완료: %s. 폴더를 열고 붙여넣기를 누르세요.</string>
+
+    <!-- Tools activity -->
+    <string name="tools_crash_logs">충돌 로그</string>
+    <string name="tools_view_crash">충돌 보기</string>
+    <string name="tools_copy_crash">충돌 복사</string>
+    <string name="tools_clear_crash">충돌 지우기</string>
+    <string name="tools_cache_trimmed">임시 캐시 정리됨</string>
+    <string name="tools_trim_cache">캐시 정리</string>
+    <string name="tools_install_bundled">번들 설치</string>
+    <string name="tools_import_zip">Android Studio ZIP 가져오기</string>
+    <string name="tools_install_all">모두 설치</string>
+    <string name="tools_runtime_tools_installing">런타임 도구 설치 중…</string>
+    <string name="tools_runtime_tools_complete">런타임 도구 설치 완료</string>
+    <string name="tools_open_folder">폴더 열기</string>
+    <string name="tools_add">추가</string>
+    <string name="tools_fetch">가져오기</string>
+    <string name="tools_save">저장</string>
+    <string name="tools_delete">삭제</string>
+    <string name="tools_reset_defaults">기본값으로 초기화</string>
+    <string name="tools_connecting">연결 중…</string>
+    <string name="tools_versions_loaded">%s: %d개 버전 로드됨</string>
+    <string name="tools_update_site_failed">%s 업데이트 사이트 실패: %s</string>
+    <string name="tools_preparing">준비 중…</string>
+    <string name="tools_language">언어</string>
+    <string name="tools_active_version">활성: %s</string>
+    <string name="tools_not_installed">설치되지 않음</string>
+    <string name="tools_activate">활성화</string>
+    <string name="tools_activated">활성화됨: %s → %s</string>
+    <string name="tools_licenses">라이선스</string>
+    <string name="tools_sdk_install">SDK 설치</string>
+    <string name="tools_download_started">다운로드 시작됨</string>
+    <string name="tools_download_failed">다운로드 실패</string>
+    <string name="tools_already_installed">이미 설치됨</string>
+    <string name="tools_custom_url">사용자 URL</string>
+    <string name="tools_manual">수동</string>
+    <string name="tools_manual_install_required">이 버전은 수동 설치가 필요합니다</string>
+
+    <!-- Boot setup -->
+    <string name="setup_mobile_studio">MobileStudio 설정</string>
+    <string name="setup_welcome">환영합니다! 개발 환경을 구성하세요.</string>
+    <string name="setup_start">시작</string>
+    <string name="setup_open_ide">IDE 열기</string>
+    <string name="setup_language_korean">한국어</string>
+    <string name="setup_language_korean_desc">한국어 인터페이스</string>
+    <string name="setup_language_english">English</string>
+    <string name="setup_language_english_desc">영어 인터페이스</string>
+    <string name="setup_dev_android">Android 앱 개발</string>
+    <string name="setup_dev_android_desc">Gradle, JDK, SDK, NDK로 APK 빌드</string>
+    <string name="setup_dev_python">Python 개발</string>
+    <string name="setup_dev_python_desc">pip, 터미널, AI 에이전트를 사용한 Python 스크립팅</string>
+    <string name="setup_dev_both">둘 다 (Android + Python)</string>
+    <string name="setup_dev_both_desc">전체 환경: Android 도구체인 + Python</string>
+    <string name="setup_sdk_version">Android SDK 버전</string>
+    <string name="setup_recommended">권장</string>
+    <string name="setup_jdk_version">JDK 버전</string>
+    <string name="setup_jdk17">JDK 17 (LTS)</string>
+    <string name="setup_jdk17_desc">안정적, Android Gradle 플러그인과 광범위하게 테스트됨</string>
+    <string name="setup_jdk21">JDK 21 (최신)</string>
+    <string name="setup_jdk21_desc">최신 기능, Gradle 8.5+에 권장</string>
+    <string name="setup_gradle_version">Gradle 버전</string>
+
+    <!-- Python -->
+    <string name="python_not_installed">Python이 설치되지 않았습니다</string>
+    <string name="python_running">Python 실행 중</string>
+    <string name="python_finished">Python 완료</string>
+    <string name="python_failed">Python 실패</string>
+    <string name="python_no_entry">Python 진입 파일을 찾을 수 없습니다. 먼저 main.py를 만드세요.</string>
+
+    <!-- Quick doc / symbols -->
+    <string name="quick_doc">빠른 문서</string>
+    <string name="rename_symbol">심볼 이름 바꾸기</string>
+    <string name="no_symbol_under_cursor">커서 아래에 심볼이 없습니다</string>
+    <string name="no_declaration">선언을 찾을 수 없음: %s</string>
+    <string name="no_usages">사용처를 찾을 수 없음</string>
+    <string name="parameter_hint">매개변수 힌트</string>
+    <string name="no_parameter_info">매개변수 정보를 찾을 수 없습니다.</string>
+    <string name="quick_fix">빠른 수정</string>
+    <string name="no_quick_fix">이 줄에 사용 가능한 빠른 수정이 없습니다</string>
+    <string name="imported">가져오기 완료: %s</string>
+    <string name="already_imported">이미 가져옴: %s</string>
+    <string name="no_import_candidate">가져오기 대상 없음: %s</string>
+    <string name="formatted">코드 포맷됨</string>
+
+    <!-- Problems panel -->
+    <string name="problems_no_problems">문제 없음</string>
+    <string name="problems_no_problems_desc">마지막 빌드에서 오류나 경고가 보고되지 않았습니다.</string>
+    <string name="problems_copy_problem">문제 복사</string>
+    <string name="problems_copy_all">모든 문제 복사</string>
+    <string name="problems_copied">문제 복사됨</string>
+    <string name="problems_no_location">위치 없음</string>
+    <string name="problems_too_many_errors">오류가 너무 많습니다 — 일부가 숨겨졌습니다. 표시된 오류를 수정하고 재빌드하세요.</string>
+
+    <!-- Layout preview -->
+    <string name="preview_lightweight">간편 미리보기</string>
+    <string name="preview_jdk21_required">JDK 21 필요</string>
+    <string name="preview_jdk21_message">XML 미리보기는 libjli.so와 jdk.compiler가 포함된 JDK 21이 필요합니다. 확인을 누르면 다운로드하고, 아니오를 누르면 미리보기를 취소합니다.</string>
+    <string name="preview_jdk21_unavailable">JDK 21 다운로드 URL을 사용할 수 없습니다.</string>
+    <string name="preview_jdk21_started">JDK 21 다운로드가 시작되었습니다. 다운로드 완료 후 미리보기를 다시 여세요.</string>
+    <string name="preview_cancelled">JDK 21이 설치되지 않아 LayoutLib 미리보기가 취소되었습니다.</string>
+    <string name="preview_no_widgets">편집 가능한 위젯이 없습니다.</string>
+
+    <!-- Extensions -->
+    <string name="extensions_removed">확장 제거됨</string>
+
+    <!-- Android shell -->
+    <string name="shell_title">Android 셸</string>
+</resources>

@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileStudio</string>
+
+    <!-- Common actions -->
+    <string name="action_open">Open</string>
+    <string name="action_open_text">Open Text</string>
+    <string name="action_save">Save</string>
+    <string name="action_save_all">Save All</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_copy_path">Copy path</string>
+    <string name="action_copy_content">Copy content</string>
+    <string name="action_paste">Paste</string>
+    <string name="action_cut">Cut</string>
+    <string name="action_move">Move</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+    <string name="action_close">Close</string>
+    <string name="action_create">Create</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_search">Search</string>
+    <string name="action_replace">Replace</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_install">Install</string>
+    <string name="action_download">Download</string>
+    <string name="action_build">Build</string>
+    <string name="action_run">Run</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_back">Back</string>
+    <string name="action_next">Next</string>
+    <string name="action_skip">Skip</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_yes">Yes</string>
+    <string name="action_no">No</string>
+    <string name="action_use">Use</string>
+    <string name="action_extract">Extract</string>
+    <string name="action_install_apk">Install APK</string>
+    <string name="action_run_jar">Run JAR</string>
+    <string name="action_set_executable">Set executable</string>
+    <string name="action_permissions">Permissions</string>
+    <string name="action_duplicate">Duplicate</string>
+    <string name="action_format">Format</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_redo">Redo</string>
+
+    <!-- File types -->
+    <string name="file_new_file">New file</string>
+    <string name="file_new_folder">New folder</string>
+    <string name="file_new_project">New project</string>
+    <string name="file_open_project">Open project</string>
+    <string name="file_folder_name">Folder name</string>
+    <string name="file_file_name">File name</string>
+    <string name="file_empty">Empty file</string>
+
+    <!-- Menu labels -->
+    <string name="menu_file">File</string>
+    <string name="menu_edit">Edit</string>
+    <string name="menu_view">View</string>
+    <string name="menu_tools">Tools</string>
+    <string name="menu_code">Code</string>
+    <string name="menu_refactor">Refactor</string>
+    <string name="menu_run">Run</string>
+    <string name="menu_navigate">Navigate</string>
+    <string name="menu_ide">IDE</string>
+
+    <!-- Panel tabs -->
+    <string name="tab_build">Build</string>
+    <string name="tab_output">Outputs</string>
+    <string name="tab_logcat">Logcat</string>
+    <string name="tab_problems">Problems</string>
+    <string name="tab_search">Search</string>
+    <string name="tab_pip">PIP</string>
+    <string name="tab_shell">Shell</string>
+    <string name="tab_preview">Preview</string>
+    <string name="tab_source">Source</string>
+    <string name="tab_outline">Outline</string>
+    <string name="tab_project">Project</string>
+    <string name="tab_community">Community</string>
+    <string name="tab_apk">APK</string>
+    <string name="tab_extensions">Extensions</string>
+    <string name="tab_explorer">Explorer</string>
+
+    <!-- Status -->
+    <string name="status_ready">Ready</string>
+    <string name="status_building">Building...</string>
+    <string name="status_build_stopped">Build stopped</string>
+    <string name="status_saved">Saved</string>
+    <string name="status_encoding">UTF-8</string>
+    <string name="status_rebuild_needed">Rebuild needed</string>
+    <string name="status_synced">Synced</string>
+    <string name="status_sync_failed">Sync failed</string>
+    <string name="status_sync_now">Sync Now</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_confirm_delete">Confirm delete</string>
+    <string name="dialog_confirm_delete_title">Delete "%s"?</string>
+    <string name="dialog_cannot_be_undone">This cannot be undone.</string>
+    <string name="dialog_confirm_replace_title">Replace project?</string>
+    <string name="dialog_confirm_replace_message">MobileStudio/%s already exists. Replace it with the selected /sdcard project?</string>
+    <string name="dialog_replace">Replace</string>
+    <string name="dialog_project_closed_warning">The project that is currently open will be closed. Do you want to continue?</string>
+    <string name="dialog_unsaved_changes">Unsaved changes</string>
+    <string name="dialog_save_changes">Save changes?</string>
+    <string name="dialog_discard">Discard</string>
+    <string name="dialog_select_project">Select project</string>
+    <string name="dialog_new_project">New project</string>
+    <string name="dialog_new_folder">New folder</string>
+    <string name="dialog_rename">Rename</string>
+
+    <!-- File tree context menu -->
+    <string name="filetree_new_file_here">New file here</string>
+    <string name="filetree_new_folder_here">New folder here</string>
+    <string name="filetree_ask_ai">Ask AI about this file</string>
+    <string name="filetree_open">Open</string>
+    <string name="filetree_rename">Rename</string>
+    <string name="filetree_duplicate">Duplicate</string>
+    <string name="filetree_delete">Delete</string>
+    <string name="filetree_copy_path">Copy path</string>
+    <string name="filetree_copy_content">Copy content</string>
+    <string name="filetree_extract_here">Extract here</string>
+
+    <!-- Toast messages -->
+    <string name="toast_deleted">Deleted</string>
+    <string name="toast_delete_failed">Delete failed</string>
+    <string name="toast_renamed">Renamed</string>
+    <string name="toast_rename_failed">Rename failed</string>
+    <string name="toast_copied">Copied</string>
+    <string name="toast_path_copied">Path copied</string>
+    <string name="toast_content_copied">Content copied (%d bytes)</string>
+    <string name="toast_open_file_first">Open a file first</string>
+    <string name="toast_open_project_first">Open a project first</string>
+    <string name="toast_no_apk_found">No APK found. Build first.</string>
+    <string name="toast_install_failed">Install failed: %s</string>
+    <string name="toast_build_started">Build started. Please wait...</string>
+    <string name="toast_build_complete">Build complete</string>
+
+    <!-- Build output -->
+    <string name="build_successful">BUILD SUCCESSFUL</string>
+    <string name="build_failed">BUILD FAILED</string>
+    <string name="build_cancelled">BUILD CANCELLED</string>
+    <string name="build_cancelled_lower">Build cancelled</string>
+    <string name="build_started">Build started</string>
+    <string name="build_preparing">Preparing build tools... %d%%</string>
+    <string name="build_stopped">Build stopped</string>
+    <string name="build_ignored">Build ignored: open a project first.</string>
+    <string name="build_no_start">Build could not start: %s</string>
+    <string name="build_environment_ready">Build environment ready!</string>
+    <string name="build_installing_jdk_gradle">Installing JDK 17 + Gradle... (first run, about 200MB)</string>
+    <string name="build_jdk_gradle_failed">JDK/Gradle installation failed</string>
+
+    <!-- Editor -->
+    <string name="editor_search_hint">Search project...</string>
+    <string name="editor_command_or_ai_hint">command or AI prompt</string>
+    <string name="editor_shell_description">System keyboard · type shell commands</string>
+
+    <!-- Projects -->
+    <string name="projects_app_name">App name</string>
+    <string name="projects_package_name">Package name</string>
+    <string name="projects_project_folder">Project folder</string>
+    <string name="projects_project_type">Project type</string>
+    <string name="projects_template">Template</string>
+    <string name="projects_app_name_empty">App name cannot be empty.</string>
+    <string name="projects_app_name_invalid">App name contains invalid characters.</string>
+    <string name="projects_package_invalid">Invalid package name.</string>
+    <string name="projects_already_exists">A project named "%s" already exists.</string>
+    <string name="projects_created">Project created: %s</string>
+    <string name="projects_create_failed">Project creation failed: %s</string>
+
+    <!-- Toolchain file explorer -->
+    <string name="explorer_empty">Empty or permission denied</string>
+    <string name="explorer_nothing_to_paste">Nothing to paste</string>
+    <string name="explorer_source_gone">Source no longer exists</string>
+    <string name="explorer_paste_failed">Paste failed: %s</string>
+    <string name="explorer_invalid_name">Invalid name</string>
+    <string name="explorer_already_exists">Already exists</string>
+    <string name="explorer_extracted">Extracted to %s</string>
+    <string name="explorer_extract_failed">Extract failed: %s</string>
+    <string name="explorer_copy_ready">Copied: %s. Open a folder and tap Paste.</string>
+    <string name="explorer_move_ready">Move selected: %s. Open a folder and tap Paste.</string>
+
+    <!-- Tools activity -->
+    <string name="tools_crash_logs">Crash Logs</string>
+    <string name="tools_view_crash">View Crash</string>
+    <string name="tools_copy_crash">Copy Crash</string>
+    <string name="tools_clear_crash">Clear Crash</string>
+    <string name="tools_cache_trimmed">Transient cache trimmed</string>
+    <string name="tools_trim_cache">Trim Cache</string>
+    <string name="tools_install_bundled">Install Bundled</string>
+    <string name="tools_import_zip">Import Android Studio ZIP</string>
+    <string name="tools_install_all">Install All</string>
+    <string name="tools_runtime_tools_installing">Installing runtime tools...</string>
+    <string name="tools_runtime_tools_complete">Runtime tools install complete</string>
+    <string name="tools_open_folder">Open Folder</string>
+    <string name="tools_add">Add</string>
+    <string name="tools_fetch">Fetch</string>
+    <string name="tools_save">Save</string>
+    <string name="tools_delete">Delete</string>
+    <string name="tools_reset_defaults">Reset to defaults</string>
+    <string name="tools_connecting">Connecting...</string>
+    <string name="tools_versions_loaded">%s: %d versions loaded</string>
+    <string name="tools_update_site_failed">%s update site failed: %s</string>
+    <string name="tools_preparing">Preparing...</string>
+    <string name="tools_language">language</string>
+    <string name="tools_active_version">Active: %s</string>
+    <string name="tools_not_installed">Not installed</string>
+    <string name="tools_activate">Activate</string>
+    <string name="tools_activated">Activated: %s -> %s</string>
+    <string name="tools_licenses">Licenses</string>
+    <string name="tools_sdk_install">SDK Install</string>
+    <string name="tools_download_started">Download started</string>
+    <string name="tools_download_failed">Download failed</string>
+    <string name="tools_already_installed">Already installed</string>
+    <string name="tools_custom_url">Custom URL</string>
+    <string name="tools_manual">Manual</string>
+    <string name="tools_manual_install_required">Manual install is required for this version</string>
+
+    <!-- Boot setup -->
+    <string name="setup_mobile_studio">MobileStudio Setup</string>
+    <string name="setup_welcome">Welcome! Configure your development environment.</string>
+    <string name="setup_start">Start</string>
+    <string name="setup_open_ide">OPEN IDE</string>
+    <string name="setup_language_korean">한국어</string>
+    <string name="setup_language_korean_desc">Korean language interface</string>
+    <string name="setup_language_english">English</string>
+    <string name="setup_language_english_desc">영어 인터페이스</string>
+    <string name="setup_dev_android">Android App Development</string>
+    <string name="setup_dev_android_desc">Build APK apps with Gradle, JDK, SDK, NDK</string>
+    <string name="setup_dev_python">Python Development</string>
+    <string name="setup_dev_python_desc">Python scripting with pip, terminal, AI agent</string>
+    <string name="setup_dev_both">Both (Android + Python)</string>
+    <string name="setup_dev_both_desc">Full environment: Android toolchain + Python</string>
+    <string name="setup_sdk_version">Android SDK Version</string>
+    <string name="setup_recommended">Recommended</string>
+    <string name="setup_jdk_version">JDK Version</string>
+    <string name="setup_jdk17">JDK 17 (LTS)</string>
+    <string name="setup_jdk17_desc">Stable, widely tested with Android Gradle plugin</string>
+    <string name="setup_jdk21">JDK 21 (Latest)</string>
+    <string name="setup_jdk21_desc">Newer features, recommended for Gradle 8.5+</string>
+    <string name="setup_gradle_version">Gradle Version</string>
+
+    <!-- Python -->
+    <string name="python_not_installed">python not installed</string>
+    <string name="python_running">Python running</string>
+    <string name="python_finished">Python finished</string>
+    <string name="python_failed">Python failed</string>
+    <string name="python_no_entry">No Python entry file found. Create main.py first.</string>
+
+    <!-- Quick doc / symbols -->
+    <string name="quick_doc">Quick Documentation</string>
+    <string name="rename_symbol">Rename Symbol</string>
+    <string name="no_symbol_under_cursor">No symbol under cursor</string>
+    <string name="no_declaration">No declaration found: %s</string>
+    <string name="no_usages">No usages found</string>
+    <string name="parameter_hint">Parameter Hint</string>
+    <string name="no_parameter_info">No parameter info found.</string>
+    <string name="quick_fix">Quick Fix</string>
+    <string name="no_quick_fix">No quick fix available for this line</string>
+    <string name="imported">Imported %s</string>
+    <string name="already_imported">Already imported: %s</string>
+    <string name="no_import_candidate">No import candidate: %s</string>
+    <string name="formatted">Code formatted</string>
+
+    <!-- Problems panel -->
+    <string name="problems_no_problems">No problems</string>
+    <string name="problems_no_problems_desc">The last build did not report errors or warnings.</string>
+    <string name="problems_copy_problem">Copy problem</string>
+    <string name="problems_copy_all">Copy all problems</string>
+    <string name="problems_copied">Problem copied</string>
+    <string name="problems_no_location">no location</string>
+    <string name="problems_too_many_errors">Too many errors — some hidden. Fix listed errors and rebuild.</string>
+
+    <!-- Layout preview -->
+    <string name="preview_lightweight">lightweight preview</string>
+    <string name="preview_jdk21_required">JDK 21 required</string>
+    <string name="preview_jdk21_message">XML preview needs a full JDK 21 with libjli.so and jdk.compiler. Press OK to download it, or NO to cancel preview.</string>
+    <string name="preview_jdk21_unavailable">JDK 21 download URL is unavailable.</string>
+    <string name="preview_jdk21_started">JDK 21 download started. Reopen preview after the download finishes.</string>
+    <string name="preview_cancelled">LayoutLib preview cancelled because JDK 21 is not installed.</string>
+    <string name="preview_no_widgets">No editable widgets found.</string>
+
+    <!-- Extensions -->
+    <string name="extensions_removed">Extensions removed</string>
+
+    <!-- Android shell -->
+    <string name="shell_title">Android Shell</string>
+
+    <!-- Extension Hub: GitHub OAuth App client_id for Device Flow login.
+         Not a secret. Register at https://github.com/settings/developers and
+         enable "Device Flow". Users can also enter it at runtime in the Login dialog. -->
+    <string name="github_oauth_client_id" translatable="false"></string>
+</resources>
