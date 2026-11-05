@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=220&section=header&text=MobileStudio&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=Android%20IDE%20for%20Android&descAlignY=60&descSize=18&descColor=ffffff" width="100%" alt="MobileStudio — Android IDE for Android"/>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=220&section=header&text=MobileStudio&fontSize=60&fontColor=ffffff&animation=twinkling&fontAlignY=35&desc=Android%20IDE%20for%20Android&descAlignY=60&descSize=18&descColor=ffffff" width="100%" alt="MobileStudio — Android IDE for Android"/>
 
 <img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&size=20&pause=1000&color=E75480&center=true&vCenter=true&width=700&lines=Develop+%C2%B7+Build+%C2%B7+Run;Directly+on+your+Android+device;No+PC.+No+Root.+Just+your+phone" alt="Develop, Build, Run — directly on your Android device"/>
 
@@ -38,9 +38,17 @@
 [![⭐ Star this repository](https://img.shields.io/badge/⭐-Star_this_repository-FFD700?style=for-the-badge)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE)
 [![🔔 Watch releases](https://img.shields.io/badge/🔔-Watch_releases-6f42c1?style=for-the-badge)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/subscription)
 
+[![⬇️ Download latest APK](https://img.shields.io/badge/⬇️-Download_Rose_26.10.16-2ea44f?style=for-the-badge&logo=android&logoColor=white)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.10.16-Rose/MobileStudio-26.10.15-1.Rose.apk)
+
+<img src="https://capsule-render.vercel.app/api?type=rounded&color=gradient&height=48&text=LATEST%20%2F%20RECOMMENDED%20%20%E2%80%A2%20%20ROSE%2026.10.16&fontSize=16&fontColor=ffffff&animation=twinkling" width="100%" alt="Latest and recommended version: Rose 26.10.16"/>
+
 </div>
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=twinkling" alt="Animated MobileStudio divider"/>
+
+</div>
 
 <a id="english"></a>
 <details open>
@@ -51,7 +59,7 @@
 
 ## 📑 Table of Contents
 
-- [🌹 Rose — 26.10.15](#-rose--261015)
+- [🌹 Rose — 26.10.16](#-rose--261016)
 - [🔍 Why MobileStudio?](#-why-mobilestudio)
 - [🚀 Quick Start](#-quick-start)
 - [🧩 Built With](#-built-with)
@@ -67,11 +75,34 @@
 - [🐞 Bug Reports](#-bug-reports--버그-제보)
 - [📜 License](#-license--라이선스)
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
 
-## 🌹 Rose — 26.10.15
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blinking" alt="Animated MobileStudio divider"/>
 
-**MobileStudio 26.10.15 “Rose”** expands on-device development with native build tools, AI-assisted coding, and game development capabilities.
+</div>
+
+## 🌹 Rose — 26.10.16
+
+**MobileStudio 26.10.16 “Rose”** expands on-device development with native build tools, AI-assisted coding, and game development capabilities.
+
+<div align="center">
+
+[![Get Rose 26.10.16](https://img.shields.io/badge/GET%20THE%20LATEST-ROSE%2026.10.16-ec4899?style=for-the-badge&logo=android&logoColor=white)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/tag/MobileStudio_26.10.16-Rose)
+
+<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&weight=600&size=17&pause=900&color=E75480&center=true&vCenter=true&width=720&lines=Godot+Engine+support+added;Python+support+is+in+development;A+redesigned+MobileStudio+UI+is+in+progress;Build+and+create+on+Android" alt="Latest Rose release highlights"/>
+
+</div>
+
+### ✨ What's New in 26.10.16 Rose
+
+- 🎮 **Godot Engine support added** — create a Godot project and launch it with the green Play button in the Godot Engine.
+- 🐍 **Python support is in development** — more than 100 Python modules have been made to work on Android; full MobileStudio integration is not complete yet.
+- 🎨 **UI redesign in progress** — the interface is being refined to improve usability.
+- 💬 **Community support** — join the [official Discord server](https://discord.com/invite/eDc5tXfhB2) to report bugs, share feedback, and learn about beta builds.
+
+> [!IMPORTANT]
+> The release tag is `MobileStudio_26.10.16-Rose`. The APK asset currently attached to this release is named `MobileStudio-26.10.15-1.Rose.apk`; the direct download button below points to that exact asset.
+
 
 ### 🖥️ Windows `.exe` Build Support
 
@@ -92,7 +123,7 @@ StudioShell is designed to use native ARM64 tools rather than a proot-based Linu
 
 ### 🤖 AI-Assisted Coding
 
-Starting with **26.10.15 Rose**, MobileStudio supports AI coding through API-connected services and local models powered by **llama.cpp**.
+Starting with **26.10.16 Rose**, MobileStudio supports AI coding through API-connected services and local models powered by **llama.cpp**.
 
 - AI-assisted code generation
 - AI-driven code editing
@@ -113,7 +144,11 @@ Create games directly on your Android device.
 > [!NOTE]
 > Feature availability and stability can vary by device and project. MobileStudio is actively developed.
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=fadeIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🔍 Why MobileStudio?
 
@@ -126,11 +161,15 @@ Many Android coding apps focus on editing code, while the actual build process s
 - **AI-assisted development** — connect API models or run supported local models.
 - **Beyond Android apps** — native projects and game development are also part of the toolkit.
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=scaleIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🚀 Quick Start
 
-1. Download MobileStudio from the [GitHub Releases](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases) page.
+1. Download the recommended **Rose 26.10.16 APK** from [this direct link](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.10.16-Rose/MobileStudio-26.10.15-1.Rose.apk), or review the [release notes](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/tag/MobileStudio_26.10.16-Rose).
 2. Install and open the app on your Android device.
 3. Import an existing Gradle-based Android project or create one.
 4. Open the project and tap **Build**.
@@ -138,7 +177,11 @@ Many Android coding apps focus on editing code, while the actual build process s
 
 **No PC. No root. Build right on your phone.**
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blink" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🧩 Built With
 
@@ -158,15 +201,23 @@ Many Android coding apps focus on editing code, while the actual build process s
 
 </div>
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=twinkling" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 📥 Download · 다운로드
 
 <div align="center">
 
-[![View Releases](https://img.shields.io/badge/📥_Download-View_GitHub_Releases-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases)
+[![⬇️ Download Rose 26.10.16 APK](https://img.shields.io/badge/⬇️_Download_Rose_26.10.16-APK-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.10.16-Rose/MobileStudio-26.10.15-1.Rose.apk)
+
+[📝 Release notes](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/tag/MobileStudio_26.10.16-Rose) · [📦 All releases](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases)
 
 **Android 10+**
+
+**Recommended version: `MobileStudio_26.10.16-Rose`**
 
 </div>
 
@@ -175,12 +226,16 @@ Many Android coding apps focus on editing code, while the actual build process s
 | 🌼 Daisy — 26.6.x | Stable | Stable release line |
 | 🌷 Tulip — 26.7.x | Development | Feature improvements |
 | 🪻 Lavender — 26.8.x | Development | Major toolchain and platform improvements |
-| 🌹 Rose — 26.10.15 | Development | AI models, native build support, and game development updates |
+| 🌹 **Rose — 26.10.16** | ⭐ **Latest / Recommended** | Godot support, Python progress, UI redesign, AI and native development |
 
 > [!NOTE]
 > Check the Releases page for the latest APK and release notes. Some features may be experimental.
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blinking" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## ⚙️ Support Status
 
@@ -219,9 +274,19 @@ Many Android coding apps focus on editing code, while the actual build process s
 | Vulkan / Lua game development | ✅ Supported |
 | Godot Engine | ✅ Supported |
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=fadeIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## ✨ Features · 기능
+
+<div align="center">
+
+<img src="https://readme-typing-svg.demolab.com/?font=JetBrains+Mono&weight=600&size=16&pause=650&color=B05AA8&center=true&vCenter=true&width=760&lines=EDIT+%E2%86%92+BUILD+%E2%86%92+RUN;ANDROID+%7C+NATIVE+%7C+AI+%7C+GAMES;ONE+DEVICE.+A+FULL+DEVELOPMENT+WORKFLOW." alt="MobileStudio workflow animation"/>
+
+</div>
 
 ### 💻 Android Development
 
@@ -274,7 +339,11 @@ Many Android coding apps focus on editing code, while the actual build process s
 
 *Screenshots will be added soon.*
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=scaleIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 📊 MobileStudio vs. Traditional Setup
 
@@ -290,7 +359,11 @@ Many Android coding apps focus on editing code, while the actual build process s
 | `.exe` execution on Android | 🚧 In progress | — |
 | Game development | ✅ Vulkan, Lua, Godot | Varies |
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blink" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🗺️ Roadmap
 
@@ -320,7 +393,11 @@ Many Android coding apps focus on editing code, while the actual build process s
 | Vulkan + Lua game development | ✅ |
 | Godot Engine | ✅ |
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=twinkling" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 📋 Recommended Hardware
 
@@ -332,7 +409,11 @@ Many Android coding apps focus on editing code, while the actual build process s
 
 Large projects, native builds, and local AI models may require additional memory and storage.
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blinking" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## ❓ FAQ · Frequently Asked Questions
 
@@ -345,13 +426,13 @@ No. MobileStudio is designed to run without root access.
 <details>
 <summary><b>Can I build native C/C++ projects with the NDK?</b></summary>
 
-Yes. NDK support is available in MobileStudio releases after 26.10.15 Rose.
+Yes. NDK support is available starting with MobileStudio 26.10.16 Rose.
 </details>
 
 <details>
 <summary><b>Is JDK 21 supported?</b></summary>
 
-Yes. JDK 21 is supported starting with 26.10.15 Rose and is recommended.
+Yes. JDK 21 is supported starting with 26.10.16 Rose and is recommended.
 </details>
 
 <details>
@@ -363,7 +444,7 @@ Gradle 8.2, 8.7, 8.8+, 9.7.0, and 9.8.0 are supported. Gradle 8.2 is a legacy ve
 <details>
 <summary><b>Can I use AI coding features?</b></summary>
 
-Yes. Starting with 26.10.15 Rose, you can connect AI models through APIs or use supported local models powered by llama.cpp. AI features include code generation, code editing, and analysis.
+Yes. Starting with 26.10.16 Rose, you can connect AI models through APIs or use supported local models powered by llama.cpp. AI features include code generation, code editing, and analysis.
 </details>
 
 <details>
@@ -390,7 +471,11 @@ StudioShell is designed around native `arm64-v8a` command-line tools and does no
 Not yet. MobileStudio is actively developed, and some features may be experimental or device-dependent.
 </details>
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=fadeIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🤝 Contributing · Contributing
 
@@ -401,7 +486,7 @@ Contributions are welcome! 🌷
 3. Commit your changes with a clear message.
 4. Open a Pull Request describing what you changed and why.
 
-For bugs or feature requests, please open a GitHub Issue first so the idea can be discussed.
+For bugs or feature requests, please open a GitHub Issue first so the idea can be discussed. You can also join the [official Discord server](https://discord.com/invite/eDc5tXfhB2) for feedback and beta announcements.
 
 <div align="center">
 
@@ -409,7 +494,11 @@ For bugs or feature requests, please open a GitHub Issue first so the idea can b
 
 </div>
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=scaleIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🐞 Bug Reports · Bug 제보
 
@@ -424,7 +513,11 @@ Include the following details when possible:
 - Logcat output
 - Error message
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blink" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 📜 License · License
 
@@ -438,7 +531,11 @@ See the [LICENSE](LICENSE) file for license information.
 
 </details>
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=twinkling" alt="Animated MobileStudio divider"/>
+
+</div>
 
 <a id="korean"></a>
 <details open>
@@ -449,7 +546,7 @@ See the [LICENSE](LICENSE) file for license information.
 
 ## 📑 목차
 
-- [🌹 Rose — 26.10.15](#-rose--261015-1)
+- [🌹 Rose — 26.10.16](#-rose--261016-1)
 - [🔍 MobileStudio가 특별한 이유](#-mobilestudio가-특별한-이유)
 - [🚀 시작하기](#-시작하기)
 - [🧩 사용 기술](#-사용-기술)
@@ -465,11 +562,34 @@ See the [LICENSE](LICENSE) file for license information.
 - [🐞 버그 제보](#-bug-reports--버그-제보)
 - [📜 라이선스](#-license--라이선스)
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
 
-## 🌹 Rose — 26.10.15
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blinking" alt="Animated MobileStudio divider"/>
 
-**MobileStudio 26.10.15 "Rose"**는 네이티브 빌드 도구, AI 코딩, 게임 개발 기능을 확장한 버전입니다.
+</div>
+
+## 🌹 Rose — 26.10.16
+
+**MobileStudio 26.10.16 "Rose"**는 네이티브 빌드 도구, AI 코딩, 게임 개발 기능을 확장한 버전입니다.
+
+<div align="center">
+
+[![Rose 26.10.16 다운로드](https://img.shields.io/badge/최신버전%20다운로드-ROSE%2026.10.16-ec4899?style=for-the-badge&logo=android&logoColor=white)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/tag/MobileStudio_26.10.16-Rose)
+
+<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&weight=600&size=17&pause=900&color=E75480&center=true&vCenter=true&width=720&lines=Godot+Engine+%EC%A7%80%EC%9B%90+%EC%B6%94%EA%B0%80;Python+%EC%A7%80%EC%9B%90+%EA%B0%9C%EB%B0%9C+%EC%A4%91;UI+%EB%A6%AC%EB%94%94%EC%9E%90%EC%9D%B8+%EC%A7%84%ED%96%89+%EC%A4%91;Android%EC%97%90%EC%84%9C+%EB%B0%94%EB%A1%9C+%EA%B0%9C%EB%B0%9C%ED%95%98%EA%B8%B0" alt="Rose 최신 업데이트"/>
+
+</div>
+
+### ✨ 26.10.16 Rose 주요 업데이트
+
+- 🎮 **Godot 엔진 지원 추가** — Godot 프로젝트를 생성한 뒤 엔진 화면의 초록색 Play 버튼으로 바로 실행할 수 있습니다.
+- 🐍 **Python 지원 개발 중** — Android에서 100개 이상의 Python 모듈을 동작시키는 데 성공했으며, MobileStudio 내 완전한 Python 지원은 아직 개발 중입니다.
+- 🎨 **UI 리디자인 진행 중** — 사용성과 전체적인 인터페이스 개선 작업이 진행되고 있습니다.
+- 💬 **공식 커뮤니티** — [MobileStudio Discord](https://discord.com/invite/eDc5tXfhB2)에서 버그 제보, 피드백, 베타 버전 관련 소식을 확인할 수 있습니다.
+
+> [!IMPORTANT]
+> 릴리스 태그는 `MobileStudio_26.10.16-Rose`입니다. 현재 릴리스에 첨부된 APK 파일명은 `MobileStudio-26.10.15-1.Rose.apk`이며, 아래 직접 다운로드 링크는 실제 첨부 파일을 가리킵니다.
+
 
 ### 🖥️ Windows `.exe` 빌드 지원
 
@@ -490,7 +610,7 @@ proot 기반 Linux 환경 대신 ARM64 네이티브 도구를 사용하는 것�
 
 ### 🤖 AI 기반 코딩
 
-**26.10.15 Rose**부터 API 연결 모델과 **llama.cpp** 기반 로컬 모델을 이용한 AI 코딩을 지원합니다.
+**26.10.16 Rose**부터 API 연결 모델과 **llama.cpp** 기반 로컬 모델을 이용한 AI 코딩을 지원합니다.
 
 - AI 코드 생성
 - AI 코드 수정
@@ -513,7 +633,11 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 > [!NOTE]
 > 기능의 사용 가능 여부와 안정성은 기기 및 프로젝트에 따라 다를 수 있습니다. MobileStudio는 활발히 개발 중입니다.
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=fadeIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🔍 MobileStudio가 특별한 이유
 
@@ -526,11 +650,15 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 - **AI 기반 개발** — API 모델 연결 또는 지원되는 로컬 모델 실행
 - **Android를 넘어** — 네이티브 프로젝트와 게임 개발도 지원
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=scaleIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🚀 시작하기
 
-1. [GitHub Releases](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases)에서 MobileStudio를 다운로드합니다.
+1. [Rose 26.10.16 APK 직접 다운로드](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.10.16-Rose/MobileStudio-26.10.15-1.Rose.apk)를 누르거나 [릴리스 노트](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/tag/MobileStudio_26.10.16-Rose)를 확인합니다.
 2. Android 기기에 설치하고 실행합니다.
 3. 기존 Gradle 기반 Android 프로젝트를 가져오거나 새 프로젝트를 만듭니다.
 4. 프로젝트를 열고 **Build** 버튼을 누릅니다.
@@ -538,7 +666,11 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 
 **PC도, 루트도 필요 없습니다. 폰에서 바로 빌드하세요.**
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blink" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🧩 사용 기술
 
@@ -558,15 +690,23 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 
 </div>
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=twinkling" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 📥 다운로드
 
 <div align="center">
 
-[![릴리즈 다운로드](https://img.shields.io/badge/📥_다운로드-GitHub_Releases-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases)
+[![⬇️ Rose 26.10.16 APK 다운로드](https://img.shields.io/badge/⬇️_Rose_26.10.16-APK_다운로드-success?style=for-the-badge&logo=android)](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio_26.10.16-Rose/MobileStudio-26.10.15-1.Rose.apk)
+
+[📝 릴리스 노트](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/tag/MobileStudio_26.10.16-Rose) · [📦 전체 릴리스](https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases)
 
 **Android 10 이상**
+
+**최신·권장 버전: `MobileStudio_26.10.16-Rose`**
 
 </div>
 
@@ -575,12 +715,16 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 | 🌼 Daisy — 26.6.x | 안정 | 안정 버전 |
 | 🌷 Tulip — 26.7.x | 개발 | 기능 개선 |
 | 🪻 Lavender — 26.8.x | 개발 | 주요 툴체인 및 플랫폼 개선 |
-| 🌹 Rose — 26.10.15 | 개발 | AI 모델, 네이티브 빌드, 게임 개발 업데이트 |
+| 🌹 **Rose — 26.10.16** | ⭐ **최신 / 권장** | Godot 지원, Python 개발, UI 리디자인, AI 및 네이티브 개발 |
 
 > [!NOTE]
-> 최신 APK와 릴리즈 노트는 Releases 페이지에서 확인해주세요. 일부 기능은 실험적일 수 있습니다.
+> 최신 APK와 릴리스 노트는 Releases 페이지에서 확인해주세요. 일부 기능은 실험적일 수 있습니다.
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blinking" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## ⚙️ 지원 현황
 
@@ -619,9 +763,19 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 | Vulkan / Lua 게임 개발 | ✅ 지원 |
 | Godot 엔진 | ✅ 지원 |
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=fadeIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## ✨ 기능
+
+<div align="center">
+
+<img src="https://readme-typing-svg.demolab.com/?font=JetBrains+Mono&weight=600&size=16&pause=650&color=B05AA8&center=true&vCenter=true&width=760&lines=EDIT+%E2%86%92+BUILD+%E2%86%92+RUN;ANDROID+%7C+NATIVE+%7C+AI+%7C+GAMES;ONE+DEVICE.+A+FULL+DEVELOPMENT+WORKFLOW." alt="MobileStudio workflow animation"/>
+
+</div>
 
 ### 💻 Android 개발
 
@@ -674,7 +828,11 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 
 *추후 추가 예정입니다.*
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=scaleIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 📊 MobileStudio vs 기존 방식
 
@@ -690,7 +848,11 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 | Android에서 `.exe` 실행 | 🚧 개발 중 | — |
 | 게임 개발 | ✅ Vulkan, Lua, Godot | 환경에 따라 다름 |
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blink" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🗺️ 로드맵
 
@@ -720,7 +882,11 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 | Vulkan + Lua 게임 개발 | ✅ |
 | Godot 엔진 | ✅ |
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=twinkling" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 📋 권장 사양
 
@@ -732,7 +898,11 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 
 대규모 프로젝트, 네이티브 빌드, 로컬 AI 모델은 더 많은 메모리와 저장공간이 필요할 수 있습니다.
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blinking" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## ❓ 자주 묻는 질문
 
@@ -745,13 +915,13 @@ Android 기기에서 직접 게임을 개발할 수 있습니다.
 <details>
 <summary><b>NDK로 C/C++ 프로젝트를 빌드할 수 있나요?</b></summary>
 
-네. 26.10.15 Rose 이후 버전부터 NDK 지원을 사용할 수 있습니다.
+네. MobileStudio 26.10.16 Rose부터 NDK 지원을 사용할 수 있습니다.
 </details>
 
 <details>
 <summary><b>JDK 21을 지원하나요?</b></summary>
 
-네. 26.10.15 Rose부터 JDK 21을 지원하며 권장합니다.
+네. 26.10.16 Rose부터 JDK 21을 지원하며 권장합니다.
 </details>
 
 <details>
@@ -763,7 +933,7 @@ Gradle 8.2, 8.7, 8.8 이상, 9.7.0, 9.8.0을 지원합니다. Gradle 8.2는 구�
 <details>
 <summary><b>AI 코딩 기능을 사용할 수 있나요?</b></summary>
 
-네. 26.10.15 Rose부터 API를 통한 모델 연결과 llama.cpp 기반 로컬 모델을 지원합니다. 코드 생성, 수정, 분석 등의 기능을 제공합니다.
+네. 26.10.16 Rose부터 API를 통한 모델 연결과 llama.cpp 기반 로컬 모델을 지원합니다. 코드 생성, 수정, 분석 등의 기능을 제공합니다.
 </details>
 
 <details>
@@ -790,7 +960,11 @@ StudioShell은 `arm64-v8a` 네이티브 명령줄 도구를 기반으로 설계�
 아직은 아닙니다. MobileStudio는 활발히 개발 중이며 일부 기능은 실험적이거나 기기에 따라 다르게 동작할 수 있습니다.
 </details>
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=fadeIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🤝 기여하기
 
@@ -801,7 +975,7 @@ StudioShell은 `arm64-v8a` 네이티브 명령줄 도구를 기반으로 설계�
 3. 변경 사항을 명확한 메시지로 Commit합니다.
 4. 변경 내용과 이유를 설명하는 Pull Request를 생성합니다.
 
-버그 제보나 기능 제안은 PR 전에 GitHub Issue로 먼저 남겨주세요.
+버그 제보나 기능 제안은 PR 전에 GitHub Issue로 먼저 남겨주세요. 베타 소식과 의견 교환은 [공식 Discord 서버](https://discord.com/invite/eDc5tXfhB2)에서도 할 수 있습니다.
 
 <div align="center">
 
@@ -809,7 +983,11 @@ StudioShell은 `arm64-v8a` 네이티브 명령줄 도구를 기반으로 설계�
 
 </div>
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=scaleIn" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 🐞 버그 제보
 
@@ -824,7 +1002,11 @@ StudioShell은 `arm64-v8a` 네이티브 명령줄 도구를 기반으로 설계�
 - Logcat
 - 오류 메시지
 
-<img width="100%" height="6" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=6"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=blink" alt="Animated MobileStudio divider"/>
+
+</div>
 
 ## 📜 라이선스
 
@@ -838,9 +1020,17 @@ StudioShell은 `arm64-v8a` 네이티브 명령줄 도구를 기반으로 설계�
 
 </details>
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:B39DDB,35:E75480,70:FF8FA3,100:FFD1DC&height=130&section=footer" width="100%"/>
+<div align="center">
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=0:FFD1DC,35:FF8FA3,70:E75480,100:B39DDB&height=34&text=%E2%9C%A6%20MOBILESTUDIO%20%E2%9C%A6&fontSize=13&fontColor=ffffff&animation=twinkling" alt="Animated MobileStudio divider"/>
+
+</div>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:B39DDB,35:E75480,70:FF8FA3,100:FFD1DC&height=130&section=footer&text=BUILD%20ON%20ANDROID&fontSize=22&fontColor=ffffff&animation=twinkling" width="100%"/>
 
 <div align="center">
+
+<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&weight=700&size=18&pause=800&color=E75480&center=true&vCenter=true&width=700&lines=THANKS+FOR+VISITING;KEEP+BUILDING+ON+ANDROID;SEE+YOU+IN+THE+NEXT+RELEASE" alt="Animated thank-you message"/>
 
 ### 📱 MobileStudio
 
