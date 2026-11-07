@@ -71,6 +71,9 @@ class ToolsActivity : AppCompatActivity() {
     /** Currently selected Tools sidebar category. */
     private var currentCategory: String = "all"
 
+    /** Selected tab in the SDK Manager card: 0 = SDK Platforms, 1 = SDK Tools, 2 = SDK Update Sites. */
+    private var sdkManagerTab: Int = 0
+
     private fun t(value: String): String = AppLanguage.literal(this, value)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -252,8 +255,6 @@ class ToolsActivity : AppCompatActivity() {
             "sdk_dev" -> {
                 rootContainer.addView(buildStudioStyleSdkCard())
                 rootContainer.addView(spacer(dp(8)))
-                rootContainer.addView(buildUpdateSitesCard())
-                rootContainer.addView(spacer(dp(8)))
                 ToolchainManager.Kind.values().filter { it == ToolchainManager.Kind.SDK }.forEach { kind ->
                     rootContainer.addView(buildKindCard(kind))
                     rootContainer.addView(spacer(dp(8)))
@@ -340,8 +341,6 @@ class ToolsActivity : AppCompatActivity() {
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildStudioStyleSdkCard())
         rootContainer.addView(spacer(dp(8)))
-        rootContainer.addView(buildUpdateSitesCard())
-        rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildLayoutLibCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildRuntimeToolsCard())
@@ -375,8 +374,6 @@ class ToolsActivity : AppCompatActivity() {
         rootContainer.addView(buildBuildOptionsCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildStudioStyleSdkCard())
-        rootContainer.addView(spacer(dp(8)))
-        rootContainer.addView(buildUpdateSitesCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildLayoutLibCard())
         rootContainer.addView(spacer(dp(8)))
@@ -782,6 +779,11 @@ class ToolsActivity : AppCompatActivity() {
         return card
     }
 
+    /**
+     * Android Studio-style SDK Manager card ("Settings > Android SDK"):
+     * SDK location row, functional tab strip (SDK Platforms / SDK Tools /
+     * SDK Update Sites), and per-tab content backed by the real on-device SDK.
+     */
     private fun buildStudioStyleSdkCard(): View {
         val sdkDir = toolchain.activeDir(ToolchainManager.Kind.SDK)
         val card = LinearLayout(this).apply {
@@ -791,7 +793,7 @@ class ToolsActivity : AppCompatActivity() {
         }
         card.addView(sectionTitle("Languages & Frameworks > Android SDK"))
         card.addView(TextView(this).apply {
-            text = t("Manager for the Android SDK and Tools used by the IDE")
+            text = t("Manager for the Android SDK, platforms, and developer tools used by the IDE")
             textSize = 12f
             setTextColor(StudioUi.color(StudioUi.TextSoft))
             setPadding(0, 0, 0, dp(8))
@@ -811,6 +813,7 @@ class ToolsActivity : AppCompatActivity() {
                 setTextColor(StudioUi.color(StudioUi.Text))
                 background = StudioUi.inputBg(this@ToolsActivity)
                 setPadding(dp(10), dp(6), dp(10), dp(6))
+                maxLines = 2
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = dp(8)
                     rightMargin = dp(8)
@@ -820,53 +823,392 @@ class ToolsActivity : AppCompatActivity() {
                 ToolchainFileExplorerActivity.start(this@ToolsActivity, ToolchainManager.Kind.SDK)
             })
         })
+
+        // Tab strip — clickable, blue underline on the selected tab (IntelliJ style).
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(12), 0, dp(8))
+            setPadding(0, dp(14), 0, 0)
             listOf("SDK Platforms", "SDK Tools", "SDK Update Sites").forEachIndexed { index, title ->
-                addView(TextView(this@ToolsActivity).apply {
-                    text = t(title)
-                    textSize = 12f
-                    setTextColor(StudioUi.color(if (index == 1) StudioUi.Blue else StudioUi.Text))
-                    setPadding(dp(12), dp(8), dp(12), dp(8))
-                    background = StudioUi.rounded(
-                        this@ToolsActivity,
-                        fill = if (index == 1) StudioUi.Surface else StudioUi.Surface2,
-                        stroke = StudioUi.Border,
-                        radiusDp = 8
-                    )
-                    layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    ).apply { rightMargin = dp(8) }
+                addView(LinearLayout(this@ToolsActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(2), 0, dp(14), 0)
+                    addView(TextView(this@ToolsActivity).apply {
+                        text = t(title)
+                        textSize = 13f
+                        setTypeface(null, if (index == sdkManagerTab) Typeface.BOLD else Typeface.NORMAL)
+                        setTextColor(StudioUi.color(if (index == sdkManagerTab) StudioUi.Blue else StudioUi.TextSoft))
+                        setPadding(dp(6), dp(4), dp(6), dp(4))
+                    })
+                    addView(View(this@ToolsActivity).apply {
+                        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2))
+                        if (index == sdkManagerTab) {
+                            setBackgroundColor(StudioUi.color(StudioUi.Blue))
+                        }
+                    })
+                    setOnClickListener {
+                        if (sdkManagerTab != index) {
+                            sdkManagerTab = index
+                            renderCategory(currentCategory)
+                        }
+                    }
                 })
             }
         })
-        card.addView(TextView(this).apply {
-            text = t("Use the tool rows below to install, activate, delete, or select existing JDK / Gradle / SDK / NDK / CMake folders.")
-            textSize = 12f
-            setTextColor(StudioUi.color(StudioUi.TextSoft))
+        card.addView(View(this).apply {
+            setBackgroundColor(StudioUi.color(StudioUi.Border))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
         })
+
+        when (sdkManagerTab) {
+            0 -> card.addView(buildSdkPlatformsBody(sdkDir))
+            1 -> card.addView(buildSdkToolsBody(sdkDir))
+            else -> card.addView(buildSdkUpdateSitesBody())
+        }
         return card
     }
 
-    private fun buildUpdateSitesCard(): View {
-        val card = LinearLayout(this).apply {
+    // ------------------------------------------------------------
+    // SDK Manager > SDK Platforms
+    // ------------------------------------------------------------
+    private fun buildSdkPlatformsBody(sdkDir: File?): View {
+        val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setPadding(0, dp(8), 0, 0)
         }
-        card.addView(sectionTitle("SDK Update Sites"))
-        card.addView(TextView(this).apply {
+        if (sdkDir == null) {
+            body.addView(sdkBodyNote("Android SDK not found. Install an SDK version from the SDK & Dev Tools card first."))
+            return body
+        }
+        val installed = File(sdkDir, "platforms").listFiles()
+            ?.filter { it.isDirectory && it.name.startsWith("android-") && File(it, "android.jar").exists() }
+            ?.map { it.name }
+            ?: emptyList()
+        val installedSet = installed.toSet()
+        val available = toolchain.availableVersions(ToolchainManager.Kind.SDK)
+            .filter { it.startsWith("android-") && it !in installedSet }
+            .takeLast(10)
+
+        body.addView(sdkGroupLabel("Installed"))
+        if (installed.isEmpty()) {
+            body.addView(sdkBodyNote("No platforms installed yet. Install one from the Available list below."))
+        } else {
+            installed.sortedByDescending { sdkApiLevel(it) }.forEach {
+                body.addView(sdkPlatformRow(it, installed = true))
+            }
+        }
+        body.addView(sdkGroupLabel("Available"))
+        if (available.isEmpty()) {
+            body.addView(sdkBodyNote("No additional platforms available from the configured update sites."))
+        } else {
+            available.sortedByDescending { sdkApiLevel(it) }.forEach {
+                body.addView(sdkPlatformRow(it, installed = false))
+            }
+        }
+        return body
+    }
+
+    private fun sdkApiLevel(platformName: String): Int =
+        platformName.substringAfter("android-", "0").toIntOrNull() ?: 0
+
+    private fun sdkPlatformRow(name: String, installed: Boolean): View {
+        val api = sdkApiLevel(name)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+        }
+        row.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(CheckBox(this@ToolsActivity).apply {
+                isChecked = installed
+                isEnabled = false
+                setPadding(0, 0, dp(6), 0)
+            })
+            addView(TextView(this@ToolsActivity).apply {
+                text = t("Android $api")
+                textSize = 13f
+                setTextColor(StudioUi.color(StudioUi.Text))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(TextView(this@ToolsActivity).apply {
+                text = t(if (installed) "Installed" else "Not installed")
+                textSize = 12f
+                setTextColor(StudioUi.color(if (installed) StudioUi.Green else StudioUi.Muted))
+            })
+        })
+        row.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(this@ToolsActivity).apply {
+                text = "API $api · platforms/$name"
+                textSize = 11f
+                typeface = Typeface.MONOSPACE
+                setTextColor(StudioUi.color(StudioUi.Muted))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(if (installed) {
+                secondaryButton("SDK Install") {
+                    runSdkManager(activeSdkVersion(), listOf(
+                        "platform-tools",
+                        "platforms;$name",
+                        "build-tools;${buildToolsVersionForSdk(name)}",
+                    )) { renderCategory(currentCategory) }
+                }
+            } else {
+                primaryButton("Install") {
+                    runSdkManager(activeSdkVersion(), listOf(
+                        "platforms;$name",
+                        "platform-tools",
+                        "build-tools;${buildToolsVersionForSdk(name)}",
+                    )) { renderCategory(currentCategory) }
+                }
+            })
+        })
+        return row
+    }
+
+    // ------------------------------------------------------------
+    // SDK Manager > SDK Tools
+    // ------------------------------------------------------------
+    private fun buildSdkToolsBody(sdkDir: File?): View {
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        if (sdkDir == null) {
+            body.addView(sdkBodyNote("Android SDK not found. Install an SDK version from the SDK & Dev Tools card first."))
+            return body
+        }
+        val sdkName = activeSdkVersion()
+
+        // Android SDK Platform-Tools
+        val ptInstalled = File(sdkDir, "platform-tools/adb").exists()
+        body.addView(sdkToolRow(
+            name = "Android SDK Platform-Tools",
+            version = if (ptInstalled) {
+                sdkPkgRevision(File(sdkDir, "platform-tools/source.properties")) ?: ""
+            } else "",
+            installed = ptInstalled,
+            detail = "adb, fastboot and the device debug bridge",
+            onInstall = { runSdkManager(sdkName, listOf("platform-tools")) { renderCategory(currentCategory) } },
+        ))
+
+        // Android SDK Build-Tools
+        val buildTools = File(sdkDir, "build-tools").listFiles()
+            ?.filter { it.isDirectory }
+            ?.map { it.name }
+            ?.sortedDescending()
+            ?: emptyList()
+        body.addView(sdkToolRow(
+            name = "Android SDK Build-Tools",
+            version = buildTools.firstOrNull() ?: "",
+            installed = buildTools.isNotEmpty(),
+            detail = if (buildTools.isNotEmpty()) {
+                "Installed: ${buildTools.joinToString()}"
+            } else {
+                "aapt2, d8 and the APK packaging tools"
+            },
+            onInstall = {
+                runSdkManager(sdkName, listOf("build-tools;${buildToolsVersionForSdk(sdkName)}")) {
+                    renderCategory(currentCategory)
+                }
+            },
+        ))
+
+        // NDK (Side by side)
+        val ndkVersions = toolchain.installedVersions(ToolchainManager.Kind.NDK)
+        body.addView(sdkToolRow(
+            name = "NDK (Side by side)",
+            version = ndkVersions.takeLast(2).joinToString(),
+            installed = ndkVersions.isNotEmpty(),
+            detail = if (ndkVersions.isNotEmpty()) {
+                "Installed: ${ndkVersions.joinToString()}"
+            } else {
+                "Native toolchain for C/C++ code (arm64-v8a)"
+            },
+            onInstall = {
+                showSdkVersionPickDialog(
+                    "Install NDK",
+                    toolchain.availableVersions(ToolchainManager.Kind.NDK),
+                ) { version -> installNdk(version) }
+            },
+        ))
+
+        // CMake
+        val cmakeVersions = toolchain.installedVersions(ToolchainManager.Kind.CMAKE)
+        body.addView(sdkToolRow(
+            name = "CMake",
+            version = cmakeVersions.takeLast(2).joinToString(),
+            installed = cmakeVersions.isNotEmpty(),
+            detail = if (cmakeVersions.isNotEmpty()) {
+                "Installed: ${cmakeVersions.joinToString()}"
+            } else {
+                "Build system for native projects"
+            },
+            onInstall = {
+                showSdkVersionPickDialog(
+                    "Install CMake",
+                    toolchain.availableVersions(ToolchainManager.Kind.CMAKE),
+                ) { version -> installCmake(version) }
+            },
+        ))
+
+        // Android Emulator
+        val emulatorInstalled = File(sdkDir, "emulator").isDirectory
+        body.addView(sdkToolRow(
+            name = "Android Emulator",
+            version = if (emulatorInstalled) {
+                sdkPkgRevision(File(sdkDir, "emulator/source.properties")) ?: ""
+            } else "",
+            installed = emulatorInstalled,
+            detail = "Virtual device host for running Android images",
+            onInstall = { runSdkManager(sdkName, listOf("emulator")) { renderCategory(currentCategory) } },
+        ))
+
+        // Sources for Android SDK
+        val sources = File(sdkDir, "sources").listFiles()?.filter { it.isDirectory } ?: emptyList()
+        val latestApi = File(sdkDir, "platforms").listFiles()
+            ?.filter { it.isDirectory && it.name.startsWith("android-") }
+            ?.maxOfOrNull { sdkApiLevel(it.name) }
+            ?: 35
+        body.addView(sdkToolRow(
+            name = "Sources for Android SDK",
+            version = sources.map { it.name.removePrefix("android-") }.sortedDescending().firstOrNull() ?: "",
+            installed = sources.isNotEmpty(),
+            detail = if (sources.isNotEmpty()) {
+                "Installed API sources: ${sources.joinToString { it.name }}"
+            } else {
+                "Android framework source for code insight"
+            },
+            onInstall = {
+                runSdkManager(sdkName, listOf("sources;android-$latestApi")) { renderCategory(currentCategory) }
+            },
+        ))
+
+        // Android SDK Command-line Tools
+        val cmdline = File(sdkDir, "cmdline-tools").listFiles()?.filter { it.isDirectory } ?: emptyList()
+        body.addView(sdkToolRow(
+            name = "Android SDK Command-line Tools",
+            version = cmdline.joinToString { it.name },
+            installed = cmdline.isNotEmpty(),
+            detail = if (cmdline.isNotEmpty()) {
+                "sdkmanager, avdmanager and lint"
+            } else {
+                "Latest command-line tools, sdkmanager and avdmanager"
+            },
+            onInstall = {
+                runSdkManager(sdkName, listOf("cmdline-tools;latest")) { renderCategory(currentCategory) }
+            },
+        ))
+        return body
+    }
+
+    private fun sdkToolRow(
+        name: String,
+        version: String,
+        installed: Boolean,
+        detail: String,
+        onInstall: (() -> Unit)?,
+    ): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+        }
+        row.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(CheckBox(this@ToolsActivity).apply {
+                isChecked = installed
+                isEnabled = false
+                setPadding(0, 0, dp(6), 0)
+            })
+            addView(TextView(this@ToolsActivity).apply {
+                text = t(name)
+                textSize = 13f
+                setTextColor(StudioUi.color(StudioUi.Text))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(TextView(this@ToolsActivity).apply {
+                text = version
+                textSize = 12f
+                typeface = Typeface.MONOSPACE
+                setTextColor(StudioUi.color(if (installed) StudioUi.TextSoft else StudioUi.Muted))
+            })
+        })
+        row.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(this@ToolsActivity).apply {
+                text = t(if (installed) "Installed · $detail" else detail)
+                textSize = 11f
+                setTextColor(StudioUi.color(if (installed) StudioUi.Green else StudioUi.Muted))
+                maxLines = 2
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            if (!installed && onInstall != null) {
+                addView(primaryButton("Install", onInstall))
+            }
+        })
+        return row
+    }
+
+    private fun sdkPkgRevision(sourceProperties: File): String? = runCatching {
+        sourceProperties.readLines()
+            .firstOrNull { it.startsWith("Pkg.Revision") }
+            ?.substringAfter('=')?.trim()
+    }.getOrNull()
+
+    private fun activeSdkVersion(): String =
+        toolchain.activeVersion(ToolchainManager.Kind.SDK)
+            ?: toolchain.installedVersions(ToolchainManager.Kind.SDK).lastOrNull()
+            ?: "android-35"
+
+    private fun showSdkVersionPickDialog(title: String, versions: List<String>, onPick: (String) -> Unit) {
+        if (versions.isEmpty()) {
+            toast("No versions available from the update sites yet")
+            return
+        }
+        val newestFirst = versions.reversed().toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(t(title))
+            .setItems(newestFirst) { _, index -> onPick(newestFirst[index]) }
+            .setNegativeButton(t("Cancel"), null)
+            .show()
+    }
+
+    private fun sdkGroupLabel(text: String): TextView =
+        TextView(this).apply {
+            this.text = t(text)
+            textSize = 12f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, dp(10), 0, dp(2))
+        }
+
+    private fun sdkBodyNote(text: String): TextView =
+        TextView(this).apply {
+            this.text = t(text)
+            textSize = 12f
+            setTextColor(StudioUi.color(StudioUi.Muted))
+            setPadding(0, dp(4), 0, dp(8))
+        }
+
+    // ------------------------------------------------------------
+    // SDK Manager > SDK Update Sites
+    // ------------------------------------------------------------
+    private fun buildSdkUpdateSitesBody(): View {
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        body.addView(TextView(this).apply {
             text = t("Fetch installable JDK arm64, Gradle, SDK, NDK, and CMake versions from custom repositories.")
             textSize = 12f
             setTextColor(StudioUi.color(StudioUi.TextSoft))
             setPadding(0, 0, 0, dp(8))
         })
-        ToolchainManager.Kind.values().forEach { kind ->
-            card.addView(updateSiteRow(kind))
-        }
-        return card
+        ToolchainManager.Kind.values().forEach { kind -> body.addView(updateSiteRow(kind)) }
+        return body
     }
 
     private fun updateSiteRow(kind: ToolchainManager.Kind): View {
