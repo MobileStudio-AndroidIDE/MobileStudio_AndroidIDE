@@ -35,10 +35,16 @@ set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
 
 # --- llama.cpp (bundled v0.9.0, arm64-v8a, Vulkan GPU) ---
 if(MOBILESTUDIO_BUILD_LLAMA AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp/CMakeLists.txt")
-    # Vulkan is the only accelerator realistically available on Android:
-    # GGML_NNAPI is forced OFF, ggml-hexagon needs the proprietary Hexagon
-    # SDK, and OpenCL headers are not shipped by the NDK.
+    # Vulkan GPU (always on) + Qualcomm Hexagon NPU via ggml-hexagon
+    # (requires Hexagon SDK at HEXAGON_SDK_ROOT). GGML_NNAPI is forced OFF,
+    # OpenCL headers are not shipped by the NDK.
     set(GGML_VULKAN ON CACHE BOOL "Enable Vulkan support" FORCE)
+    set(GGML_HEXAGON ON CACHE BOOL "Enable Hexagon NPU backend" FORCE)
+    set(HEXAGON_SDK_ROOT "/home/limsemin/다운로드/Hexagon_SDK_Linux_6.7.0/Hexagon_SDK/6.7.0.0" CACHE PATH "Hexagon SDK root directory" FORCE)
+set(HEXAGON_TOOLS_ROOT "${HEXAGON_SDK_ROOT}/tools/HEXAGON_Tools/21.0.04" CACHE PATH "Hexagon tools root" FORCE)
+# PREBUILT_LIB_DIR is referenced by hexagon_fun.cmake string(FIND ...) before
+# build_htp_skel sets it; pre-define to avoid CMake 3.22 string() errors.
+set(PREBUILT_LIB_DIR "dummy" CACHE STRING "" FORCE)
 
     # glslc (SPIR-V shader compiler) ships with the NDK shader-tools for the
     # BUILD host: it is neither on PATH nor in the target sysroot, and

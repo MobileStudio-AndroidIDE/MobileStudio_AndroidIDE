@@ -41,7 +41,8 @@ class LlamaRuntimeManager private constructor(private val context: Context?) {
 
         /** Libraries that must be usable after extraction. */
         val REQUIRED_LIBS = listOf(
-            "libllama.so", "libggml.so", "libggml-base.so", "libggml-cpu.so", "libggml-vulkan.so"
+            "libllama.so", "libggml.so", "libggml-base.so", "libggml-cpu.so",
+            "libggml-vulkan.so", "libggml-hexagon.so"
         )
 
         /** Actual archive size (verified against the GitHub release). */

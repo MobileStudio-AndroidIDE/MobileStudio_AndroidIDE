@@ -1,9 +1,10 @@
 /*
  * llama_runtime_jni.cpp — dlopen-based JNI bridge to the downloaded llama.cpp
- * Android runtime (arm64-v8a, CPU + Vulkan backends).
+ * Android runtime (arm64-v8a, CPU + Vulkan + Hexagon backends).
  *
  * The runtime ships as prebuilt Android .so files:
- *   libggml-base.so, libggml-cpu.so, libggml-vulkan.so, libggml.so, libllama.so
+ *   libggml-base.so, libggml-cpu.so, libggml-vulkan.so, libggml-hexagon.so,
+ *   libggml.so, libllama.so
  *
  * This bridge is compiled at app build time WITHOUT linking llama.cpp. It
  * dlopen()s the runtime libraries from the on-device install directory and
@@ -11,10 +12,11 @@
  *   - llama.cpp is NEVER recompiled when the app is built
  *   - the runtime can be upgraded on-device (version management)
  *   - the Vulkan GPU backend is really used (libggml-vulkan.so loaded)
+ *   - the Hexagon NPU backend is used when available (libggml-hexagon.so loaded)
  *
  * Load order matters: dependencies are dlopen()ed first (libggml-base →
- * libggml-cpu → libggml-vulkan → libggml → libllama) so that DT_NEEDED
- * soname lookups resolve to the runtime's own libraries. All errors are
+ * libggml-cpu → libggml-vulkan → libggml-hexagon → libggml → libllama) so
+ * that DT_NEEDED soname lookups resolve to the runtime's own libraries.
  * reported via nativeLastError()/logcat — never hidden.
  */
 
@@ -347,6 +349,7 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeLoadRuntime(
     if (!dlopen_lib(g_runtime_dir, "libggml-base.so", true)) return JNI_FALSE;
     dlopen_lib(g_runtime_dir, "libggml-cpu.so", false);
     dlopen_lib(g_runtime_dir, "libggml-vulkan.so", false);
+    dlopen_lib(g_runtime_dir, "libggml-hexagon.so", false);
     dlopen_lib(g_runtime_dir, "libggml.so", false);
     if (!dlopen_lib(g_runtime_dir, "libllama.so", true)) return JNI_FALSE;
 
