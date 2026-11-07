@@ -33,6 +33,8 @@ class LlamaRuntimeManager private constructor(private val context: Context?) {
 
         /** Runtime version management: bump this for a new release and reinstall. */
         const val RUNTIME_VERSION = "llama-vulkan-android-v0.0.1-beta"
+        /** llama.cpp version built into the APK when MOBILESTUDIO_BUILD_LLAMA=ON. */
+        const val BUNDLED_LLAMA_VERSION = "0.9.0"
         const val DOWNLOAD_URL =
             "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/llama-vulkan-android-v0.0.1-beta/llama-vulkan-android-arm64.tar.gz"
         const val EXPECTED_SHA256 = "f04f0e15c55b38170a86dcfede1f75fc718aef250b2c5f6a00d85831a28bfc1a"
@@ -84,12 +86,25 @@ class LlamaRuntimeManager private constructor(private val context: Context?) {
         dir.isDirectory && REQUIRED_LIBS.all { File(dir, it).isFile }
 
     /**
+     * The app's own native lib dir when the llama.cpp runtime was BUILT INTO
+     * the APK (libllama.so + libggml*.so packaged by CMake/AGP). Preferred
+     * over the downloaded runtime: no download, no SHA verification, always
+     * in sync with the app version.
+     */
+    private fun bundledLibDir(): File? {
+        val dir = File(ctx.applicationInfo.nativeLibraryDir)
+        return dir.takeIf { libsIn(it) }
+    }
+
+    /**
      * Resolves the directory that contains the runtime .so files:
+     *  0. the app's nativeLibraryDir when the runtime is built into the APK
      *  1. <version>/lib  (flattened install layout)
      *  2. <version>/<archiveRoot>/lib (older nested layout, one level deeper)
      *  3. falls back to <version>/lib
      */
     fun runtimeLibDir(): File = when {
+        bundledLibDir() != null -> bundledLibDir()!!
         libsIn(libDir) -> libDir
         else -> {
             val nested = versionDir.listFiles()
@@ -103,13 +118,19 @@ class LlamaRuntimeManager private constructor(private val context: Context?) {
     /** The app's native lib dir (used to preload libc++_shared.so). */
     fun appNativeLibDir(): String = ctx.applicationInfo.nativeLibraryDir
 
-    fun installedVersion(): String? = if (isInstalled()) RUNTIME_VERSION else null
+    fun installedVersion(): String? = when {
+        bundledLibDir() != null -> "bundled (llama.cpp ${BUNDLED_LLAMA_VERSION})"
+        isInstalled() -> RUNTIME_VERSION
+        else -> null
+    }
 
     /**
-     * True when the runtime is installed: version marker present AND all
-     * required libraries exist. A missing marker → not installed → re-download.
+     * True when the runtime is installed: either built into the APK
+     * (nativeLibraryDir contains every required lib) or the downloaded
+     * version marker is present AND all required libraries exist.
      */
     fun isInstalled(): Boolean {
+        if (bundledLibDir() != null) return true
         if (!markerFile.isFile) return false
         if (markerFile.readText().trim() != RUNTIME_VERSION) return false
         return libsIn(runtimeLibDir())
@@ -117,6 +138,7 @@ class LlamaRuntimeManager private constructor(private val context: Context?) {
 
     /**
      * Ensures the runtime is installed. Non-blocking (background thread):
+     *  0. built into the APK → done immediately (no download at all)
      *  1. already installed → done immediately (no re-download)
      *  2. damaged partial download (.tmp) → deleted
      *  3. download with progress ("42 MB / 100 MB")
@@ -131,6 +153,11 @@ class LlamaRuntimeManager private constructor(private val context: Context?) {
         onLog: (String) -> Unit,
         onDone: (Boolean, String?) -> Unit
     ) {
+        if (bundledLibDir() != null) {
+            onLog("[AI Runtime] Bundled llama.cpp ${BUNDLED_LLAMA_VERSION} (built into the APK, no download)")
+            onDone(true, null)
+            return
+        }
         if (isInstalled()) {
             onLog("[AI Runtime] Installed: $RUNTIME_VERSION (no re-download)")
             onDone(true, null)

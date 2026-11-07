@@ -15,14 +15,16 @@ function(mobilestudio_enable_16kb_pages target_name)
 endfunction()
 
 # --- llama.cpp configuration ---
-# MOBILESTUDIO_BUILD_LLAMA=ON builds the bundled llama.cpp copy (CPU-only).
-# Default OFF: the app uses the downloaded llama-vulkan-android runtime
-# (arm64-v8a, CPU + Vulkan) via the dlopen-based llama_runtime_jni bridge,
-# so llama.cpp is never recompiled when the app is built.
-option(MOBILESTUDIO_BUILD_LLAMA "Build bundled llama.cpp (CPU-only). OFF = use the downloaded llama-vulkan runtime" OFF)
+# MOBILESTUDIO_BUILD_LLAMA=ON builds the bundled llama.cpp (v0.9.0) for
+# arm64-v8a with the Vulkan GPU backend into the APK. The app then loads the
+# in-package libs (nativeLibraryDir) through the dlopen-based
+# llama_runtime_jni bridge, so no on-device runtime download is needed.
+# OFF falls back to the downloaded llama-vulkan-android runtime release.
+# set() + FORCE (not option()): option() never overrides an existing cache
+# entry, and earlier configure runs left MOBILESTUDIO_BUILD_LLAMA=OFF in the
+# persistent .cxx CMake cache, silently skipping the llama.cpp build.
+set(MOBILESTUDIO_BUILD_LLAMA ON CACHE BOOL "Build bundled llama.cpp (arm64, CPU + Vulkan GPU)" FORCE)
 set(GGML_NNAPI OFF CACHE BOOL "Enable NNAPI support" FORCE)
-set(GGML_VULKAN OFF CACHE BOOL "Enable Vulkan support" FORCE)
-set(GGML_VULKAN_INIT OFF CACHE BOOL "Enable Vulkan init" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "Enable OpenMP for faster CPU inference" FORCE)
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "Disable llama.cpp examples" FORCE)
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "Disable llama.cpp tests" FORCE)
@@ -31,9 +33,78 @@ set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "Disable llama.cpp tools" FORCE)
 set(LLAMA_BUILD_COMMON OFF CACHE BOOL "Disable llama.cpp common" FORCE)
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
 
-# --- llama.cpp (bundled, CPU-only; only when MOBILESTUDIO_BUILD_LLAMA=ON) ---
+# --- llama.cpp (bundled v0.9.0, arm64-v8a, Vulkan GPU) ---
 if(MOBILESTUDIO_BUILD_LLAMA AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp/CMakeLists.txt")
-    add_subdirectory(llama.cpp EXCLUDE_FROM_ALL)
+    # Vulkan is the only accelerator realistically available on Android:
+    # GGML_NNAPI is forced OFF, ggml-hexagon needs the proprietary Hexagon
+    # SDK, and OpenCL headers are not shipped by the NDK.
+    set(GGML_VULKAN ON CACHE BOOL "Enable Vulkan support" FORCE)
+
+    # glslc (SPIR-V shader compiler) ships with the NDK shader-tools for the
+    # BUILD host: it is neither on PATH nor in the target sysroot, and
+    # ggml-vulkan does find_package(Vulkan COMPONENTS glslc REQUIRED).
+    if(NOT Vulkan_GLSLC_EXECUTABLE)
+        set(_ms_ndk_root "")
+        if(CMAKE_ANDROID_NDK)
+            set(_ms_ndk_root "${CMAKE_ANDROID_NDK}")
+        elseif(CMAKE_TOOLCHAIN_FILE)
+            get_filename_component(_ms_ndk_dir "${CMAKE_TOOLCHAIN_FILE}" DIRECTORY) # .../build/cmake
+            get_filename_component(_ms_ndk_dir "${_ms_ndk_dir}" DIRECTORY)          # .../build
+            get_filename_component(_ms_ndk_root "${_ms_ndk_dir}" DIRECTORY)         # NDK root
+        endif()
+        file(GLOB _ms_glslc_candidates "${_ms_ndk_root}/shader-tools/*/glslc")
+        if(_ms_glslc_candidates)
+            list(GET _ms_glslc_candidates 0 _ms_glslc)
+            set(Vulkan_GLSLC_EXECUTABLE "${_ms_glslc}" CACHE FILEPATH "glslc from NDK shader-tools" FORCE)
+            message(STATUS "MobileStudio: using glslc ${Vulkan_GLSLC_EXECUTABLE}")
+        endif()
+        unset(_ms_glslc_candidates)
+        unset(_ms_ndk_root)
+    endif()
+
+    # SPIRV-Headers is vendored (ggml-vulkan: find_package(SPIRV-Headers CONFIG
+    # REQUIRED)); the include path is added here because ggml-vulkan never
+    # links the SPIRV-Headers::Headers target itself.
+    set(SPIRV-Headers_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/SPIRV-Headers/cmake"
+        CACHE PATH "Vendored SPIRV-Headers package config" FORCE)
+    include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/third_party/SPIRV-Headers/include")
+
+    # Android NDK's Vulkan stub at API 26 lacks vkGetPhysicalDeviceFeatures2
+    # (Vulkan 1.1). Link a newer stub (API 28+) that has it; at runtime the
+    # device's system libvulkan.so is loaded instead, and g_vulkan_available
+    # gates every Vulkan call on older devices so nothing is ever invoked
+    # that the device cannot provide.
+    if(ANDROID AND CMAKE_ANDROID_NDK)
+        set(_ms_vulkan_lib "")
+        foreach(_ms_api 34 29 28 26)
+            file(GLOB _ms_candidates
+                "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/*/sysroot/usr/lib/aarch64-linux-android/${_ms_api}/libvulkan.so")
+            if(_ms_candidates)
+                list(GET _ms_candidates 0 _ms_vulkan_lib)
+                break()
+            endif()
+        endforeach()
+        if(_ms_vulkan_lib)
+            set(Vulkan_LIBRARY "${_ms_vulkan_lib}" CACHE FILEPATH "Vulkan stub with Vulkan 1.1 symbols" FORCE)
+            message(STATUS "MobileStudio: linking Vulkan stub ${Vulkan_LIBRARY}")
+        endif()
+        unset(_ms_vulkan_lib)
+        unset(_ms_candidates)
+    endif()
+
+    # No EXCLUDE_FROM_ALL: libllama.so / libggml*.so must be part of the
+    # default build so AGP packages them into the APK (nativeLibraryDir).
+    add_subdirectory(llama.cpp)
+
+    # The NDK sysroot ships only the C Vulkan headers (vulkan_core.h);
+    # ggml-vulkan also needs the C++ wrapper <vulkan/vulkan.hpp>. Vendored
+    # Vulkan-Headers (same vulkan-sdk release as SPIRV-Headers) is prepended
+    # for ggml-vulkan only, so vulkan.hpp and vulkan_core.h come from the
+    # same version while the rest of the app keeps the NDK headers.
+    if(TARGET ggml-vulkan)
+        target_include_directories(ggml-vulkan SYSTEM BEFORE PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Vulkan-Headers/include")
+    endif()
 endif()
 
 # --- llama_android (JNI Bridge) ---

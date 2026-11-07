@@ -426,13 +426,19 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeLoadModel(
     // n_batch = 1 turned every chunk into a single token, so the "batched"
     // loop still paid one transformer pass - and one full vocab projection -
     // per prompt token: measured ~20 tok/s on device, which is minutes of
-    // waiting for an ordinary prompt. 256 lets the backend evaluate a real
-    // batch while keeping the compute buffers small enough for a phone.
-    ctx_params.n_batch = 64;
-    ctx_params.n_ubatch = 64;
+    // waiting for an ordinary prompt. 512 is llama.cpp's own default and
+    // lets the Vulkan backend evaluate a full transformer pass per chunk;
+    // n_ubatch is the physical batch the compute buffers are sized for, so
+    // it matches n_batch to avoid an extra split. Both used to be 64, which
+    // capped prompt throughput at ~1/8 of what the GPU can take.
+    ctx_params.n_batch = 512;
+    ctx_params.n_ubatch = 512;
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads;
-    ctx_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
+    // AUTO: flash attention when the model supports it (big KV-cache and
+    // bandwidth win on the Vulkan backend), plain attention otherwise —
+    // never worse than DISABLED, and it was hard-disabled before.
+    ctx_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;
     ctx_params.cb_eval = nullptr;
     ctx_params.abort_callback = [](void*) -> bool {
         int64_t deadline = g_abort_deadline_ms.load(std::memory_order_relaxed);

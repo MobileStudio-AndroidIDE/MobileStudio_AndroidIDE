@@ -46,7 +46,9 @@ class LocalLlamaProvider(private val model: ModelManager.ModelInfo) : AIProvider
 
         handleMutex.withLock {
             if (modelHandle == 0L) {
-                val fallbackThreads = Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+                // Every logical core: the old cap of 6 discarded up to 4 of
+                // them and showed up directly in prompt-eval time.
+                val fallbackThreads = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
                 val nThreads = options?.optInt("nThreads", fallbackThreads) ?: fallbackThreads
                 // -1 = every layer; the bridge clamps it to the real count and
                 // lowers it until the model fits in GPU memory.
@@ -75,7 +77,7 @@ class LocalLlamaProvider(private val model: ModelManager.ModelInfo) : AIProvider
                     }
                     val vulkan = bridge.isVulkanAvailable()
                     val ctxLen = options?.optInt("context", 0)?.takeIf { it >= 512 } ?: model.contextLength
-                    Log.i("LocalLlamaProvider", "Loading model at ${model.path} (ctx=$ctxLen, nGpu=$nGpuRequested, threads=$nThreads, vulkan=$vulkan)")
+                    Log.i("LocalLlamaProvider", "Loading model at ${model.path} (ctx=$ctxLen, nGpu=$nGpuRequested, threads=$nThreads, vulkan=$vulkan, gpu=${bridge.gpuName()})")
                     try {
                         val result = withContext(Dispatchers.IO) {
                             val modelLayers = model.layerCount

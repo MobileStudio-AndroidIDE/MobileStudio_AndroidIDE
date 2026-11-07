@@ -19,6 +19,7 @@
 #define GGML_WEBGPU_I32_SIZE_BYTES                   4
 #define GGML_WEBGPU_FLASH_ATTN_PREFERRED_KV_SG_TILES 8u
 #define GGML_WEBGPU_FLASH_ATTN_VEC_MAX_SEQ_LEN       20u
+#define GGML_WEBGPU_MUL_MAT_VEC_MAX_ROWS             4
 #define GGML_WEBGPU_FLASH_ATTN_VEC_MAX_KV_TILE       32u
 #define GGML_WEBGPU_FLASH_ATTN_TILE_MAX_KV_TILE      64u
 #define GGML_WEBGPU_FLASH_ATTN_PREFERRED_WG_SIZE     128u
@@ -136,11 +137,11 @@ struct ggml_webgpu_ssm_conv_shader_decisions {
 };
 
 struct ggml_webgpu_ssm_scan_pipeline_key {
-    int  type;
-    int  d_state;
-    bool xbc_overlap;
-    bool a_overlap;
-    bool ids_overlap;
+    int     type;
+    int     d_state;
+    uint8_t xbc_overlap;
+    bool    a_overlap;
+    bool    ids_overlap;
 
     bool operator==(const ggml_webgpu_ssm_scan_pipeline_key & other) const {
         return type == other.type && d_state == other.d_state && xbc_overlap == other.xbc_overlap &&
@@ -163,7 +164,7 @@ struct ggml_webgpu_ssm_scan_pipeline_key_hash {
 struct ggml_webgpu_ssm_scan_shader_decisions {
     uint32_t wg_size;
     uint32_t tokens_per_tile;
-    bool     xbc_overlap = false;
+    uint8_t  xbc_overlap = 0;
     bool     a_overlap   = false;
     bool     ids_overlap = false;
 };
@@ -179,20 +180,22 @@ struct ggml_webgpu_argsort_shader_lib_context {
 /** Set Rows **/
 
 struct ggml_webgpu_set_rows_pipeline_key {
+    int src0_type;
     int dst_type;
     int vec4;
     int i64_idx;
     int pair_blocks;
 
     bool operator==(const ggml_webgpu_set_rows_pipeline_key & other) const {
-        return dst_type == other.dst_type && vec4 == other.vec4 && i64_idx == other.i64_idx &&
-               pair_blocks == other.pair_blocks;
+        return src0_type == other.src0_type && dst_type == other.dst_type && vec4 == other.vec4 &&
+               i64_idx == other.i64_idx && pair_blocks == other.pair_blocks;
     }
 };
 
 struct ggml_webgpu_set_rows_pipeline_key_hash {
     size_t operator()(const ggml_webgpu_set_rows_pipeline_key & key) const {
         size_t seed = 0;
+        ggml_webgpu_hash_combine(seed, key.src0_type);
         ggml_webgpu_hash_combine(seed, key.dst_type);
         ggml_webgpu_hash_combine(seed, key.vec4);
         ggml_webgpu_hash_combine(seed, key.i64_idx);
@@ -1051,6 +1054,22 @@ struct ggml_webgpu_mul_mat_shader_decisions {
 
 /** MUL_MAT_ID **/
 
+struct ggml_webgpu_mul_mat_id_gather_pipeline_key {
+    uint32_t n_experts;
+
+    bool operator==(const ggml_webgpu_mul_mat_id_gather_pipeline_key & other) const {
+        return n_experts == other.n_experts;
+    }
+};
+
+struct ggml_webgpu_mul_mat_id_gather_pipeline_key_hash {
+    size_t operator()(const ggml_webgpu_mul_mat_id_gather_pipeline_key & key) const {
+        size_t seed = 0;
+        ggml_webgpu_hash_combine(seed, key.n_experts);
+        return seed;
+    }
+};
+
 struct ggml_webgpu_mul_mat_id_pipeline_key {
     ggml_type src0_type;
     ggml_type src1_type;
@@ -1171,19 +1190,27 @@ struct ggml_webgpu_soft_max_pipeline_key_hash {
 
 inline bool ggml_webgpu_can_use_mmvq(const ggml_tensor * src0,
                                      const ggml_tensor * src1,
+                                     int64_t             n_rows,
                                      bool                supports_dot_product,
                                      const std::string & vendor) {
-    if (src1->ne[1] <= 4) {
+    if (n_rows <= GGML_WEBGPU_MUL_MAT_VEC_MAX_ROWS) {
         bool supports_dp4a = vendor == "amd" || vendor == "intel" || vendor == "nvidia";
         if (supports_dp4a && supports_dot_product) {
             switch (src1->type) {
                 case GGML_TYPE_F32:
                     switch (src0->type) {
+                        case GGML_TYPE_Q1_0:
                         case GGML_TYPE_Q4_0:
                         case GGML_TYPE_Q4_1:
+                        case GGML_TYPE_Q5_0:
+                        case GGML_TYPE_Q5_1:
                         case GGML_TYPE_Q8_0:
+                        case GGML_TYPE_MXFP4:
                         case GGML_TYPE_Q2_K:
+                        case GGML_TYPE_Q3_K:
                         case GGML_TYPE_Q4_K:
+                        case GGML_TYPE_Q5_K:
+                        case GGML_TYPE_Q6_K:
                             return src0->ne[0] % 4 == 0;
                         default:
                             break;
@@ -1206,6 +1233,7 @@ class ggml_webgpu_shader_lib {
     std::unordered_map<int, webgpu_pipeline> argsort_pipelines;        // key is order
     std::unordered_map<int, webgpu_pipeline> argsort_merge_pipelines;  // key is order
     std::unordered_map<int, webgpu_pipeline> cumsum_pipelines;         // key is fixed, no variants yet
+    std::unordered_map<int, webgpu_pipeline> arange_pipelines;         // key is fixed, no variants yet
     std::unordered_map<ggml_webgpu_row_norm_pipeline_key, webgpu_pipeline, ggml_webgpu_row_norm_pipeline_key_hash>
         row_norm_pipelines;                                            // op/inplace
 
@@ -1254,12 +1282,15 @@ class ggml_webgpu_shader_lib {
     std::unordered_map<ggml_webgpu_mul_mat_pipeline_key, webgpu_pipeline, ggml_webgpu_mul_mat_pipeline_key_hash>
         mul_mat_fast_pipelines;  // fast mat-mat (reg-tile or subgroup)
     std::unordered_map<ggml_webgpu_quantize_q8_pipeline_key, webgpu_pipeline, ggml_webgpu_quantize_q8_pipeline_key_hash>
-                                             quantize_q8_pipelines;
-    std::unordered_map<int, webgpu_pipeline> mul_mat_id_gather_pipelines;  // key is fixed
+        quantize_q8_pipelines;
+    std::unordered_map<ggml_webgpu_mul_mat_id_gather_pipeline_key,
+                       webgpu_pipeline,
+                       ggml_webgpu_mul_mat_id_gather_pipeline_key_hash>
+        mul_mat_id_gather_pipelines;  // n_experts
     std::unordered_map<ggml_webgpu_mul_mat_id_pipeline_key, webgpu_pipeline, ggml_webgpu_mul_mat_id_pipeline_key_hash>
-        mul_mat_id_pipelines;                                              // src0_type/src1_type
+        mul_mat_id_pipelines;         // src0_type/src1_type
     std::unordered_map<ggml_webgpu_mul_mat_id_pipeline_key, webgpu_pipeline, ggml_webgpu_mul_mat_id_pipeline_key_hash>
-        mul_mat_id_vec_pipelines;                                          // src0_type/src1_type
+        mul_mat_id_vec_pipelines;     // src0_type/src1_type
 
     std::unordered_map<ggml_webgpu_set_rows_pipeline_key, webgpu_pipeline, ggml_webgpu_set_rows_pipeline_key_hash>
         set_rows_pipelines;
@@ -1387,9 +1418,10 @@ class ggml_webgpu_shader_lib {
     webgpu_pipeline get_set_rows_pipeline(const ggml_webgpu_shader_lib_context & context) {
         const bool                        quantized = ggml_is_quantized(context.dst->type);
         ggml_webgpu_set_rows_pipeline_key key       = {};
+        key.src0_type                               = context.src0->type;
         key.dst_type                                = context.dst->type;
-        key.vec4 =
-            (context.dst->type == GGML_TYPE_F32 || context.dst->type == GGML_TYPE_F16) && context.src0->ne[0] % 4 == 0;
+        key.vec4        = (context.dst->type == GGML_TYPE_F32 || context.dst->type == GGML_TYPE_F16) &&
+                          context.src0->type == GGML_TYPE_F32 && context.src0->ne[0] % 4 == 0;
         key.i64_idx     = context.src1->type == GGML_TYPE_I64;
         key.pair_blocks = quantized && ((context.src0->ne[0] / ggml_blck_size(context.dst->type)) % 2 == 0);
 
@@ -1420,6 +1452,11 @@ class ggml_webgpu_shader_lib {
                 break;
             default:
                 GGML_ABORT("Unsupported dst type for set_rows shader");
+        }
+
+        if (context.src0->type == GGML_TYPE_F16) {
+            defines.push_back("TYPE_F16");
+            variant += "_src0_f16";
         }
 
         if (key.vec4) {
@@ -1607,6 +1644,13 @@ class ggml_webgpu_shader_lib {
                 defines.push_back("BLOCK_SIZE=1u");
                 variant += "_i32";
                 break;
+            case GGML_TYPE_BF16:
+                defines.push_back("BF16");
+                defines.push_back("SRC_TYPE=u32");
+                defines.push_back("DST_TYPE=f32");
+                defines.push_back("BLOCK_SIZE=1u");
+                variant += "_bf16";
+                break;
             default:
                 {
                     std::string type_upper = type_str;
@@ -1614,6 +1658,7 @@ class ggml_webgpu_shader_lib {
 
                     switch (key.src_type) {
                         case GGML_TYPE_Q1_0:
+                        case GGML_TYPE_Q2_0:
                         case GGML_TYPE_Q4_0:
                         case GGML_TYPE_Q5_0:
                         case GGML_TYPE_Q8_0:
@@ -1658,7 +1703,7 @@ class ggml_webgpu_shader_lib {
                     } else if ((key.src_type >= GGML_TYPE_Q4_0 && key.src_type <= GGML_TYPE_Q8_1) ||
                                key.src_type == GGML_TYPE_IQ4_NL || key.src_type == GGML_TYPE_MXFP4) {
                         defines.push_back("BLOCK_SIZE=32u");
-                    } else if (key.src_type == GGML_TYPE_NVFP4) {
+                    } else if (key.src_type == GGML_TYPE_Q2_0 || key.src_type == GGML_TYPE_NVFP4) {
                         defines.push_back("BLOCK_SIZE=64u");
                     } else if (key.src_type >= GGML_TYPE_Q2_K) {
                         defines.push_back("BLOCK_SIZE=256u");
@@ -1797,16 +1842,11 @@ class ggml_webgpu_shader_lib {
         return ssm_conv_pipelines[key];
     }
 
-    webgpu_pipeline get_ssm_scan_pipeline(const ggml_webgpu_shader_lib_context & context,
-                                          bool                                   xbc_overlap,
-                                          bool                                   a_overlap,
-                                          bool                                   ids_overlap) {
+    webgpu_pipeline get_ssm_scan_pipeline(const ggml_webgpu_shader_lib_context & context, uint8_t xbc_overlap) {
         ggml_webgpu_ssm_scan_pipeline_key key = {};
         key.type                              = context.dst->type;
         key.d_state                           = (int) context.src0->ne[0];
         key.xbc_overlap                       = xbc_overlap;
-        key.a_overlap                         = a_overlap;
-        key.ids_overlap                       = ids_overlap;
 
         auto it = ssm_scan_pipelines.find(key);
         if (it != ssm_scan_pipelines.end()) {
@@ -1838,15 +1878,17 @@ class ggml_webgpu_shader_lib {
             variant += "_wg_reduce";
         }
 
-        if (key.xbc_overlap) {
+        if (key.xbc_overlap == 0b110) {  // x/B
+            defines.push_back("XB_OVERLAP");
+            variant += "_xb_overlap";
+        } else if (key.xbc_overlap == 0b011) {  // B/C
+            defines.push_back("BC_OVERLAP");
+            variant += "_bc_overlap";
+        } else if (key.xbc_overlap == 0b111) {  // x/B/C
             defines.push_back("XBC_OVERLAP");
+            variant += "_xbc_overlap";
         }
-        if (key.a_overlap) {
-            defines.push_back("A_OVERLAP");
-        }
-        if (key.ids_overlap) {
-            defines.push_back("IDS_OVERLAP");
-        }
+
         variant += "_d" + std::to_string(key.d_state);
 
         auto processed             = preprocessor.preprocess(wgsl_ssm_scan, defines);
@@ -1854,8 +1896,6 @@ class ggml_webgpu_shader_lib {
         decisions->wg_size         = wg_size;
         decisions->tokens_per_tile = tokens_per_tile;
         decisions->xbc_overlap     = key.xbc_overlap;
-        decisions->a_overlap       = key.a_overlap;
-        decisions->ids_overlap     = key.ids_overlap;
         webgpu_pipeline pipeline   = ggml_webgpu_create_pipeline(device, processed, variant);
         pipeline.context           = decisions;
         ssm_scan_pipelines[key]    = pipeline;
@@ -1902,6 +1942,24 @@ class ggml_webgpu_shader_lib {
         webgpu_pipeline pipeline       = ggml_webgpu_create_pipeline(device, processed, variant);
         gated_delta_net_pipelines[key] = pipeline;
         return gated_delta_net_pipelines[key];
+    }
+
+    webgpu_pipeline get_arange_pipeline(const ggml_webgpu_shader_lib_context & context) {
+        auto it = arange_pipelines.find(1);
+        if (it != arange_pipelines.end()) {
+            return it->second;
+        }
+
+        std::vector<std::string> defines;
+        defines.push_back(std::string("WG_SIZE=") + std::to_string(context.max_wg_size));
+
+        auto processed           = preprocessor.preprocess(wgsl_arange, defines);
+        auto decisions           = std::make_shared<ggml_webgpu_generic_shader_decisions>();
+        decisions->wg_size       = context.max_wg_size;
+        webgpu_pipeline pipeline = ggml_webgpu_create_pipeline(device, processed, "arange");
+        pipeline.context         = decisions;
+        arange_pipelines[1]      = pipeline;
+        return arange_pipelines[1];
     }
 
     webgpu_pipeline get_pad_pipeline(const ggml_webgpu_shader_lib_context & context) {
@@ -1974,13 +2032,13 @@ class ggml_webgpu_shader_lib {
         ggml_webgpu_mul_mat_vec_pipeline_key key = {};
         key.src0_type                            = context.src0->type;
         key.src1_type                            = context.src1->type;
-        key.vectorized = (context.src0->ne[0] % 4 == 0 &&
-                          (context.src0->type == GGML_TYPE_F32 || context.src0->type == GGML_TYPE_F16)) ?
-                             1 :
-                             0;
-        key.num_cols   = context.dst->ne[1];
-        key.use_mmvq =
-            ggml_webgpu_can_use_mmvq(context.src0, context.src1, context.supports_dot_product, context.vendor);
+        key.vectorized  = (context.src0->ne[0] % 4 == 0 &&
+                           (context.src0->type == GGML_TYPE_F32 || context.src0->type == GGML_TYPE_F16)) ?
+                              1 :
+                              0;
+        key.num_cols    = context.dst->ne[1];
+        key.use_mmvq    = ggml_webgpu_can_use_mmvq(context.src0, context.src1, context.src1->ne[1],
+                                                   context.supports_dot_product, context.vendor);
         key.src_overlap = src_overlap;
 
         auto it = mul_mat_vec_pipelines.find(key);
@@ -1997,12 +2055,20 @@ class ggml_webgpu_shader_lib {
             case GGML_TYPE_F32:
                 defines.push_back("SRC0_INNER_TYPE=f32");
                 defines.push_back("MUL_ACC_FLOAT");
+                defines.push_back("TYPE_F32");
                 variant += "_f32";
                 break;
             case GGML_TYPE_F16:
                 defines.push_back("SRC0_INNER_TYPE=f16");
                 defines.push_back("MUL_ACC_FLOAT");
+                defines.push_back("TYPE_F16");
                 variant += "_f16";
+                break;
+            case GGML_TYPE_BF16:
+                defines.push_back("SRC0_INNER_TYPE=u32");
+                defines.push_back("MUL_ACC_FLOAT");
+                defines.push_back("TYPE_BF16");
+                variant += "_bf16";
                 break;
             default:
                 {
@@ -2018,17 +2084,23 @@ class ggml_webgpu_shader_lib {
                     defines.push_back("U32_DEQUANT_HELPERS");
                     defines.push_back("SRC0_INNER_TYPE=u32");
                     switch (context.src0->type) {
-                        case GGML_TYPE_Q8_0:
                         case GGML_TYPE_Q4_0:
                         case GGML_TYPE_Q4_1:
+                        case GGML_TYPE_Q5_0:
+                        case GGML_TYPE_Q5_1:
+                        case GGML_TYPE_Q8_0:
                             if (key.use_mmvq) {
-                                defines.push_back("LEGACY_QUANTS");
+                                defines.push_back("LEGACY_QUANTS_HANDLING");
                             }
                             break;
+                        case GGML_TYPE_Q1_0:
                         case GGML_TYPE_Q2_K:
+                        case GGML_TYPE_Q3_K:
                         case GGML_TYPE_Q4_K:
+                        case GGML_TYPE_Q5_K:
+                        case GGML_TYPE_Q6_K:
                             if (key.use_mmvq) {
-                                defines.push_back("K_QUANTS");
+                                defines.push_back("K_QUANTS_HANDLING");
                             }
                             break;
                         case GGML_TYPE_IQ1_S:
@@ -2046,6 +2118,11 @@ class ggml_webgpu_shader_lib {
                             defines.push_back(type_upper + "_TABLES");
                             break;
                         case GGML_TYPE_MXFP4:
+                            defines.push_back(type_upper + "_LUT");
+                            if (key.use_mmvq) {
+                                defines.push_back("LEGACY_QUANTS_HANDLING");
+                            }
+                            break;
                         case GGML_TYPE_NVFP4:
                             defines.push_back(type_upper + "_LUT");
                             break;
@@ -2154,7 +2231,7 @@ class ggml_webgpu_shader_lib {
         switch (context.src0->type) {
             case GGML_TYPE_F32:
                 defines.push_back("SRC0_INNER_TYPE=f32");
-                defines.push_back("FLOAT");
+                defines.push_back("TYPE_F32");
                 defines.push_back("MUL_ACC_FLOAT");
                 defines.push_back("INIT_SRC0_SHMEM_FLOAT");
                 defines.push_back("INIT_SRC1_SHMEM_FLOAT");
@@ -2162,11 +2239,19 @@ class ggml_webgpu_shader_lib {
                 break;
             case GGML_TYPE_F16:
                 defines.push_back("SRC0_INNER_TYPE=f16");
-                defines.push_back("FLOAT");
+                defines.push_back("TYPE_F16");
                 defines.push_back("MUL_ACC_FLOAT");
                 defines.push_back("INIT_SRC0_SHMEM_FLOAT");
                 defines.push_back("INIT_SRC1_SHMEM_FLOAT");
                 variant += "_f16";
+                break;
+            case GGML_TYPE_BF16:
+                defines.push_back("SRC0_INNER_TYPE=u32");
+                defines.push_back("TYPE_BF16");
+                defines.push_back("MUL_ACC_FLOAT");
+                defines.push_back("INIT_SRC0_SHMEM_FLOAT");
+                defines.push_back("INIT_SRC1_SHMEM_FLOAT");
+                variant += "_bf16";
                 break;
             default:
                 {
@@ -2281,20 +2366,26 @@ class ggml_webgpu_shader_lib {
     }
 
     webgpu_pipeline get_mul_mat_id_gather_pipeline(const ggml_webgpu_shader_lib_context & context) {
-        auto it = mul_mat_id_gather_pipelines.find(1);
+        ggml_webgpu_mul_mat_id_gather_pipeline_key key = {};
+        key.n_experts                                  = (uint32_t) context.src0->ne[2];
+
+        auto it = mul_mat_id_gather_pipelines.find(key);
         if (it != mul_mat_id_gather_pipelines.end()) {
             return it->second;
         }
         std::vector<std::string> defines;
-        defines.push_back(std::string("WG_SIZE=") + std::to_string(context.max_wg_size));
+        defines.push_back(std::string("WG_SIZE=") + std::to_string(context.max_wg_size) + "u");
+        defines.push_back(std::string("N_EXPERT=") + std::to_string(key.n_experts) + "u");
+        defines.push_back(std::string("TILE_N_SLOTS=") +
+                          std::to_string(WEBGPU_MUL_MAT_TILE_N * WEBGPU_MUL_MAT_WG_SIZE_N) + "u");
 
         auto processed     = preprocessor.preprocess(wgsl_mul_mat_id_gather, defines);
         auto decisions     = std::make_shared<ggml_webgpu_generic_shader_decisions>();
         decisions->wg_size = context.max_wg_size;
 
-        webgpu_pipeline pipeline       = ggml_webgpu_create_pipeline(device, processed, "mul_mat_id_gather");
-        pipeline.context               = decisions;
-        mul_mat_id_gather_pipelines[1] = pipeline;
+        webgpu_pipeline pipeline         = ggml_webgpu_create_pipeline(device, processed, "mul_mat_id_gather");
+        pipeline.context                 = decisions;
+        mul_mat_id_gather_pipelines[key] = pipeline;
         return pipeline;
     }
 
@@ -2338,13 +2429,22 @@ class ggml_webgpu_shader_lib {
                 defines.push_back("SRC0_INNER_TYPE=f32");
                 defines.push_back("INIT_SRC0_SHMEM_FLOAT");
                 defines.push_back("INIT_SRC1_SHMEM_FLOAT");
+                defines.push_back("TYPE_F32");
                 variant += "_f32";
                 break;
             case GGML_TYPE_F16:
                 defines.push_back("SRC0_INNER_TYPE=f16");
                 defines.push_back("INIT_SRC0_SHMEM_FLOAT");
                 defines.push_back("INIT_SRC1_SHMEM_FLOAT");
+                defines.push_back("TYPE_F16");
                 variant += "_f16";
+                break;
+            case GGML_TYPE_BF16:
+                defines.push_back("SRC0_INNER_TYPE=u32");
+                defines.push_back("INIT_SRC0_SHMEM_FLOAT");
+                defines.push_back("INIT_SRC1_SHMEM_FLOAT");
+                defines.push_back("TYPE_BF16");
+                variant += "_bf16";
                 break;
             default:
                 {
@@ -2458,12 +2558,20 @@ class ggml_webgpu_shader_lib {
             case GGML_TYPE_F32:
                 defines.push_back("SRC0_INNER_TYPE=f32");
                 defines.push_back("MUL_ACC_FLOAT");
+                defines.push_back("TYPE_F32");
                 variant += "_f32";
                 break;
             case GGML_TYPE_F16:
                 defines.push_back("SRC0_INNER_TYPE=f16");
                 defines.push_back("MUL_ACC_FLOAT");
+                defines.push_back("TYPE_F16");
                 variant += "_f16";
+                break;
+            case GGML_TYPE_BF16:
+                defines.push_back("SRC0_INNER_TYPE=u32");
+                defines.push_back("MUL_ACC_FLOAT");
+                defines.push_back("TYPE_BF16");
+                variant += "_bf16";
                 break;
             default:
                 {
