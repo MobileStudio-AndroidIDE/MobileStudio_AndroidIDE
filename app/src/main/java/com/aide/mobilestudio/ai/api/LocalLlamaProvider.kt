@@ -77,7 +77,11 @@ class LocalLlamaProvider(private val model: ModelManager.ModelInfo) : AIProvider
                     }
                     val vulkan = bridge.isVulkanAvailable()
                     val ctxLen = options?.optInt("context", 0)?.takeIf { it >= 512 } ?: model.contextLength
-                    Log.i("LocalLlamaProvider", "Loading model at ${model.path} (ctx=$ctxLen, nGpu=$nGpuRequested, threads=$nThreads, vulkan=$vulkan, gpu=${bridge.gpuName()})")
+                    // flash_attn: 0=DISABLED, 1=AUTO, 2=ENABLED (llama.cpp enum mapping handled in bridge)
+                    val flashAttn = options?.optInt("flash_attn", 1) ?: 0
+                    // kv_cache_type: 0=F32, 1=F16, 8=Q8_0
+                    val kvCacheType = options?.optInt("kv_cache_type", 1) ?: 1
+                    Log.i("LocalLlamaProvider", "Loading model at ${model.path} (ctx=$ctxLen, nGpu=$nGpuRequested, threads=$nThreads, vulkan=$vulkan, gpu=${bridge.gpuName()}, flash_attn=$flashAttn, kv_cache=$kvCacheType)")
                     try {
                         val result = withContext(Dispatchers.IO) {
                             val modelLayers = model.layerCount
@@ -89,12 +93,14 @@ class LocalLlamaProvider(private val model: ModelManager.ModelInfo) : AIProvider
                                 nGpuRequested,
                                 nThreads,
                                 vulkan,
+                                flashAttnType = flashAttn,
+                                kvCacheType = kvCacheType,
                                 maxLayers = modelLayers,
                             )
                         }
                         activeBridge = bridge
                         modelHandle = result.handle
-                        Log.i("LocalLlamaProvider", "Model loaded: handle=${result.handle}, backend=${result.backend}, requestedGpuLayers=${result.requestedGpuLayers}")
+                        Log.i("LocalLlamaProvider", "Model loaded: handle=${result.handle}, backend=${result.backend}, requestedGpuLayers=${result.requestedGpuLayers}, flash_attn=$flashAttn, kv_cache=$kvCacheType")
                     } catch (e: Exception) {
                         Log.e("LocalLlamaProvider", "Model load failed (GPU offload fallback exhausted): ${e.message}", e)
                         modelHandle = 0L

@@ -62,6 +62,8 @@ static int32_t (*p_llama_tokenize)(const struct llama_vocab*, const char*, int32
 static int32_t (*p_llama_token_to_piece)(const struct llama_vocab*, llama_token, char*, int32_t, int32_t, bool) = nullptr;
 static bool  (*p_llama_vocab_is_eog)(const struct llama_vocab*, llama_token) = nullptr;
 static struct llama_batch (*p_llama_batch_get_one)(llama_token*, int32_t) = nullptr;
+static struct llama_batch (*p_llama_batch_init)(int32_t, int32_t, int32_t) = nullptr;
+static void  (*p_llama_batch_free)(struct llama_batch) = nullptr;
 static int32_t (*p_llama_decode)(struct llama_context*, struct llama_batch) = nullptr;
 static void  (*p_llama_synchronize)(struct llama_context*) = nullptr;
 static struct llama_sampler* (*p_llama_sampler_chain_init)(struct llama_sampler_chain_params) = nullptr;
@@ -284,6 +286,8 @@ static bool resolve_symbols(void* h) {
     SYM(llama_token_to_piece, "llama_token_to_piece")
     SYM(llama_vocab_is_eog, "llama_vocab_is_eog")
     SYM(llama_batch_get_one, "llama_batch_get_one")
+    SYM(llama_batch_init, "llama_batch_init")
+    SYM(llama_batch_free, "llama_batch_free")
     SYM(llama_decode, "llama_decode")
     SYM(llama_synchronize, "llama_synchronize")
     SYM(llama_sampler_chain_init, "llama_sampler_chain_init")
@@ -400,7 +404,8 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeGetGpuName(JNIEnv* en
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeLoadModel(
-        JNIEnv* env, jobject thiz, jstring jpath, jint n_ctx, jint n_gpu, jint n_threads) {
+        JNIEnv* env, jobject thiz, jstring jpath, jint n_ctx, jint n_gpu, jint n_threads,
+        jint flash_attn_type, jint type_k, jint type_v) {
     (void)thiz;
     if (!g_runtime_loaded || !g_backend_init) {
         set_error("runtime is not loaded");
@@ -408,7 +413,8 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeLoadModel(
     }
     const char* path = env->GetStringUTFChars(jpath, nullptr);
     if (!path) { set_error("cannot read model path"); return 0; }
-    LOGI("Loading model: %s (gpu_layers=%d, threads=%d, ctx=%d)", path, n_gpu, n_threads, n_ctx);
+    LOGI("Loading model: %s (gpu_layers=%d, threads=%d, ctx=%d, flash_attn=%d, type_k=%d, type_v=%d)",
+         path, n_gpu, n_threads, n_ctx, flash_attn_type, type_k, type_v);
 
     llama_model_params model_params = p_llama_model_default_params();
     model_params.n_gpu_layers = n_gpu; // 0 = CPU only, -1 = all layers on GPU
@@ -429,19 +435,17 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeLoadModel(
     // n_batch = 1 turned every chunk into a single token, so the "batched"
     // loop still paid one transformer pass - and one full vocab projection -
     // per prompt token: measured ~20 tok/s on device, which is minutes of
-    // waiting for an ordinary prompt. 512 is llama.cpp's own default and
-    // lets the Vulkan backend evaluate a full transformer pass per chunk;
-    // n_ubatch is the physical batch the compute buffers are sized for, so
-    // it matches n_batch to avoid an extra split. Both used to be 64, which
-    // capped prompt throughput at ~1/8 of what the GPU can take.
-    ctx_params.n_batch = 512;
-    ctx_params.n_ubatch = 512;
+    // waiting for an ordinary prompt. 256 is a safer mobile Vulkan default:
+    // 512 caused ggml_backend_sched_alloc_splits to fail graph allocation on
+    // Samsung Xclipse 940 (Exynos 2400). n_ubatch matches n_batch so compute
+    // buffers aren't resized mid-decode.
+    ctx_params.n_batch = 256;
+    ctx_params.n_ubatch = 256;
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads;
-    // AUTO: flash attention when the model supports it (big KV-cache and
-    // bandwidth win on the Vulkan backend), plain attention otherwise —
-    // never worse than DISABLED, and it was hard-disabled before.
-    ctx_params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;
+    ctx_params.flash_attn_type = static_cast<llama_flash_attn_type>(flash_attn_type);
+    ctx_params.type_k = static_cast<ggml_type>(type_k);
+    ctx_params.type_v = static_cast<ggml_type>(type_v);
     ctx_params.cb_eval = nullptr;
     ctx_params.abort_callback = [](void*) -> bool {
         int64_t deadline = g_abort_deadline_ms.load(std::memory_order_relaxed);
@@ -460,7 +464,8 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeLoadModel(
     session->ctx = ctx;
     session->nGpuLayers = n_gpu;
 
-    LOGI("Model loaded successfully. Session: %p (gpu_layers=%d)", session, n_gpu);
+    LOGI("Model loaded successfully. Session: %p (gpu_layers=%d, flash_attn=%d, type_k=%d, type_v=%d)",
+         session, n_gpu, flash_attn_type, type_k, type_v);
     return reinterpret_cast<jlong>(session);
 }
 
@@ -551,6 +556,8 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeGenerate(
 
     struct timespec ts_start, ts_end;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    long t_prefill_start_ms = (ts_start.tv_sec * 1000) + (ts_start.tv_nsec / 1000000);
+
     // Feed the prompt in batches instead of one token per llama_decode.
     //
     // The batch is built by hand instead of with llama_batch_get_one, which
@@ -621,8 +628,15 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeGenerate(
         LOGE("Prefill finished without a batch to sample from");
         return env->NewStringUTF("Error: prompt prefill produced no output");
     }
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    long t_prefill_end_ms = (ts_end.tv_sec * 1000) + (ts_end.tv_nsec / 1000000);
+    long t_prefill_ms = t_prefill_end_ms - t_prefill_start_ms;
+    double prefill_tok_per_s = (double)n_tokens / (t_prefill_ms / 1000.0);
+    LOGI("PREFILL: tokens=%d time_ms=%ld tok_per_s=%.2f", n_tokens, t_prefill_ms, prefill_tok_per_s);
     LOGI("Prompt decoded successfully. Starting generation loop.");
 
+    long t_gen_start_ms = t_prefill_end_ms;
+    int gen_token_count = 0;
     std::string full_response;
     std::string pending;  // bytes of a character whose remaining bytes have not arrived yet
     for (int i = 0; i < 2048; ++i) {
@@ -662,6 +676,15 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeGenerate(
                 if (!cont) break;
             }
         }
+        gen_token_count++;
+
+        clock_gettime(CLOCK_MONOTONIC, &ts_end);
+        long t_now_ms = (ts_end.tv_sec * 1000) + (ts_end.tv_nsec / 1000000);
+        long t_elapsed_ms = t_now_ms - t_gen_start_ms;
+        if (t_elapsed_ms > 0) {
+            double gen_tok_per_s = (double)gen_token_count / (t_elapsed_ms / 1000.0);
+            LOGI("GEN: token=%d elapsed_ms=%ld tok_per_s=%.2f", gen_token_count, t_elapsed_ms, gen_tok_per_s);
+        }
 
         llama_batch one_batch = p_llama_batch_get_one(&id, 1);
         g_abort_deadline_ms.store(now_ms() + 30000);
@@ -671,6 +694,13 @@ Java_com_aide_mobilestudio_ai_api_LlamaRuntimeBridge_nativeGenerate(
             LOGE("llama_decode failed in generation loop at step %d, code: %d", i, gen_res);
             break;
         }
+    }
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    long t_gen_end_ms = (ts_end.tv_sec * 1000) + (ts_end.tv_nsec / 1000000);
+    long t_gen_ms = t_gen_end_ms - t_gen_start_ms;
+    if (t_gen_ms > 0) {
+        double gen_tok_per_s = (double)gen_token_count / (t_gen_ms / 1000.0);
+        LOGI("GENERATION: tokens=%d time_ms=%ld tok_per_s=%.2f", gen_token_count, t_gen_ms, gen_tok_per_s);
     }
 
     if (!pending.empty()) {

@@ -98,8 +98,12 @@ object UiTheme {
         val theme = ThemeManager.getTheme(context)
         val dark = isDarkMode(context)
         val p = when (theme) {
-            ThemeManager.AppTheme.DARK -> if (dark) darkPalette() else lightPalette()
-            ThemeManager.AppTheme.LIGHT -> if (dark) darkPalette() else lightPalette()
+            // An explicit Dark/Light choice wins over the system night mode;
+            // otherwise the IDE could render light while the user picked Dark.
+            ThemeManager.AppTheme.DARK -> darkPalette()
+            ThemeManager.AppTheme.LIGHT -> lightPalette()
+            // Named themes have a light and a dark variant; follow the dark-mode
+            // preference (or the system setting when it is set to SYSTEM).
             ThemeManager.AppTheme.DRACULA -> if (dark) draculaDarkPalette() else draculaLightPalette()
             ThemeManager.AppTheme.MONOKAI -> if (dark) monokaiDarkPalette() else monokaiLightPalette()
             ThemeManager.AppTheme.NORD -> if (dark) nordDarkPalette() else nordLightPalette()

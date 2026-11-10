@@ -113,6 +113,8 @@ class LlamaRuntimeBridge {
         requestedGpuLayers: Int,
         nThreads: Int,
         vulkanAvailable: Boolean,
+        flashAttnType: Int = 0,   // 0=DISABLED, 1=AUTO(-1), 2=ENABLED
+        kvCacheType: Int = 1,     // 0=F32, 1=F16, 8=Q8_0
         maxLayers: Int = 0,
         onAttempt: ((attempt: Int, nGpuLayers: Int) -> Unit)? = null
     ): LoadResult {
@@ -138,7 +140,17 @@ class LlamaRuntimeBridge {
             maxLayers > 0 -> Log.i(TAG, "Requested $resolved of the model's $maxLayers layers on the GPU")
             resolved == 0 -> Log.i(TAG, "Requested CPU only (n_gpu_layers=0)")
         }
-        val profileKey = "$modelPath|ctx=$nContext|threads=$nThreads|max=$maxLayers|requested=$requestedGpuLayers"
+        Log.i(TAG, "KV cache type: type_k=$kvCacheType type_v=$kvCacheType, flash_attn=$flashAttnType")
+        // Map Kotlin flash_attn to llama.h enum:
+        //   Kotlin 0=DISABLED → llama.cpp 0 (DISABLED)
+        //   Kotlin 1=AUTO     → llama.cpp -1 (AUTO)
+        //   Kotlin 2=ENABLED  → llama.cpp 1 (ENABLED)
+        val flashAttnNative = when (flashAttnType) {
+            1 -> -1  // AUTO
+            2 -> 1   // ENABLED
+            else -> 0 // DISABLED (0 or any unknown)
+        }
+        val profileKey = "$modelPath|ctx=$nContext|threads=$nThreads|max=$maxLayers|requested=$requestedGpuLayers|flash=$flashAttnType|kv=$kvCacheType"
         val cached = if (vulkanAvailable && requestedGpuLayers != 0) workingGpuLayers[profileKey] else null
         var nGpu = cached ?: resolved
         if (cached != null) Log.i(TAG, "Using cached GPU offload: n_gpu_layers=$cached")
@@ -149,7 +161,7 @@ class LlamaRuntimeBridge {
             onAttempt?.invoke(attempt, nGpu)
             Log.i(TAG, "Load attempt #$attempt: n_gpu_layers=$nGpu (vulkan=$vulkanAvailable)")
             val h = try {
-                nativeLoadModel(modelPath, nContext, nGpu, nThreads)
+                nativeLoadModel(modelPath, nContext, nGpu, nThreads, flashAttnNative, kvCacheType, kvCacheType)
             } catch (e: Throwable) {
                 Log.e(TAG, "nativeLoadModel crashed: ${e.message}", e)
                 0L
@@ -226,7 +238,15 @@ class LlamaRuntimeBridge {
     external fun nativeLastError(): String
     external fun nativeIsVulkanAvailable(): Boolean
     external fun nativeGetGpuName(): String
-    external fun nativeLoadModel(modelPath: String, nContext: Int, nGpuLayers: Int, nThreads: Int): Long
+    external fun nativeLoadModel(
+        modelPath: String,
+        nContext: Int,
+        nGpuLayers: Int,
+        nThreads: Int,
+        flashAttnType: Int,
+        typeK: Int,
+        typeV: Int
+    ): Long
     external fun nativeUnloadModel(handle: Long)
     external fun nativeGenerate(
         modelHandle: Long,

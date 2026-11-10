@@ -1,6 +1,7 @@
 package com.aide.mobilestudio
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -39,17 +40,58 @@ import org.tukaani.xz.XZInputStream
 import android.system.Os
 
 
+/**
+ * Compatibility wrapper. The IDE hosts [ToolsPanel] in-window, so opening the
+ * Tools menu no longer replaces the editor with another screen. This activity
+ * remains only for callers that still pass an Intent.
+ */
 class ToolsActivity : AppCompatActivity() {
+    private var panel: ToolsPanel? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val p = ToolsPanel(this) { finish() }
+        panel = p
+        setContentView(p.create(intent.getStringExtra("tools_tab")))
+    }
+
+    override fun onResume() {
+        super.onResume()
+        panel?.onResume()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        panel?.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onDestroy() {
+        panel?.dispose()
+        super.onDestroy()
+    }
+
+    @Deprecated("Deprecated in Java")
+    @android.annotation.SuppressLint("MissingSuperCall")
+    override fun onBackPressed() {
+        MobileStudioCrashGuard.finishSafely(this)
+    }
 
     companion object {
-        private const val REQ_IMPORT_LAYOUTLIB_ZIP = 4201
-
         fun start(context: Context, tabId: String? = null) {
             val intent = Intent(context, ToolsActivity::class.java)
             tabId?.let { intent.putExtra("tools_tab", it) }
             context.startActivity(intent)
         }
+    }
+}
 
+internal class ToolsPanel(
+    private val host: AppCompatActivity,
+    private val onClose: () -> Unit,
+) : ContextWrapper(host) {
+
+    companion object {
+        private const val REQ_IMPORT_LAYOUTLIB_ZIP = 4201
         private val DEFAULT_ANDROID_LLVM_URL = AndroidHostedLlvmInstaller.DEFAULT_URL
         private const val DEFAULT_NINJA_URL =
             "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/Ninja_arm64/ninja"
@@ -76,12 +118,11 @@ class ToolsActivity : AppCompatActivity() {
 
     private fun t(value: String): String = AppLanguage.literal(this, value)
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        toolchain = ToolchainManager(this)
-        layoutLibImporter = LayoutLibImporter(this)
-        updateSites = ToolchainUpdateSites(this)
-        val tabId = intent.getStringExtra("tools_tab")
+    /** Builds the panel and returns the root view to embed in the IDE. */
+    fun create(tabId: String?): View {
+        toolchain = ToolchainManager(host)
+        layoutLibImporter = LayoutLibImporter(host)
+        updateSites = ToolchainUpdateSites(host)
         if (tabId != null) {
             if (tabId == "downloads") {
                 DownloadCenter.showIdleWindow()
@@ -90,55 +131,57 @@ class ToolsActivity : AppCompatActivity() {
                 currentCategory = mapToolIdToCategory(tabId)
             }
         }
-        setContentView(buildLayout())
+        val root = buildLayout()
         renderCategory(currentCategory)
         refreshRemoteCatalogs()
+        return root
     }
 
-    override fun onResume() {
-        super.onResume()
+    fun onResume() {
         if (::rootContainer.isInitialized) renderAll()
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_IMPORT_LAYOUTLIB_ZIP && resultCode == RESULT_OK) {
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == REQ_IMPORT_LAYOUTLIB_ZIP && resultCode == android.app.Activity.RESULT_OK) {
             data?.data?.let { importLayoutLibZip(it) }
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
+    fun dispose() {
         scope.cancel()
-    }
-
-    @Deprecated("Deprecated in Java")
-    @android.annotation.SuppressLint("MissingSuperCall")
-    override fun onBackPressed() {
-        MobileStudioCrashGuard.finishSafely(this)
     }
 
     private fun buildLayout(): View {
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.gradient(this@ToolsActivity, "#08111E", "#101827")
+            background = StudioUi.gradient(host, "#1E1F22", "#1E1F22")
         }
 
-        // Top bar
+        // Android Studio style tool-window title bar.
         outer.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = StudioUi.glow(this@ToolsActivity, "#121B2A", StudioUi.Blue, 22)
-            addView(TextView(this@ToolsActivity).apply {
+            setPadding(dp(14), 0, dp(4), 0)
+            setBackgroundColor(StudioUi.color(StudioUi.Surface))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)
+            )
+            addView(TextView(host).apply {
                 text = "Tools"
-                studioTitle(20f)
-                setTypeface(null, Typeface.BOLD)
+                textSize = 14f
+                setTextColor(StudioUi.color(StudioUi.Text))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
-            addView(secondaryButton("Close") {
-                MobileStudioCrashGuard.finishSafely(this@ToolsActivity)
-            })
+            listOf("—", "▢", "✕").forEach { glyph ->
+                addView(TextView(host).apply {
+                    text = glyph
+                    textSize = 13f
+                    gravity = Gravity.CENTER
+                    setTextColor(StudioUi.color(StudioUi.TextSoft))
+                    layoutParams = LinearLayout.LayoutParams(dp(34), dp(38))
+                    setOnClickListener { if (glyph == "✕") onClose() }
+                })
+            }
         })
 
         // Main row: sidebar + content area
@@ -153,9 +196,9 @@ class ToolsActivity : AppCompatActivity() {
         sidebar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(StudioUi.color(StudioUi.Surface))
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setPadding(dp(4), dp(8), dp(4), dp(8))
             layoutParams = LinearLayout.LayoutParams(
-                dp(200).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
+                dp(150).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
         buildSidebar()
@@ -171,15 +214,18 @@ class ToolsActivity : AppCompatActivity() {
         // Content area
         val contentWrapper = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setBackgroundColor(StudioUi.color(StudioUi.Ink))
             layoutParams = LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
             )
         }
         rootContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setBackgroundColor(StudioUi.color(StudioUi.Ink))
+            setPadding(dp(10), dp(10), dp(10), dp(10))
         }
         contentScroll = ScrollView(this).apply {
+            setBackgroundColor(StudioUi.color(StudioUi.Ink))
             addView(rootContainer)
         }
         contentWrapper.addView(contentScroll)
@@ -390,21 +436,21 @@ class ToolsActivity : AppCompatActivity() {
     private fun buildLogcatCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
-        card.addView(sectionTitle(AppLanguage.text(this@ToolsActivity, "logcat_viewer").toString()))
-        card.addView(TextView(this@ToolsActivity).apply {
+        card.addView(sectionTitle(AppLanguage.text(host, "logcat_viewer").toString()))
+        card.addView(TextView(host).apply {
             text = t("View logs from apps built by MobileStudio")
             textSize = 12f
             setTextColor(StudioUi.color(StudioUi.TextSoft))
             setPadding(0, 0, 0, dp(8))
         })
-        val input = EditText(this@ToolsActivity).apply {
+        val input = EditText(host).apply {
             hint = t("Package name (e.g. com.example.myapp)")
             textSize = 12f
             setPadding(dp(8), dp(6), dp(8), dp(6))
-            background = StudioUi.inputBg(this@ToolsActivity)
+            background = StudioUi.inputBg(host)
             setTextColor(StudioUi.color(StudioUi.Text))
             setHintTextColor(StudioUi.color(StudioUi.Muted))
         }
@@ -413,11 +459,11 @@ class ToolsActivity : AppCompatActivity() {
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(primaryButton("Open Logcat") {
-                val pkg = input.text.toString().trim().ifBlank { this@ToolsActivity.packageName }
-                LogcatActivity.start(this@ToolsActivity, pkg)
+                val pkg = input.text.toString().trim().ifBlank { host.packageName }
+                LogcatActivity.start(host, pkg)
             })
             addView(secondaryButton("View MobileStudio Logs") {
-                LogcatActivity.start(this@ToolsActivity, this@ToolsActivity.packageName)
+                LogcatActivity.start(host, host.packageName)
             })
         })
         return card
@@ -426,11 +472,11 @@ class ToolsActivity : AppCompatActivity() {
     private fun buildAppIconCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("App Icon Editor"))
-        card.addView(TextView(this@ToolsActivity).apply {
+        card.addView(TextView(host).apply {
             text = t("Select an image to auto-generate mipmap icons for all densities")
             textSize = 12f
             setTextColor(StudioUi.color(StudioUi.TextSoft))
@@ -442,7 +488,7 @@ class ToolsActivity : AppCompatActivity() {
                 toast("Open a project first")
                 return@primaryButton
             }
-            val intent = android.content.Intent(this@ToolsActivity, AppIconEditorActivity::class.java)
+            val intent = android.content.Intent(host, AppIconEditorActivity::class.java)
             intent.putExtra("project_dir", projectDir)
             val pkg = readPackageNameFromGradle(File(projectDir))
             intent.putExtra("package_name", pkg)
@@ -454,11 +500,11 @@ class ToolsActivity : AppCompatActivity() {
     private fun buildApkToolsCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("APK Tools"))
-        card.addView(TextView(this@ToolsActivity).apply {
+        card.addView(TextView(host).apply {
             text = t("Sign, inspect, and install APK files")
             textSize = 12f
             setTextColor(StudioUi.color(StudioUi.TextSoft))
@@ -474,7 +520,7 @@ class ToolsActivity : AppCompatActivity() {
                 toast("Open a project first")
                 return@primaryButton
             }
-            val intent = android.content.Intent(this@ToolsActivity, ApkSigningActivity::class.java)
+            val intent = android.content.Intent(host, ApkSigningActivity::class.java)
             intent.putExtra("project_dir", projectDir)
             startActivity(intent)
         })
@@ -490,7 +536,7 @@ class ToolsActivity : AppCompatActivity() {
                 toast("No APK files found")
                 return@secondaryButton
             }
-            val intent = android.content.Intent(this@ToolsActivity, ApkInfoActivity::class.java)
+            val intent = android.content.Intent(host, ApkInfoActivity::class.java)
             intent.putExtra("apk_path", latestApk.absolutePath)
             startActivity(intent)
         })
@@ -511,11 +557,11 @@ class ToolsActivity : AppCompatActivity() {
     private fun buildDependencySearchCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("Dependency Search"))
-        card.addView(TextView(this@ToolsActivity).apply {
+        card.addView(TextView(host).apply {
             text = t("Search Maven Central and add libraries to build.gradle")
             textSize = 12f
             setTextColor(StudioUi.color(StudioUi.TextSoft))
@@ -527,7 +573,7 @@ class ToolsActivity : AppCompatActivity() {
                 toast("Open a project first")
                 return@primaryButton
             }
-            DependencySearchDialog(this@ToolsActivity).show(File(projectDir))
+            DependencySearchDialog(host).show(File(projectDir))
         })
         return card
     }
@@ -535,11 +581,11 @@ class ToolsActivity : AppCompatActivity() {
     private fun buildCacheManagerCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("Build Cache Manager"))
-        card.addView(TextView(this@ToolsActivity).apply {
+        card.addView(TextView(host).apply {
             text = t("Manage build cache, Gradle cache, and dependency cache")
             textSize = 12f
             setTextColor(StudioUi.color(StudioUi.TextSoft))
@@ -547,7 +593,7 @@ class ToolsActivity : AppCompatActivity() {
         })
         card.addView(primaryButton("Open Cache Manager") {
             val projectDir = getSharedPreferences("ide", MODE_PRIVATE).getString("last_project_dir", null)
-            BuildCacheManager(this@ToolsActivity).show(
+            BuildCacheManager(host).show(
                 if (projectDir != null) File(projectDir) else null
             )
         })
@@ -560,7 +606,7 @@ class ToolsActivity : AppCompatActivity() {
         val cacheBytes = directorySize(cacheDir) + directorySize(codeCacheDir)
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("Diagnostics & Performance"))
@@ -591,8 +637,8 @@ class ToolsActivity : AppCompatActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 BuildMemoryPolicy.Profile.entries.forEach { profile ->
                     addView(profileMemoryButton(profile, profile == activeProfile) {
-                        BuildMemoryPolicy.setProfile(this@ToolsActivity, profile)
-                        val next = BuildMemoryPolicy.resolve(this@ToolsActivity)
+                        BuildMemoryPolicy.setProfile(host, profile)
+                        val next = BuildMemoryPolicy.resolve(host)
                         toast(
                             t(
                                 "Gradle heap set to ${next.gradleHeapMb} MB (${gradleMemoryProfileLabel(profile)})"
@@ -628,14 +674,14 @@ class ToolsActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(8), 0, 0)
             addView(secondaryButton("View Crash") {
-                showTextDialog("Latest crash log", MobileStudioCrashGuard.latestCrashText(this@ToolsActivity))
+                showTextDialog("Latest crash log", MobileStudioCrashGuard.latestCrashText(host))
             })
             addView(secondaryButton("Copy Crash") {
-                copyToClipboard("MobileStudio crash log", MobileStudioCrashGuard.latestCrashText(this@ToolsActivity))
+                copyToClipboard("MobileStudio crash log", MobileStudioCrashGuard.latestCrashText(host))
             })
             addView(dangerButton("Clear Crash") {
                 confirmDialog("Clear saved crash logs?") {
-                    MobileStudioCrashGuard.clearCrashLogs(this@ToolsActivity)
+                    MobileStudioCrashGuard.clearCrashLogs(host)
                     toast("Crash logs cleared")
                     renderAll()
                 }
@@ -654,17 +700,17 @@ class ToolsActivity : AppCompatActivity() {
     private fun buildBuildOptionsCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("Build Options"))
         val cfg = BuildToolsConfig
         val summary = buildString {
-            append("Gradle: ${cfg.gradleHeapMb(this@ToolsActivity)}MB heap, ")
-            append("${cfg.maxWorkers(this@ToolsActivity)} workers, ")
-            append("parallel=${cfg.parallel(this@ToolsActivity)}\n")
-            append("Clang: ${cfg.optimization(this@ToolsActivity)}, API ${cfg.targetApi(this@ToolsActivity)}\n")
-            append("Kotlin: ${cfg.kotlinHeapMb(this@ToolsActivity)}MB heap")
+            append("Gradle: ${cfg.gradleHeapMb(host)}MB heap, ")
+            append("${cfg.maxWorkers(host)} workers, ")
+            append("parallel=${cfg.parallel(host)}\n")
+            append("Clang: ${cfg.optimization(host)}, API ${cfg.targetApi(host)}\n")
+            append("Kotlin: ${cfg.kotlinHeapMb(host)}MB heap")
         }
         card.addView(TextView(this).apply {
             text = t(summary)
@@ -673,7 +719,7 @@ class ToolsActivity : AppCompatActivity() {
             setPadding(0, 0, 0, dp(8))
         })
         card.addView(primaryButton("Open Build Options") {
-            BuildToolsSettingsActivity.start(this@ToolsActivity)
+            BuildToolsSettingsActivity.start(host)
         })
         return card
     }
@@ -682,20 +728,20 @@ class ToolsActivity : AppCompatActivity() {
         val status = layoutLibImporter.status()
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t("LayoutLib Preview")
                 textSize = 15f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(StudioUi.color(StudioUi.Blue))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t(if (status.installed) "Ready" else "Not installed")
                 textSize = 12f
                 setTextColor(StudioUi.color(if (status.installed) StudioUi.Green else StudioUi.Muted))
@@ -744,7 +790,7 @@ class ToolsActivity : AppCompatActivity() {
         val installed = RuntimeToolsInstaller.areAllToolsInstalled(this)
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("Runtime Tools"))
@@ -761,8 +807,8 @@ class ToolsActivity : AppCompatActivity() {
             addView(primaryButton(if (installed) "Reinstall All" else "Install All") {
                 scope.launch(Dispatchers.IO) {
                     withContext(Dispatchers.Main) { toast("Installing runtime tools...") }
-                    RuntimeToolsInstaller.installAll(this@ToolsActivity) { msg ->
-                        runOnUiThread { toast(msg) }
+                    RuntimeToolsInstaller.installAll(host) { msg ->
+                        host.runOnUiThread { toast(msg) }
                     }
                     withContext(Dispatchers.Main) {
                         toast("Runtime tools install complete")
@@ -771,8 +817,8 @@ class ToolsActivity : AppCompatActivity() {
                 }
             })
             addView(secondaryButton("Open Folder") {
-                val dir = RuntimeToolsInstaller.binDir(this@ToolsActivity)
-                ToolchainFileExplorerActivity.startAt(this@ToolsActivity, "Runtime Tools", dir)
+                val dir = RuntimeToolsInstaller.binDir(host)
+                ToolchainFileExplorerActivity.startAt(host, "Runtime Tools", dir)
             })
             addView(secondaryButton("Refresh") { renderAll() })
         })
@@ -788,7 +834,7 @@ class ToolsActivity : AppCompatActivity() {
         val sdkDir = toolchain.activeDir(ToolchainManager.Kind.SDK)
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("Languages & Frameworks > Android SDK"))
@@ -798,30 +844,32 @@ class ToolsActivity : AppCompatActivity() {
             setTextColor(StudioUi.color(StudioUi.TextSoft))
             setPadding(0, 0, 0, dp(8))
         })
+        // SDK location: label + Edit on one line, the path wraps below so it
+        // stays readable in the narrow tool window.
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t("Android SDK Location:")
                 textSize = 12f
                 setTextColor(StudioUi.color(StudioUi.Text))
-            })
-            addView(TextView(this@ToolsActivity).apply {
-                text = sdkDir?.absolutePath ?: t("Not selected")
-                textSize = 12f
-                typeface = Typeface.MONOSPACE
-                setTextColor(StudioUi.color(StudioUi.Text))
-                background = StudioUi.inputBg(this@ToolsActivity)
-                setPadding(dp(10), dp(6), dp(10), dp(6))
-                maxLines = 2
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    leftMargin = dp(8)
-                    rightMargin = dp(8)
-                }
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
             addView(secondaryButton("Edit") {
-                ToolchainFileExplorerActivity.start(this@ToolsActivity, ToolchainManager.Kind.SDK)
+                ToolchainFileExplorerActivity.start(host, ToolchainManager.Kind.SDK)
             })
+        })
+        card.addView(TextView(host).apply {
+            text = sdkDir?.absolutePath ?: t("Not selected")
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setTextColor(StudioUi.color(StudioUi.Text))
+            background = StudioUi.inputBg(host)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            maxLines = 3
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
         })
 
         // Tab strip — clickable, blue underline on the selected tab (IntelliJ style).
@@ -829,17 +877,17 @@ class ToolsActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(14), 0, 0)
             listOf("SDK Platforms", "SDK Tools", "SDK Update Sites").forEachIndexed { index, title ->
-                addView(LinearLayout(this@ToolsActivity).apply {
+                addView(LinearLayout(host).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(dp(2), 0, dp(14), 0)
-                    addView(TextView(this@ToolsActivity).apply {
+                    addView(TextView(host).apply {
                         text = t(title)
                         textSize = 13f
                         setTypeface(null, if (index == sdkManagerTab) Typeface.BOLD else Typeface.NORMAL)
                         setTextColor(StudioUi.color(if (index == sdkManagerTab) StudioUi.Blue else StudioUi.TextSoft))
                         setPadding(dp(6), dp(4), dp(6), dp(4))
                     })
-                    addView(View(this@ToolsActivity).apply {
+                    addView(View(host).apply {
                         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2))
                         if (index == sdkManagerTab) {
                             setBackgroundColor(StudioUi.color(StudioUi.Blue))
@@ -919,18 +967,18 @@ class ToolsActivity : AppCompatActivity() {
         row.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(CheckBox(this@ToolsActivity).apply {
+            addView(CheckBox(host).apply {
                 isChecked = installed
                 isEnabled = false
                 setPadding(0, 0, dp(6), 0)
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t("Android $api")
                 textSize = 13f
                 setTextColor(StudioUi.color(StudioUi.Text))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t(if (installed) "Installed" else "Not installed")
                 textSize = 12f
                 setTextColor(StudioUi.color(if (installed) StudioUi.Green else StudioUi.Muted))
@@ -939,7 +987,7 @@ class ToolsActivity : AppCompatActivity() {
         row.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = "API $api · platforms/$name"
                 textSize = 11f
                 typeface = Typeface.MONOSPACE
@@ -1117,18 +1165,18 @@ class ToolsActivity : AppCompatActivity() {
         row.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(CheckBox(this@ToolsActivity).apply {
+            addView(CheckBox(host).apply {
                 isChecked = installed
                 isEnabled = false
                 setPadding(0, 0, dp(6), 0)
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t(name)
                 textSize = 13f
                 setTextColor(StudioUi.color(StudioUi.Text))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = version
                 textSize = 12f
                 typeface = Typeface.MONOSPACE
@@ -1138,7 +1186,7 @@ class ToolsActivity : AppCompatActivity() {
         row.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t(if (installed) "Installed · $detail" else detail)
                 textSize = 11f
                 setTextColor(StudioUi.color(if (installed) StudioUi.Green else StudioUi.Muted))
@@ -1217,29 +1265,29 @@ class ToolsActivity : AppCompatActivity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(6), 0, dp(8))
-            addView(LinearLayout(this@ToolsActivity).apply {
+            addView(LinearLayout(host).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                addView(TextView(this@ToolsActivity).apply {
+                addView(TextView(host).apply {
                     text = kind.displayName
                     textSize = 13f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(StudioUi.color(StudioUi.Text))
                     layoutParams = LinearLayout.LayoutParams(dp(70), ViewGroup.LayoutParams.WRAP_CONTENT)
                 })
-                addView(View(this@ToolsActivity), LinearLayout.LayoutParams(0, 1, 1f))
+                addView(View(host), LinearLayout.LayoutParams(0, 1, 1f))
                 addView(secondaryButton("Add") { showAddUpdateSiteDialog(kind) })
                 addView(secondaryButton("Edit") { showManageUpdateSitesDialog(kind) })
                 addView(primaryButton("Fetch") { refreshUpdateSite(kind) })
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = sites.joinToString(separator = "\n")
                 textSize = 10f
                 typeface = Typeface.MONOSPACE
                 setTextColor(StudioUi.color(StudioUi.Muted))
                 setPadding(dp(70), dp(3), 0, 0)
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t(if (cached.isEmpty()) "No remote versions loaded yet." else "Loaded: ${cached.take(10).joinToString()}${if (cached.size > 10) " ..." else ""}")
                 textSize = 12f
                 setTextColor(StudioUi.color(if (cached.isEmpty()) StudioUi.Muted else StudioUi.Green))
@@ -1333,7 +1381,7 @@ class ToolsActivity : AppCompatActivity() {
 
         scope.launch(Dispatchers.IO) {
             val result = layoutLibImporter.ensureBundledInstalled { message ->
-                runOnUiThread { dialog.setMessage(message) }
+                host.runOnUiThread { dialog.setMessage(message) }
             }
             withContext(Dispatchers.Main) {
                 dialog.dismiss()
@@ -1350,7 +1398,7 @@ class ToolsActivity : AppCompatActivity() {
             putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/zip", "application/octet-stream", "*/*"))
         }
         @Suppress("DEPRECATION")
-        runCatching { startActivityForResult(intent, REQ_IMPORT_LAYOUTLIB_ZIP) }
+        runCatching { host.startActivityForResult(intent, REQ_IMPORT_LAYOUTLIB_ZIP) }
             .onFailure { toast("File picker unavailable: ${it.message}") }
     }
 
@@ -1364,7 +1412,7 @@ class ToolsActivity : AppCompatActivity() {
 
         scope.launch(Dispatchers.IO) {
             val result = layoutLibImporter.importFromAndroidStudioZip(uri) { message ->
-                runOnUiThread { dialog.setMessage(message) }
+                host.runOnUiThread { dialog.setMessage(message) }
             }
             withContext(Dispatchers.Main) {
                 dialog.dismiss()
@@ -1378,12 +1426,12 @@ class ToolsActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         val current = AppLanguage.current(this)
         card.addView(TextView(this).apply {
-            text = AppLanguage.text(this@ToolsActivity, "language")
+            text = AppLanguage.text(host, "language")
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(StudioUi.color(StudioUi.Blue))
@@ -1396,7 +1444,7 @@ class ToolsActivity : AppCompatActivity() {
     private fun buildAiCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         card.addView(sectionTitle("AI Assistant"))
@@ -1411,16 +1459,16 @@ class ToolsActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             addView(primaryButton("Open AI Workspace") {
                 try {
-                    AiWorkspaceActivity.start(this@ToolsActivity)
+                    AiWorkspaceActivity.start(host)
                 } catch (e: Exception) {
                     toast("Failed to start AI: ${e.message}")
                 }
             })
             addView(secondaryButton("Open TUI") {
-                val cmd = OpencodeEnvironment(this@ToolsActivity).tuiCommandLine()
+                val cmd = OpencodeEnvironment(host).tuiCommandLine()
                 runCatching {
                     startActivity(
-                        Intent(this@ToolsActivity, MainActivity::class.java).apply {
+                        Intent(host, MainActivity::class.java).apply {
                             putExtra("run_command", cmd)
                             addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                         }
@@ -1431,7 +1479,7 @@ class ToolsActivity : AppCompatActivity() {
             })
             addView(dangerButton("Reinstall") {
                 scope.launch(Dispatchers.IO) {
-                    val env = OpencodeEnvironment(this@ToolsActivity)
+                    val env = OpencodeEnvironment(host)
                     env.cleanup()
                     withContext(Dispatchers.Main) { toast("AI environment cleaned. Reopen to reinstall.") }
                 }
@@ -1451,7 +1499,7 @@ class ToolsActivity : AppCompatActivity() {
             ) { dialog, which ->
                 AppLanguage.set(this, languages[which].code)
                 dialog.dismiss()
-                setContentView(buildLayout())
+                buildSidebar()
                 renderAll()
             }
             .show()
@@ -1460,7 +1508,7 @@ class ToolsActivity : AppCompatActivity() {
     private fun buildKindCard(kind: ToolchainManager.Kind): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
 
@@ -1469,14 +1517,14 @@ class ToolsActivity : AppCompatActivity() {
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = kind.displayName
                 textSize = 15f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(StudioUi.color(StudioUi.Blue))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = active?.let { t("Active: $it") } ?: t("Not installed")
                 textSize = 12f
                 setTextColor(StudioUi.color(if (active != null) StudioUi.Green else StudioUi.Muted))
@@ -1592,7 +1640,7 @@ class ToolsActivity : AppCompatActivity() {
         card.addView(spacer(dp(8)))
         val versions = toolVersionsNewestFirst(kind)
         if (versions.isEmpty()) {
-            card.addView(TextView(this@ToolsActivity).apply {
+            card.addView(TextView(host).apply {
                 text = t("No versions available")
                 setTextColor(StudioUi.color(StudioUi.Muted))
                 textSize = 12f
@@ -1677,7 +1725,7 @@ class ToolsActivity : AppCompatActivity() {
      */
     private fun refreshRemoteCatalogs() {
         scope.launch(Dispatchers.IO) {
-            runCatching { BuildToolCatalog.fetch(this@ToolsActivity) }
+            runCatching { BuildToolCatalog.fetch(host) }
             runCatching { updateSites.refreshIfStale(ToolchainManager.Kind.GRADLE) }
             withContext(Dispatchers.Main) {
                 if (::rootContainer.isInitialized) renderAll()
@@ -1691,24 +1739,24 @@ class ToolsActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(8), 0, dp(4))
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = t("PATH")
                 textSize = 12f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(StudioUi.color(StudioUi.Muted))
                 layoutParams = LinearLayout.LayoutParams(dp(46), ViewGroup.LayoutParams.WRAP_CONTENT)
             })
-            addView(TextView(this@ToolsActivity).apply {
+            addView(TextView(host).apply {
                 text = activeDir?.absolutePath ?: t("Not selected")
                 textSize = 11f
                 typeface = Typeface.MONOSPACE
                 setTextColor(StudioUi.color(StudioUi.Text))
-                background = StudioUi.inputBg(this@ToolsActivity)
+                background = StudioUi.inputBg(host)
                 setPadding(dp(8), dp(6), dp(8), dp(6))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
             addView(secondaryButton("Browse") {
-                ToolchainFileExplorerActivity.start(this@ToolsActivity, kind)
+                ToolchainFileExplorerActivity.start(host, kind)
             })
         }
     }
@@ -1724,7 +1772,7 @@ class ToolsActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             if (isActive) {
                 background = StudioUi.rounded(
-                    this@ToolsActivity,
+                    host,
                     fill = "#%06X".format(0xFFFFFF and StudioUi.palette.selectedBg),
                     strokeDp = 0,
                     radiusDp = 6
@@ -1761,7 +1809,7 @@ class ToolsActivity : AppCompatActivity() {
                 row.addView(primaryButton("Activate") {
                     val currentActive = toolchain.activeVersion(kind)
                     if (currentActive != null && currentActive != version) {
-                        VersionCompatibilityDialog(this@ToolsActivity).show(
+                        VersionCompatibilityDialog(host).show(
                             kind = kind,
                             currentVersion = currentActive,
                             newVersion = version,
@@ -1894,7 +1942,7 @@ class ToolsActivity : AppCompatActivity() {
                 length
             }.getOrDefault(-1L)
 
-            val freeMb = StorageHelper.getFreeDiskMb(this@ToolsActivity)
+            val freeMb = StorageHelper.getFreeDiskMb(host)
             val sizeMb = if (totalBytes > 0) (totalBytes / 1024.0 / 1024.0) else -1.0
             val message = buildString {
                 if (sizeMb > 0) append("Download size: %.2f GB\n".format(sizeMb / 1024.0))
@@ -1902,20 +1950,20 @@ class ToolsActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
-                AlertDialog.Builder(this@ToolsActivity)
+                AlertDialog.Builder(host)
                     .setTitle(t("Install ${kind.displayName} $version"))
                     .setMessage(message)
                     .setPositiveButton(t("OK")) { _, _ ->
                         // Use DownloadTask directly so we can refresh the list on completion
                         DownloadTask.start(
-                            context = this@ToolsActivity,
+                            context = host,
                             label = "${kind.displayName} $version",
                             url = url,
                             targetDir = targetDir,
                             mode = ToolchainDownloadService.MODE_TOOLCHAIN,
                             kind = kind,
                             version = version,
-                            onComplete = { this@ToolsActivity.runOnUiThread { renderAll() } }
+                            onComplete = { host.runOnUiThread { renderAll() } }
                         )
                         toast("Download started")
                     }
@@ -1981,7 +2029,7 @@ class ToolsActivity : AppCompatActivity() {
                 conn.disconnect()
                 length
             }.getOrDefault(-1L)
-            val freeMb = StorageHelper.getFreeDiskMb(this@ToolsActivity)
+            val freeMb = StorageHelper.getFreeDiskMb(host)
             val smartSize = when {
                 totalBytes > 0 -> totalBytes
                 url.contains("clang19_toolchain") || url.contains("android-llvm") -> (1.1 * 1024 * 1024 * 1024).toLong()
@@ -1999,12 +2047,12 @@ class ToolsActivity : AppCompatActivity() {
                     append("Download will show progress in a dialog.\n\nStart download?")
             }
             withContext(Dispatchers.Main) {
-                AlertDialog.Builder(this@ToolsActivity)
+                AlertDialog.Builder(host)
                     .setTitle(t(label))
                     .setMessage(t(message))
                     .setPositiveButton(t("OK")) { _, _ ->
                         DownloadTask.start(
-                            context = this@ToolsActivity,
+                            context = host,
                             label = label,
                             url = url,
                             targetDir = targetDir,
@@ -2019,7 +2067,7 @@ class ToolsActivity : AppCompatActivity() {
                                         try { android.system.Os.chmod(ninja.absolutePath, 493) } catch (_: Throwable) {}
                                     }
                                 }
-                                this@ToolsActivity.runOnUiThread { renderAll() }
+                                host.runOnUiThread { renderAll() }
                             }
                         )
                         toast("Download started")
@@ -2046,7 +2094,7 @@ class ToolsActivity : AppCompatActivity() {
         scope.launch(Dispatchers.IO) {
             val errorStack = try {
                 downloadAndExtract(url, targetDir) { message ->
-                    runOnUiThread { progressDialog.setMessage(t(message)) }
+                    host.runOnUiThread { progressDialog.setMessage(t(message)) }
                 }
                 postInstall(kind, version, targetDir)
                 null
@@ -2063,7 +2111,7 @@ class ToolsActivity : AppCompatActivity() {
                 if (errorStack == null) {
                     val currentActive = toolchain.activeVersion(kind)
                     if (currentActive != null && currentActive != version) {
-                        VersionCompatibilityDialog(this@ToolsActivity).show(
+                        VersionCompatibilityDialog(host).show(
                             kind = kind,
                             currentVersion = currentActive,
                             newVersion = version,
@@ -2079,7 +2127,7 @@ class ToolsActivity : AppCompatActivity() {
                         renderAll()
                     }
                 } else {
-                    AlertDialog.Builder(this@ToolsActivity)
+                    AlertDialog.Builder(host)
                         .setTitle(t("Download failed"))
                         .setMessage(errorStack.take(5000))
                         .setPositiveButton(t("OK"), null)
@@ -2193,7 +2241,7 @@ class ToolsActivity : AppCompatActivity() {
             if (toolchain.isInstalled(ToolchainManager.Kind.CMAKE, version)) {
                 val currentCmake = toolchain.activeVersion(ToolchainManager.Kind.CMAKE)
                 if (currentCmake != null && currentCmake != version) {
-                    VersionCompatibilityDialog(this@ToolsActivity).show(
+                    VersionCompatibilityDialog(host).show(
                         kind = ToolchainManager.Kind.CMAKE,
                         currentVersion = currentCmake,
                         newVersion = version,
@@ -2227,14 +2275,14 @@ class ToolsActivity : AppCompatActivity() {
         scope.launch(Dispatchers.IO) {
             // Refresh the catalog so a freshly published port is found even
             // on the first use (TTL-cached afterwards).
-            runCatching { BuildToolCatalog.fetch(this@ToolsActivity) }
+            runCatching { BuildToolCatalog.fetch(host) }
             var error: String? = null
             val latch = java.util.concurrent.CountDownLatch(1)
-            CmakeRuntimeManager.get(this@ToolsActivity).ensureInstalled(
+            CmakeRuntimeManager.get(host).ensureInstalled(
                 onProgress = { read, total ->
                     val percent = if (total > 0) (read * 100 / total).toInt() else 0
                     val message = if (percent > 0) "$percent%" else "${read / (1024 * 1024)} MB"
-                    runOnUiThread { dialog.setMessage(t("Downloading... $message")) }
+                    host.runOnUiThread { dialog.setMessage(t("Downloading... $message")) }
                 },
                 onLog = { },
                 onDone = { success, err ->
@@ -2246,10 +2294,10 @@ class ToolsActivity : AppCompatActivity() {
             latch.await()
             withContext(Dispatchers.Main) {
                 dialog.dismiss()
-                if (error == null && CmakeRuntimeManager.get(this@ToolsActivity).isInstalled(version)) {
+                if (error == null && CmakeRuntimeManager.get(host).isInstalled(version)) {
                     val currentCmake = toolchain.activeVersion(ToolchainManager.Kind.CMAKE)
                     if (currentCmake != null && currentCmake != version) {
-                        VersionCompatibilityDialog(this@ToolsActivity).show(
+                        VersionCompatibilityDialog(host).show(
                             kind = ToolchainManager.Kind.CMAKE,
                             currentVersion = currentCmake,
                             newVersion = version,
@@ -2599,7 +2647,7 @@ class ToolsActivity : AppCompatActivity() {
             if (toolchain.isInstalled(ToolchainManager.Kind.NDK, version)) {
                 val currentNdk = toolchain.activeVersion(ToolchainManager.Kind.NDK)
                 if (currentNdk != null && currentNdk != version) {
-                    VersionCompatibilityDialog(this@ToolsActivity).show(
+                    VersionCompatibilityDialog(host).show(
                         kind = ToolchainManager.Kind.NDK,
                         currentVersion = currentNdk,
                         newVersion = version,
@@ -2641,12 +2689,12 @@ class ToolsActivity : AppCompatActivity() {
                 sdkDir.mkdirs()
                 if (args.contains("--licenses")) {
                     writeAndroidSdkLicenses(sdkDir)
-                    runOnUiThread { dialog.setMessage(t("Licenses accepted locally.")) }
+                    host.runOnUiThread { dialog.setMessage(t("Licenses accepted locally.")) }
                 } else {
                     val repositoryXml = downloadText("https://dl.google.com/android/repository/repository2-1.xml")
                     args.forEach { packagePath ->
                         installSdkPackageDirect(repositoryXml, packagePath, sdkDir) { message ->
-                            runOnUiThread { dialog.setMessage(t(message.take(500))) }
+                            host.runOnUiThread { dialog.setMessage(t(message.take(500))) }
                         }
                     }
                     runCatching { toolchain.ensureAssetOverridesInstalled() }
@@ -2947,10 +2995,10 @@ class ToolsActivity : AppCompatActivity() {
         }.getOrDefault("?")
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = StudioUi.cardBg(this@ToolsActivity)
+            background = StudioUi.cardBg(host)
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
-        card.addView(sectionTitle(AppLanguage.text(this@ToolsActivity, "update_check").toString()))
+        card.addView(sectionTitle(AppLanguage.text(host, "update_check").toString()))
         card.addView(TextView(this).apply {
             text = "MobileStudio $currentVer"
             textSize = 12f
@@ -2960,14 +3008,14 @@ class ToolsActivity : AppCompatActivity() {
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(primaryButton(AppLanguage.text(this@ToolsActivity, "check_update_now").toString()) {
+            addView(primaryButton(AppLanguage.text(host, "check_update_now").toString()) {
                 AppUpdateManager.checkForUpdates(
-                    this@ToolsActivity,
+                    host,
                     currentVersionName = currentVer
                 ) { info ->
-                    runOnUiThread {
+                    host.runOnUiThread {
                         if (info == null) {
-                            toast(AppLanguage.text(this@ToolsActivity, "no_update"))
+                            toast(AppLanguage.text(host, "no_update"))
                         } else {
                             showUpdateDialog(info)
                         }
@@ -3045,7 +3093,7 @@ class ToolsActivity : AppCompatActivity() {
     }
 
     private fun sectionTitle(text: String, sizeSp: Float = 15f): TextView =
-        TextView(this@ToolsActivity).apply {
+        TextView(host).apply {
             this.text = t(text)
             textSize = sizeSp
             typeface = Typeface.DEFAULT_BOLD
@@ -3081,11 +3129,11 @@ class ToolsActivity : AppCompatActivity() {
         minHeight = dp(36)
         minWidth = 0
         background = StudioUi.ripple(
-            this@ToolsActivity,
+            host,
             if (selected) {
-                StudioUi.rounded(this@ToolsActivity, fill = StudioUi.ButtonDanger, stroke = StudioUi.Green, radiusDp = 8)
+                StudioUi.rounded(host, fill = StudioUi.ButtonDanger, stroke = StudioUi.Green, radiusDp = 8)
             } else {
-                StudioUi.rounded(this@ToolsActivity, fill = StudioUi.ButtonNormal, stroke = StudioUi.ButtonBorder, radiusDp = 8)
+                StudioUi.rounded(host, fill = StudioUi.ButtonNormal, stroke = StudioUi.ButtonBorder, radiusDp = 8)
             }
         )
         setPadding(dp(10), dp(6), dp(10), dp(6))
@@ -3110,8 +3158,8 @@ class ToolsActivity : AppCompatActivity() {
             minHeight = dp(36)
             minWidth = 0
             background = StudioUi.ripple(
-                this@ToolsActivity,
-                StudioUi.rounded(this@ToolsActivity, fill = StudioUi.ButtonPrimary, stroke = StudioUi.Blue, radiusDp = 8)
+                host,
+                StudioUi.rounded(host, fill = StudioUi.ButtonPrimary, stroke = StudioUi.Blue, radiusDp = 8)
             )
             setPadding(dp(12), dp(6), dp(12), dp(6))
             layoutParams = LinearLayout.LayoutParams(
@@ -3132,8 +3180,8 @@ class ToolsActivity : AppCompatActivity() {
             minHeight = dp(36)
             minWidth = 0
             background = StudioUi.ripple(
-                this@ToolsActivity,
-                StudioUi.rounded(this@ToolsActivity, fill = StudioUi.ButtonNormal, stroke = StudioUi.ButtonBorder, radiusDp = 8)
+                host,
+                StudioUi.rounded(host, fill = StudioUi.ButtonNormal, stroke = StudioUi.ButtonBorder, radiusDp = 8)
             )
             setPadding(dp(12), dp(6), dp(12), dp(6))
             layoutParams = LinearLayout.LayoutParams(
@@ -3154,8 +3202,8 @@ class ToolsActivity : AppCompatActivity() {
             minHeight = dp(36)
             minWidth = 0
             background = StudioUi.ripple(
-                this@ToolsActivity,
-                StudioUi.rounded(this@ToolsActivity, fill = StudioUi.ButtonDanger, stroke = StudioUi.ButtonDangerBorder, radiusDp = 8)
+                host,
+                StudioUi.rounded(host, fill = StudioUi.ButtonDanger, stroke = StudioUi.ButtonDangerBorder, radiusDp = 8)
             )
             setPadding(dp(12), dp(6), dp(12), dp(6))
             layoutParams = LinearLayout.LayoutParams(

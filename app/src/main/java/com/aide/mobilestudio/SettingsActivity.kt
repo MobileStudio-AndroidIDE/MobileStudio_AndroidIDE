@@ -1,9 +1,13 @@
 package com.aide.mobilestudio
 
+import android.accounts.AccountManager
 import android.app.AlertDialog
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.EditText
@@ -56,17 +60,39 @@ const val PREFS_NAME = "mobilestudio_settings"
  * SharedPreferences when Apply or OK is pressed, so Cancel really discards
  * changes.
  */
+/**
+ * Thin activity wrapper kept for existing callers. The IDE opens this same UI
+ * as an in-window overlay through [SettingsController]; the activity remains
+ * for launcher/deep-link compatibility only.
+ */
 class SettingsActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val controller = SettingsController(this) { finish() }
+        setContent {
+            MobileStudioTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = Palette.bg) {
+                    controller.SettingsScreen()
+                }
+            }
+        }
+    }
+}
+
+internal class SettingsController(
+    private val host: ComponentActivity,
+    private val onClose: () -> Unit,
+) : ContextWrapper(host) {
 
     private val prefs: SharedPreferences by lazy {
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        host.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
     /** Pending (not yet applied) edits. Observable so Compose recomposes. */
     private val draft = mutableStateMapOf<String, Any?>()
 
     private fun toast(msg: String) {
-        Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_SHORT).show()
+        Toast.makeText(host, msg, Toast.LENGTH_SHORT).show()
     }
 
     // ------------------------------------------------------------
@@ -144,17 +170,6 @@ class SettingsActivity : ComponentActivity() {
         }
         editor.apply()
         draft.clear()
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            MobileStudioTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = Palette.bg) {
-                    SettingsScreen()
-                }
-            }
-        }
     }
 
     // ------------------------------------------------------------
@@ -249,11 +264,8 @@ class SettingsActivity : ComponentActivity() {
                 SPage("l_android_sdk", "Android SDK"),
                 SPage("l_jvm_logging", "JVM Logging"),
                 SPage("l_kotlin", "Kotlin",
-                    desc = "Configure the Kotlin language and its compiler",
                     children = listOf(
-                        SPage("kotlin_compiler", "Kotlin Compiler"),
-                        SPage("kotlin_gradle", "Kotlin Gradle Script"),
-                        SPage("kotlin_style", "Code Style"),
+                        SPage("kotlin_scripting", "Kotlin Scripting"),
                     )),
                 SPage("l_markdown", "Markdown"),
                 SPage("l_mermaid", "Mermaid"),
@@ -445,7 +457,7 @@ class SettingsActivity : ComponentActivity() {
     // Screen shell
     // ------------------------------------------------------------
     @Composable
-    private fun SettingsScreen() {
+    internal fun SettingsScreen() {
         val startPath = remember { initialPath() }
         var path by remember { mutableStateOf(startPath) }
         var expanded by remember {
@@ -489,12 +501,12 @@ class SettingsActivity : ComponentActivity() {
         val current = findPage(currentId)
 
         Column(Modifier.fillMaxSize().background(Palette.bg)) {
-            TitleBar(onClose = { finish() })
+            TitleBar(onClose = onClose)
             Row(Modifier.weight(1f).fillMaxWidth()) {
 
                 // ---------------- left: search + tree + help ----------------
                 Column(Modifier.weight(1f).fillMaxHeight().background(Palette.panel)) {
-                    SearchBox(query) { query = it }
+                    SearchBox(query, placeholder = "Search settings") { query = it }
                     HLine()
                     Column(
                         Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 4.dp)
@@ -572,11 +584,11 @@ class SettingsActivity : ComponentActivity() {
                         onOk = {
                             put(KEY_LAST_PAGE, currentId)
                             commitDraft()
-                            finish()
+                            onClose()
                         },
                         onCancel = {
                             draft.clear()
-                            finish()
+                            onClose()
                         },
                         onApply = {
                             put(KEY_LAST_PAGE, currentId)
@@ -623,7 +635,11 @@ class SettingsActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun SearchBox(query: String, onChange: (String) -> Unit) {
+    private fun SearchBox(
+        query: String,
+        placeholder: String = "",
+        onChange: (String) -> Unit,
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -635,14 +651,23 @@ class SettingsActivity : ComponentActivity() {
         ) {
             Text("🔍", fontSize = 12.sp)
             Spacer(Modifier.width(6.dp))
-            BasicTextField(
-                value = query,
-                onValueChange = onChange,
-                singleLine = true,
-                textStyle = TextStyle(color = Palette.text, fontSize = 14.sp),
-                cursorBrush = SolidColor(Palette.link),
-                modifier = Modifier.weight(1f),
-            )
+            Box(Modifier.weight(1f)) {
+                if (query.isEmpty() && placeholder.isNotEmpty()) {
+                    Text(
+                        placeholder,
+                        color = Palette.dimText,
+                        fontSize = 14.sp,
+                    )
+                }
+                BasicTextField(
+                    value = query,
+                    onValueChange = onChange,
+                    singleLine = true,
+                    textStyle = TextStyle(color = Palette.text, fontSize = 14.sp),
+                    cursorBrush = SolidColor(Palette.link),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 
@@ -750,8 +775,8 @@ class SettingsActivity : ComponentActivity() {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Button(
@@ -760,18 +785,18 @@ class SettingsActivity : ComponentActivity() {
                     containerColor = Palette.okBlue,
                     contentColor = Color.White,
                 ),
-                contentPadding = PaddingValues(horizontal = 22.dp, vertical = 6.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                 shape = RoundedCornerShape(4.dp),
             ) {
-                Text("OK", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text("OK", fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             }
             OutlinedButton(
                 onClick = onCancel,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.text),
-                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                 shape = RoundedCornerShape(4.dp),
             ) {
-                Text("Cancel", fontSize = 13.sp)
+                Text("Cancel", fontSize = 13.sp, maxLines = 1, softWrap = false)
             }
             Button(
                 onClick = onApply,
@@ -782,10 +807,10 @@ class SettingsActivity : ComponentActivity() {
                     disabledContainerColor = Palette.fieldBg,
                     disabledContentColor = Palette.disabledText,
                 ),
-                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                 shape = RoundedCornerShape(4.dp),
             ) {
-                Text("Apply", fontSize = 13.sp)
+                Text("Apply", fontSize = 13.sp, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -815,13 +840,14 @@ class SettingsActivity : ComponentActivity() {
             "cling" -> NativeToolPage("Cling", "cling")
             "l_android_sdk" -> AndroidSdkPage()
             "l_jvm_logging" -> JvmLoggingPage()
-            "kotlin_compiler" -> KotlinCompilerPage()
+            "kotlin_scripting" -> KotlinScriptingPage()
             "l_markdown" -> MarkdownPage()
             "ai" -> AiPage()
             "device_explorer" -> DevicesPage()
             "device_mirroring" -> DevicesPage()
             "advanced" -> AdvancedPage()
             "backup_sync" -> BackupSyncPage()
+            "l_schemas" -> SchemasPage()
             "schemas_external" -> ListEditorPage(
                 "schemas_external",
                 "External schemas and DTDs:",
@@ -995,6 +1021,7 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalLayoutApi::class)
     @Composable
     private fun FieldRow(
         label: String,
@@ -1004,15 +1031,17 @@ class SettingsActivity : ComponentActivity() {
         onChange: (String) -> Unit,
     ) {
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
                 Text(
                     label,
                     color = Palette.text,
                     fontSize = 14.sp,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
+                    maxLines = 3,
                 )
-                Spacer(Modifier.width(8.dp))
                 Box(
                     Modifier
                         .width(150.dp)
@@ -1048,51 +1077,54 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalLayoutApi::class)
     @Composable
     private fun NumberRow(label: String, value: Int, suffix: String = "", onChange: (Int) -> Unit) {
         var raw by remember(value) { mutableStateOf(value.toString()) }
-        Row(
+        FlowRow(
             Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             Text(
                 label,
                 color = Palette.text,
                 fontSize = 14.sp,
-                modifier = Modifier.weight(1f),
-                maxLines = 2,
+                maxLines = 4,
             )
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier
-                    .width(86.dp)
-                    .background(Palette.fieldBg)
-                    .border(1.dp, Palette.border, RoundedCornerShape(4.dp)),
-            ) {
-                BasicTextField(
-                    value = raw,
-                    onValueChange = { s ->
-                        raw = s
-                        s.filter { it.isDigit() }.toIntOrNull()?.let(onChange)
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    textStyle = TextStyle(
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
-                    ),
-                    cursorBrush = SolidColor(Palette.link),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
-                )
-            }
-            if (suffix.isNotBlank()) {
-                Spacer(Modifier.width(6.dp))
-                Text(suffix, color = Palette.dimText, fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .width(86.dp)
+                        .background(Palette.fieldBg)
+                        .border(1.dp, Palette.border, RoundedCornerShape(4.dp)),
+                ) {
+                    BasicTextField(
+                        value = raw,
+                        onValueChange = { s ->
+                            raw = s
+                            s.filter { it.isDigit() }.toIntOrNull()?.let(onChange)
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        textStyle = TextStyle(
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace,
+                        ),
+                        cursorBrush = SolidColor(Palette.link),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                    )
+                }
+                if (suffix.isNotBlank()) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(suffix, color = Palette.dimText, fontSize = 12.sp)
+                }
             }
         }
     }
 
+    @OptIn(ExperimentalLayoutApi::class)
     @Composable
     private fun ComboRow(
         label: String,
@@ -1103,15 +1135,17 @@ class SettingsActivity : ComponentActivity() {
     ) {
         var open by remember { mutableStateOf(false) }
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
                 Text(
                     label,
                     color = Palette.text,
                     fontSize = 14.sp,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
+                    maxLines = 3,
                 )
-                Spacer(Modifier.width(8.dp))
                 Box {
                     Row(
                         Modifier
@@ -1127,7 +1161,7 @@ class SettingsActivity : ComponentActivity() {
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 150.dp),
+                            modifier = Modifier.widthIn(max = 200.dp),
                         )
                         Spacer(Modifier.width(8.dp))
                         Text("▾", color = Palette.dimText, fontSize = 10.sp)
@@ -1433,7 +1467,7 @@ class SettingsActivity : ComponentActivity() {
                 lineHeight = 20.sp,
                 modifier = Modifier.padding(bottom = 10.dp),
             )
-            SearchBox(q) { q = it }
+            SearchBox(q, placeholder = "Search actions") { q = it }
             groups.forEach { (group, actions) ->
                 SectionRow(group.menu)
                 actions.forEach { (name, shortcut) ->
@@ -1639,7 +1673,7 @@ class SettingsActivity : ComponentActivity() {
         LaunchedEffect(tick) {
             loading = true
             withContext(Dispatchers.IO) {
-                val tc = ToolchainManager(this@SettingsActivity)
+                val tc = ToolchainManager(host)
                 jdkEntries = tc.installedVersions(ToolchainManager.Kind.JDK).map { v ->
                     val dir = File(tc.kindDir(ToolchainManager.Kind.JDK), v)
                     val home = tc.resolveJdkHome(dir) ?: dir
@@ -1681,7 +1715,7 @@ class SettingsActivity : ComponentActivity() {
                     ) {
                         scope.launch {
                             val ok = withContext(Dispatchers.IO) {
-                                ToolchainManager(this@SettingsActivity)
+                                ToolchainManager(host)
                                     .setActiveVersion(ToolchainManager.Kind.GRADLE, v)
                             }
                             toast(if (ok) "Active Gradle: $v" else "Could not activate $v")
@@ -1714,7 +1748,7 @@ class SettingsActivity : ComponentActivity() {
                     ) {
                         scope.launch {
                             val ok = withContext(Dispatchers.IO) {
-                                ToolchainManager(this@SettingsActivity)
+                                ToolchainManager(host)
                                     .setActiveVersion(ToolchainManager.Kind.JDK, jdk.version)
                             }
                             toast(if (ok) "Active JDK: ${jdk.version}" else "Could not activate ${jdk.version}")
@@ -1727,52 +1761,52 @@ class SettingsActivity : ComponentActivity() {
             SectionRow("Memory")
             NumberRow(
                 label = "Gradle heap (MB):",
-                value = btcInt("gradle_heap") { BuildToolsConfig.gradleHeapMb(this@SettingsActivity) },
+                value = btcInt("gradle_heap") { BuildToolsConfig.gradleHeapMb(host) },
             ) { putBtc("gradle_heap", it) }
             NumberRow(
                 label = "Gradle metaspace (MB):",
-                value = btcInt("gradle_metaspace") { BuildToolsConfig.gradleMetaspaceMb(this@SettingsActivity) },
+                value = btcInt("gradle_metaspace") { BuildToolsConfig.gradleMetaspaceMb(host) },
             ) { putBtc("gradle_metaspace", it) }
             NumberRow(
                 label = "Kotlin heap (MB):",
-                value = btcInt("kotlin_heap") { BuildToolsConfig.kotlinHeapMb(this@SettingsActivity) },
+                value = btcInt("kotlin_heap") { BuildToolsConfig.kotlinHeapMb(host) },
             ) { putBtc("kotlin_heap", it) }
             NumberRow(
                 label = "Max worker threads:",
-                value = btcInt("max_workers") { BuildToolsConfig.maxWorkers(this@SettingsActivity) },
+                value = btcInt("max_workers") { BuildToolsConfig.maxWorkers(host) },
             ) { putBtc("max_workers", it) }
 
             SectionRow("Build")
             CheckRow(
-                checked = btcBool("parallel") { BuildToolsConfig.parallel(this@SettingsActivity) },
+                checked = btcBool("parallel") { BuildToolsConfig.parallel(host) },
                 label = "Run build in parallel",
                 desc = "Executes independent tasks concurrently.",
             ) { putBtc("parallel", it) }
             CheckRow(
-                checked = btcBool("build_cache") { BuildToolsConfig.buildCache(this@SettingsActivity) },
+                checked = btcBool("build_cache") { BuildToolsConfig.buildCache(host) },
                 label = "Enable build cache",
                 desc = "Reuses task outputs between builds.",
             ) { putBtc("build_cache", it) }
             CheckRow(
-                checked = btcBool("daemon") { BuildToolsConfig.daemon(this@SettingsActivity) },
+                checked = btcBool("daemon") { BuildToolsConfig.daemon(host) },
                 label = "Enable Gradle daemon",
                 desc = "Keeps a long-lived Gradle process for faster builds.",
             ) { putBtc("daemon", it) }
             ComboRow(
                 label = "Console output:",
                 options = listOf("plain", "console", "rich"),
-                value = btcStr("console") { BuildToolsConfig.console(this@SettingsActivity) },
+                value = btcStr("console") { BuildToolsConfig.console(host) },
                 desc = "",
             ) { putBtc("console", it) }
             CheckRow(
-                checked = btcBool("verbose") { BuildToolsConfig.gradleVerbose(this@SettingsActivity) },
+                checked = btcBool("verbose") { BuildToolsConfig.gradleVerbose(host) },
                 label = "Verbose Gradle output",
                 desc = "Prints full Gradle diagnostics to the build log.",
             ) { putBtc("verbose", it) }
 
             SectionRow("Advanced")
             ActionRow("Open advanced Build Tools settings") {
-                BuildToolsSettingsActivity.start(this@SettingsActivity)
+                BuildToolsSettingsActivity.start(host)
             }
         }
     }
@@ -1888,8 +1922,8 @@ class SettingsActivity : ComponentActivity() {
         LaunchedEffect(tick) {
             loading = true
             withContext(Dispatchers.IO) {
-                val tc = ToolchainManager(this@SettingsActivity)
-                val sdk = BuildToolchain.sdkDir(this@SettingsActivity)
+                val tc = ToolchainManager(host)
+                val sdk = BuildToolchain.sdkDir(host)
                 sdkFile = sdk
                 topPackages = sdk?.listFiles()?.map { it.name }?.sorted() ?: emptyList()
                 platforms = File(sdk, "platforms").listFiles()?.map { it.name }?.sorted() ?: emptyList()
@@ -1930,7 +1964,7 @@ class SettingsActivity : ComponentActivity() {
                 InfoRow("Path", sdk.absolutePath)
                 ActionRow("Open SDK folder") {
                     ToolchainFileExplorerActivity.startAt(
-                        this@SettingsActivity,
+                        host,
                         "Android SDK",
                         sdk,
                     )
@@ -1959,7 +1993,7 @@ class SettingsActivity : ComponentActivity() {
                 ) {
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) {
-                            ToolchainManager(this@SettingsActivity)
+                            ToolchainManager(host)
                                 .setActiveVersion(ToolchainManager.Kind.NDK, version)
                         }
                         toast(if (ok) "Active NDK: $version" else "Could not activate $version")
@@ -1978,7 +2012,7 @@ class SettingsActivity : ComponentActivity() {
                 ) {
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) {
-                            ToolchainManager(this@SettingsActivity)
+                            ToolchainManager(host)
                                 .setActiveVersion(ToolchainManager.Kind.CMAKE, version)
                         }
                         toast(if (ok) "Active CMake: $version" else "Could not activate $version")
@@ -2038,7 +2072,7 @@ class SettingsActivity : ComponentActivity() {
             logs.forEach { (name, size) -> InfoRow(name, size) }
             ActionRow("Refresh") { tick++ }
             ActionRow("Open log directory") {
-                ToolchainFileExplorerActivity.startAt(this@SettingsActivity, "Logs", filesDir)
+                ToolchainFileExplorerActivity.startAt(host, "Logs", filesDir)
             }
             NoteRow(
                 "The background AI service appends its output to background_ai.log in the files " +
@@ -2051,7 +2085,7 @@ class SettingsActivity : ComponentActivity() {
     // Languages & Frameworks > Kotlin > Kotlin Compiler
     // ------------------------------------------------------------
     @Composable
-    private fun KotlinCompilerPage() {
+    private fun KotlinScriptingPage() {
         var tick by remember { mutableStateOf(0) }
         var loading by remember { mutableStateOf(true) }
         var kotlinHome by remember { mutableStateOf<String?>(null) }
@@ -2093,7 +2127,7 @@ class SettingsActivity : ComponentActivity() {
             ActionRow("Open Kotlin home") {
                 kotlinHome?.let {
                     ToolchainFileExplorerActivity.startAt(
-                        this@SettingsActivity,
+                        host,
                         "Kotlin",
                         File(it),
                     )
@@ -2102,15 +2136,15 @@ class SettingsActivity : ComponentActivity() {
             SectionRow("Compiler memory")
             NumberRow(
                 label = "Kotlin heap (MB):",
-                value = btcInt("kotlin_heap") { BuildToolsConfig.kotlinHeapMb(this@SettingsActivity) },
+                value = btcInt("kotlin_heap") { BuildToolsConfig.kotlinHeapMb(host) },
             ) { putBtc("kotlin_heap", it) }
             NumberRow(
                 label = "Kotlin metaspace (MB):",
-                value = btcInt("kotlin_metaspace") { BuildToolsConfig.kotlinMetaspaceMb(this@SettingsActivity) },
+                value = btcInt("kotlin_metaspace") { BuildToolsConfig.kotlinMetaspaceMb(host) },
             ) { putBtc("kotlin_metaspace", it) }
             NumberRow(
                 label = "Max worker threads:",
-                value = btcInt("max_workers") { BuildToolsConfig.maxWorkers(this@SettingsActivity) },
+                value = btcInt("max_workers") { BuildToolsConfig.maxWorkers(host) },
             ) { putBtc("max_workers", it) }
         }
     }
@@ -2121,76 +2155,86 @@ class SettingsActivity : ComponentActivity() {
     @Composable
     private fun MarkdownPage() {
         Column(Modifier.fillMaxWidth()) {
-            Text(
-                "Markdown editing, preview, and export settings.",
-                color = Palette.desc,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
-            SectionRow("Preview")
             ComboRow(
-                label = "Markdown engine:",
-                options = listOf("Internal", "GitHub", "CommonMark"),
-                value = get("md_engine", "Internal"),
-                desc = "Preview rendering engine.",
+                label = "Preview rendering engine:",
+                options = listOf("Compose (experimental)", "IntelliJ"),
+                value = get("md_engine", "Compose (experimental)"),
+                desc = "",
             ) { put("md_engine", it) }
             ComboRow(
-                label = "Layout:",
-                options = listOf("Split", "Editor", "Preview"),
-                value = get("md_layout", "Split"),
-                desc = "Default split of the Markdown editor.",
+                label = "Default layout:",
+                options = listOf("Editor and Preview", "Editor only", "Preview only"),
+                value = get("md_layout", "Editor and Preview"),
+                desc = "",
             ) { put("md_layout", it) }
             ComboRow(
-                label = "Split orientation:",
-                options = listOf("Horizontal", "Vertical"),
-                value = get("md_split", "Horizontal"),
+                label = "Preview layout:",
+                options = listOf("Split vertically", "Split horizontally"),
+                value = get("md_split", "Split vertically"),
                 desc = "",
             ) { put("md_split", it) }
             ComboRow(
-                label = "Font size:",
-                options = listOf("10sp", "12sp", "14sp", "16sp", "18sp"),
-                value = get("md_font_size", "14sp"),
-                desc = "Font size of the rendered preview.",
+                label = "Preview font size:",
+                options = listOf("9", "10", "11", "12", "13", "14", "15", "16", "18", "20", "24"),
+                value = get("md_font_size", "13"),
+                desc = "",
             ) { put("md_font_size", it) }
-            SectionRow("Editor")
             CheckRow(
-                checked = getBool("md_flashing", false),
-                label = "Enable Markdown flashing",
-                desc = "Highlights Markdown syntax while typing.",
-            ) { putBool("md_flashing", it) }
-            CheckRow(
-                checked = getBool("md_wikilinks", true),
-                label = "Enable Markdown wiki-links",
-                desc = "Supports [[Page]] style links.",
-            ) { putBool("md_wikilinks", it) }
-            CheckRow(
-                checked = getBool("md_emoji", true),
-                label = "Enable Markdown emoji",
-                desc = "Renders :smile: style emoji shortcodes.",
-            ) { putBool("md_emoji", it) }
-            CheckRow(
-                checked = getBool("md_open_links_external", false),
-                label = "Open links in external browser",
+                checked = getBool("md_sync_scroll", true),
+                label = "Sync scroll in the editor and preview",
                 desc = "",
-            ) { putBool("md_open_links_external", it) }
+            ) { putBool("md_sync_scroll", it) }
             CheckRow(
-                checked = getBool("md_line_numbers", false),
-                label = "Show line numbers",
+                checked = getBool("md_inject_languages", true),
+                label = "Inject languages in code fences",
                 desc = "",
-            ) { putBool("md_line_numbers", it) }
-            SectionRow("Diagrams")
+            ) { putBool("md_inject_languages", it) }
             CheckRow(
-                checked = getBool("md_plantuml", true),
-                label = "Enable PlantUML",
-                desc = "Renders PlantUML code blocks in the preview.",
-            ) { putBool("md_plantuml", it) }
-            ComboRow(
-                label = "PlantUML server:",
-                options = listOf("Default", "Local", "Custom"),
-                value = get("md_plantuml_server", "Default"),
+                checked = getBool("md_problems_in_fences", true),
+                label = "Show problems in code fences",
                 desc = "",
-            ) { put("md_plantuml_server", it) }
+            ) { putBool("md_problems_in_fences", it) }
+            CheckRow(
+                checked = getBool("md_group_same_name", false),
+                label = "Group documents with the same name, but different extensions (.md, .html, .docx, ...)",
+                desc = "",
+            ) { putBool("md_group_same_name", it) }
+            CheckRow(
+                checked = getBool("md_detect_commands", true),
+                label = "Detect commands that can be run right from Markdown files",
+                desc = "",
+            ) { putBool("md_detect_commands", it) }
+            Text(
+                "Markdown Extensions:",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 14.dp, bottom = 4.dp),
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = getBool("md_plantuml", false),
+                    onCheckedChange = { putBool("md_plantuml", it) },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = Palette.link,
+                        uncheckedColor = Palette.border,
+                        checkmarkColor = Color.White,
+                    ),
+                )
+                Text("PlantUML", color = Palette.text, fontSize = 14.sp)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "Install",
+                    color = Palette.link,
+                    fontSize = 13.sp,
+                    modifier = Modifier.clickable {
+                        openExternalUrl("https://plantuml.com/download")
+                    },
+                )
+            }
             Collapsible("Custom CSS") {
                 FieldRow(
                     label = "CSS file path:",
@@ -2199,7 +2243,7 @@ class SettingsActivity : ComponentActivity() {
                     desc = "A CSS file applied to the rendered preview.",
                 ) { put("md_css_path", it) }
             }
-            Collapsible("Pandoc") {
+            Collapsible("Pandoc Settings") {
                 FieldRow(
                     label = "Pandoc executable:",
                     value = get("md_pandoc_path", ""),
@@ -2213,6 +2257,15 @@ class SettingsActivity : ComponentActivity() {
                     desc = "",
                 ) { put("md_export_format", it) }
             }
+        }
+    }
+
+    /** Opens a documentation/download page in the system browser. */
+    private fun openExternalUrl(url: String) {
+        runCatching {
+            host.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure {
+            toast("No application can open $url")
         }
     }
 
@@ -2262,10 +2315,10 @@ class SettingsActivity : ComponentActivity() {
             SectionRow("Background service")
             ActionRow(if (serviceOn) "Stop background service" else "Start background service") {
                 if (serviceOn) {
-                    AIBackgroundService.stopService(this@SettingsActivity)
+                    AIBackgroundService.stopService(host)
                     toast("Background AI service stopped")
                 } else {
-                    AIBackgroundService.startService(this@SettingsActivity)
+                    AIBackgroundService.startService(host)
                     toast("Background AI service started")
                 }
                 tick++
@@ -2288,7 +2341,7 @@ class SettingsActivity : ComponentActivity() {
             ActionRow("Refresh") { tick++ }
             ActionRow("Open models directory") {
                 ToolchainFileExplorerActivity.startAt(
-                    this@SettingsActivity,
+                    host,
                     "AI models",
                     File(filesDir, "AI/models"),
                 )
@@ -2296,7 +2349,7 @@ class SettingsActivity : ComponentActivity() {
 
             SectionRow("Workspace")
             ActionRow("Open AI workspace") {
-                AiWorkspaceActivity.start(this@SettingsActivity, filesDir.absolutePath, null, null)
+                AiWorkspaceActivity.start(host, filesDir.absolutePath, null, null)
             }
             FieldRow(
                 label = "Default model:",
@@ -2325,7 +2378,7 @@ class SettingsActivity : ComponentActivity() {
         var devices by remember { mutableStateOf<List<AdbDeviceManager.AdbDevice>>(emptyList()) }
         var adbPath by remember { mutableStateOf<String?>(null) }
         var error by remember { mutableStateOf("") }
-        var host by remember { mutableStateOf("") }
+        var hostAddr by remember { mutableStateOf("") }
         var port by remember { mutableStateOf("5555") }
         val scope = rememberCoroutineScope()
 
@@ -2333,7 +2386,7 @@ class SettingsActivity : ComponentActivity() {
             loading = true
             withContext(Dispatchers.IO) {
                 error = ""
-                val sdk = BuildToolchain.sdkDir(this@SettingsActivity)
+                val sdk = BuildToolchain.sdkDir(host)
                 val adb = File(sdk, "platform-tools/adb")
                 adbPath = if (adb.isFile) adb.absolutePath else null
                 try {
@@ -2414,7 +2467,7 @@ class SettingsActivity : ComponentActivity() {
                     }
                     ActionRow("Logcat") {
                         LogcatActivity.start(
-                            this@SettingsActivity,
+                            host,
                             d.product.ifBlank { d.model },
                             0,
                         )
@@ -2427,10 +2480,10 @@ class SettingsActivity : ComponentActivity() {
             SectionRow("Wireless debugging")
             FieldRow(
                 label = "Host:",
-                value = host,
+                value = hostAddr,
                 numeric = false,
                 desc = "Device IP address, e.g. 192.168.0.24",
-            ) { host = it }
+            ) { hostAddr = it }
             FieldRow(
                 label = "Port:",
                 value = port,
@@ -2439,7 +2492,7 @@ class SettingsActivity : ComponentActivity() {
             ) { port = it }
             ActionRow("Connect") {
                 scope.launch {
-                    val targetHost = host.trim()
+                    val targetHost = hostAddr.trim()
                     val targetPort = port.trim().toIntOrNull() ?: 5555
                     val result = withContext(Dispatchers.IO) {
                         runCatching {
@@ -2457,7 +2510,7 @@ class SettingsActivity : ComponentActivity() {
                 }
             }
             ActionRow("Open terminal for adb") {
-                AndroidShellActivity.start(this@SettingsActivity, filesDir)
+                AndroidShellActivity.start(host, filesDir)
             }
         }
     }
@@ -2470,28 +2523,100 @@ class SettingsActivity : ComponentActivity() {
         val key: String,
         val label: String,
         val def: Any,
+        val desc: String = "",
     )
 
     private val ADVANCED_ROWS: List<AdvRow> = listOf(
-        AdvRow("Compiler", "compiler_timeout", "Compiler process timeout (s)", 120),
-        AdvRow("Compiler", "auto_make_running", "Auto-make if compilation needed", true),
-        AdvRow("Compiler", "compile_lower_priority", "Compile in background with lower priority", true),
-        AdvRow("Compiler", "unified_compilation", "Use unified compilation", false),
-        AdvRow("Clangd", "clangd_indexer", "Enable clangd indexer", true),
-        AdvRow("Clangd", "clangd_keep_asts", "Keep ASTs in memory", false),
-        AdvRow("Clangd", "clangd_jobs", "clangd parallel jobs", 2),
-        AdvRow("Diff & Merge", "diff_ignore_whitespace", "Ignore whitespace differences", false),
-        AdvRow("Diff & Merge", "diff_ignore_comments", "Ignore comment differences", false),
-        AdvRow("Diff & Merge", "diff_show_line_numbers", "Show line numbers", true),
-        AdvRow("IDE", "debug_log_report", "Debug log report", false),
-        AdvRow("IDE", "recent_expressions", "Remember recent debug expressions", true),
-        AdvRow("IDE", "inline_run_cursor", "Show inline run cursor", true),
-        AdvRow("IDE", "quickdoc_auto", "Show quick documentation automatically", true),
-        AdvRow("IDE", "undo_caret", "Restore caret on undo", true),
-        AdvRow("IDE", "external_sources", "Download external sources", false),
-        AdvRow("Java", "java_generate_final_locals", "Generate final local variables", false),
-        AdvRow("Java", "java_show_parameter_names", "Show parameter name hints", true),
-        AdvRow("Java", "java_use_legacy_builder", "Use legacy builder chain", false),
+        AdvRow(
+            "Appearance", "advanced_islands_ui",
+            "Enable Islands UI for custom themes", false, "Requires restart",
+        ),
+        AdvRow(
+            "Bookmarks", "bookmarks_line_only",
+            "Show only line bookmarks in popup", true,
+        ),
+        AdvRow(
+            "Bookmarks", "bookmarks_restore_context",
+            "Restore bookmark context on branch switching", true,
+        ),
+        AdvRow(
+            "Build Tools. Gradle", "gradle_run_using",
+            "Run using Gradle", true,
+            "By default, the IDE uses Gradle to build the project and run tasks. " +
+                "If disabled, application configurations will run using the IDE.",
+        ),
+        AdvRow(
+            "Build Tools. Gradle", "gradle_download_sources",
+            "Download sources", true,
+            "Download sources for project dependencies during the project import. " +
+                "A project sync is required to download the sources after selecting this option.",
+        ),
+        AdvRow(
+            "Build Tools. Gradle", "gradle_attach_script_sources",
+            "Attach scripts dependencies sources", false,
+            "Attach sources for build scripts dependencies during the project import. " +
+                "A project sync is required to attach the sources after selecting this option.",
+        ),
+        AdvRow(
+            "C++ Projects", "cpp_compiler_timeout",
+            "Timeout to execute compiler for collecting its information (in seconds)", 60,
+        ),
+        AdvRow(
+            "C++ Projects", "cpp_show_all_external_sources",
+            "Show all files in External Sources", false,
+            "Show all filesystem contents in External Sources, not just project-referenced directories",
+        ),
+        AdvRow(
+            "Clangd", "clangd_use_indexer",
+            "Use Clangd-based indexer", false,
+            "Provides faster and more accurate find usages. Requires restart.",
+        ),
+        AdvRow(
+            "Clangd", "clangd_keep_obsolete_asts",
+            "Keep obsolete ASTs in clangd", false,
+            "Do not evict obsolete ASTs immediately. Speeds up navigation (and other requests) " +
+                "in the future.",
+        ),
+        AdvRow(
+            "Code Review Tools", "diff_all_in_one",
+            "All-in-one Diff for Code Reviews", false,
+            "If enabled, all changed files in code reviews are shown in a single scrollable Diff",
+        ),
+        AdvRow(
+            "Code Review Tools", "diff_keep_thread_margins",
+            "Keep increased margins for Diff threads", true,
+        ),
+        AdvRow(
+            "Compiler", "auto_make_while_running",
+            "Allow auto-make to start even if developed application is currently running", false,
+            "Automatically started make may eventually delete some classes that are required " +
+                "by the application",
+        ),
+        AdvRow(
+            "Compiler", "compile_lower_priority",
+            "Run compilation with lower priority", true,
+            "Run external JPS process with IDLE priority on Windows and nice level 10 on Linux/macOS",
+        ),
+        AdvRow(
+            "Compiler", "unified_java_kotlin_compilation",
+            "Enable unified Java/Kotlin incremental compilation implementation", true,
+            "External JPS process will use new incremental compilation implementation that can " +
+                "handle both Java- and Kotlin-produced bytecode",
+        ),
+        AdvRow(
+            "Compiler", "collect_debug_log",
+            "Collect a detailed debug log report in case of build failures", false,
+            "Saves detailed logs of failed builds to assist in debugging and troubleshooting. " +
+                "Logs are stored alongside other build logs",
+        ),
+        AdvRow(
+            "Debugger", "max_recent_expressions",
+            "Maximum number of recent expressions", 50,
+        ),
+        AdvRow(
+            "Debugger", "show_inline_run_cursor",
+            "Show inline Run to Cursor popup", true,
+        ),
     )
 
     @Composable
@@ -2509,14 +2634,7 @@ class SettingsActivity : ComponentActivity() {
         val sections = remember(rows) { rows.map { it.section }.distinct() }
 
         Column(Modifier.fillMaxWidth()) {
-            Text(
-                "Settings that are less commonly used. Changes are applied when you press Apply.",
-                color = Palette.desc,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                modifier = Modifier.padding(bottom = 10.dp),
-            )
-            SearchBox(query) { query = it }
+            SearchBox(query, placeholder = "Search advanced settings") { query = it }
             CheckRow(
                 checked = modifiedOnly,
                 label = "Show modified only",
@@ -2530,7 +2648,7 @@ class SettingsActivity : ComponentActivity() {
                         is Boolean -> CheckRow(
                             checked = getBool(r.key, d),
                             label = r.label,
-                            desc = "",
+                            desc = r.desc,
                         ) { putBool(r.key, it) }
                         is Int -> NumberRow(label = "${r.label}:", value = getInt(r.key, d)) {
                             putInt(r.key, it)
@@ -2539,7 +2657,7 @@ class SettingsActivity : ComponentActivity() {
                             label = r.label,
                             value = get(r.key, d.toString()),
                             numeric = false,
-                            desc = "",
+                            desc = r.desc,
                         ) { put(r.key, it) }
                     }
                 }
@@ -2553,31 +2671,207 @@ class SettingsActivity : ComponentActivity() {
     // ------------------------------------------------------------
     @Composable
     private fun BackupSyncPage() {
+        val googleAccounts = remember {
+            runCatching {
+                AccountManager.get(host).getAccountsByType("com.google").map { it.name }
+            }.getOrDefault(emptyList())
+        }
+        val savedAccount = get("backup_email", "")
+        val accounts = remember(googleAccounts, savedAccount) {
+            (googleAccounts + listOfNotNull(savedAccount.takeIf { it.isNotBlank() }))
+                .distinct()
+        }
+        val accountOptions = accounts.ifEmpty { listOf("Not signed in") }
+
         Column(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Sync UI, Code and System settings, Keymaps, Plugins, and Tools.",
+                    color = Palette.desc,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.weight(1f),
+                )
+            }
             Text(
-                "Back up IDE settings and restore them on another device.",
-                color = Palette.desc,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                modifier = Modifier.padding(bottom = 6.dp),
+                "Learn more ↗",
+                color = Palette.link,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clickable {
+                        openExternalUrl(
+                            "https://developer.android.com/studio/intro/studio-config#backup"
+                        )
+                    }
+                    .padding(vertical = 6.dp),
             )
-            SectionRow("Settings")
-            InfoRow("Preferences file", File(filesDir, "shared_prefs/$PREFS_NAME.xml").absolutePath)
-            ActionRow("Export settings to a file") { showExportSettingsDialog() }
-            ActionRow("Import settings from a file") { showImportSettingsDialog() }
-            SectionRow("Cloud sync")
-            FieldRow(
-                label = "Account:",
-                value = get("backup_email", ""),
-                numeric = false,
-                desc = "Google account used for settings synchronization.",
-            ) { put("backup_email", it) }
             CheckRow(
                 checked = getBool("backup_enabled", false),
                 label = "Enable backup and sync",
                 desc = "Uploads IDE settings when the app is idle.",
             ) { putBool("backup_enabled", it) }
+            ComboRow(
+                label = "Account:",
+                options = accountOptions,
+                value = savedAccount.ifBlank { accountOptions.first() },
+                desc = if (accounts.isEmpty()) {
+                    "No Google account is available on this device. Add one in Android Settings to sync."
+                } else "",
+            ) { put("backup_email", it) }
+            SectionRow("Local backup")
+            InfoRow("Preferences file", File(filesDir, "shared_prefs/$PREFS_NAME.xml").absolutePath)
+            ActionRow("Export settings to a file") { showExportSettingsDialog() }
+            ActionRow("Import settings from a file") { showImportSettingsDialog() }
         }
+    }
+
+    // ------------------------------------------------------------
+    // Languages & Frameworks > Schemas and DTDs
+    // ------------------------------------------------------------
+    private val DEFAULT_IGNORED_SCHEMA =
+        "http://relaxng.org/ns/compatibility/annotations/1.0"
+
+    @Composable
+    private fun SchemasPage() {
+        Column(Modifier.fillMaxWidth()) {
+            SchemaListEditor(
+                title = "External schemas and DTDs:",
+                key = "schemas_external_list",
+                defaults = emptyList(),
+                emptyText = "No external resources",
+            )
+            Spacer(Modifier.height(18.dp))
+            SchemaListEditor(
+                title = "Ignored schemas and DTDs:",
+                key = "schemas_ignored_list",
+                defaults = listOf(DEFAULT_IGNORED_SCHEMA),
+                emptyText = "No ignored resources",
+            )
+        }
+    }
+
+    @Composable
+    private fun SchemaListEditor(
+        title: String,
+        key: String,
+        defaults: List<String>,
+        emptyText: String,
+    ) {
+        val stored = get(key, defaults.joinToString("\n"))
+        val items = remember(stored) {
+            stored.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        }
+        var selected by remember(key) { mutableStateOf(-1) }
+        if (selected >= items.size) selected = -1
+
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                title,
+                color = Palette.text,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(bottom = 3.dp),
+            )
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Palette.border)
+                    .background(Palette.fieldBg.copy(alpha = 0.35f)),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().height(34.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SchemaToolGlyph("+") {
+                        showSchemaInputDialog("Add schema or DTD", "") { value ->
+                            put(key, (items + value).joinToString("\n"))
+                            selected = items.size
+                        }
+                    }
+                    SchemaToolGlyph("−", enabled = selected in items.indices) {
+                        if (selected in items.indices) {
+                            put(key, items.filterIndexed { i, _ -> i != selected }.joinToString("\n"))
+                            selected = -1
+                        }
+                    }
+                    SchemaToolGlyph("✎", enabled = selected in items.indices) {
+                        if (selected in items.indices) {
+                            showSchemaInputDialog("Edit schema or DTD", items[selected]) { value ->
+                                put(
+                                    key,
+                                    items.mapIndexed { i, old -> if (i == selected) value else old }
+                                        .joinToString("\n"),
+                                )
+                            }
+                        }
+                    }
+                }
+                HLine()
+                if (items.isEmpty()) {
+                    Box(
+                        Modifier.fillMaxWidth().height(150.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(emptyText, color = Palette.dimText, fontSize = 13.sp)
+                    }
+                } else {
+                    items.forEachIndexed { index, item ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (index == selected) Palette.selection else Color.Transparent
+                                )
+                                .clickable { selected = index }
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                item,
+                                color = Palette.text,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun SchemaToolGlyph(glyph: String, enabled: Boolean = true, onClick: () -> Unit) {
+        Box(
+            Modifier
+                .size(34.dp)
+                .clickable(enabled = enabled) { onClick() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                glyph,
+                color = if (enabled) Palette.text else Palette.disabledText,
+                fontSize = 16.sp,
+            )
+        }
+    }
+
+    private fun showSchemaInputDialog(title: String, initial: String, onSave: (String) -> Unit) {
+        val input = EditText(host).apply {
+            setText(initial)
+            hint = "https://example.com/schema.xsd"
+            setSingleLine(true)
+        }
+        AlertDialog.Builder(host)
+            .setTitle(title)
+            .setView(input)
+            .setPositiveButton("OK") { _, _ ->
+                val value = input.text.toString().trim()
+                if (value.isNotEmpty()) onSave(value)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     // ------------------------------------------------------------
@@ -2903,11 +3197,8 @@ class SettingsActivity : ComponentActivity() {
 
         // Languages & Frameworks
         "l_mermaid" -> listOf(
-            RowItem.Cbo("mm_engine", "Mermaid engine:",
-                listOf("Internal", "External CDN"), "Internal"),
-            RowItem.Chk("mm_line_numbers", "Show line numbers", def = false),
-            RowItem.Cbo("mm_zoom", "Zoom:",
-                listOf("Fit width", "100%", "150%"), "Fit width"),
+            RowItem.Cbo("mm_theme", "Theme:",
+                listOf("Follow IDE", "Light", "Dark", "Neutral", "Forest"), "Follow IDE"),
         )
         "kotlin_gradle" -> listOf(
             RowItem.Chk("kg_apply_kts", "Apply Kotlin script settings to .kts files", def = true),
@@ -2954,7 +3245,7 @@ class SettingsActivity : ComponentActivity() {
             appendLine("The pin icon marks a page as your start page.")
             appendLine("Changes are staged until you press Apply or OK; Cancel discards them.")
         }
-        AlertDialog.Builder(this@SettingsActivity)
+        AlertDialog.Builder(host)
             .setTitle("Settings Help")
             .setMessage(body)
             .setPositiveButton("OK", null)
@@ -2981,7 +3272,7 @@ class SettingsActivity : ComponentActivity() {
             setTextIsSelectable(true)
         }
         scroll.addView(tv)
-        AlertDialog.Builder(this@SettingsActivity)
+        AlertDialog.Builder(host)
             .setTitle("Export Settings")
             .setMessage("Copy the settings below and save them to a file.")
             .setView(scroll)
@@ -2997,7 +3288,7 @@ class SettingsActivity : ComponentActivity() {
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setMinLines(6)
         }
-        AlertDialog.Builder(this@SettingsActivity)
+        AlertDialog.Builder(host)
             .setTitle("Import Settings")
             .setMessage("Paste exported settings, one key=value pair per line.")
             .setView(input)
@@ -3038,7 +3329,7 @@ class SettingsActivity : ComponentActivity() {
 // Theme
 // ------------------------------------------------------------
 @Composable
-private fun MobileStudioTheme(content: @Composable () -> Unit) {
+internal fun MobileStudioTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Palette.link,

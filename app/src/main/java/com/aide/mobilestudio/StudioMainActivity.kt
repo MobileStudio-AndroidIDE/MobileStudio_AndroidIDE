@@ -100,7 +100,7 @@ private val SampleHelperCode = """
         return a + b
     }
 """.trimIndent()
-private val MenuBarBg = Color(0xFF3C3F41)
+private val MenuBarBg = Color(0xFF2B2D30)
 private val StripLavender = Color(0xFFD7C8F0)
 private val TabBarBg = Color.White
 private val PathBarBorder = Color(0xFF616161)
@@ -145,6 +145,14 @@ class StudioMainActivity : AppCompatActivity() {
     var selectedTab by mutableStateOf(0)
     var tabs: MutableList<String> = mutableListOf()
     var editorProblems: MutableList<EditorProblem> = mutableListOf()
+
+    /** The in-window Tools panel currently hosting a file picker, if any. */
+    internal var toolsPanelForResult: ToolsPanel? = null
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        toolsPanelForResult?.onActivityResult(requestCode, resultCode, data)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -242,6 +250,9 @@ class StudioMainActivity : AppCompatActivity() {
         var bottomPanelOpen by remember { mutableStateOf(true) }
         var bottomPanelHeight by remember { mutableStateOf(240.dp) }
         var editorProblems by remember { mutableStateOf<MutableList<EditorProblem>>(mutableListOf()) }
+        var showSettingsOverlay by remember { mutableStateOf(false) }
+        var showToolsOverlay by remember { mutableStateOf(false) }
+        var toolsInitialTab by remember { mutableStateOf("sdk_manager") }
         val logLines = remember { mutableStateListOf<LogLine>() }
         val context: Context = LocalContext.current
 
@@ -374,6 +385,11 @@ class StudioMainActivity : AppCompatActivity() {
                 .show()
         }
 
+        fun openTool(tabId: String) {
+            toolsInitialTab = tabId
+            showToolsOverlay = true
+        }
+
         fun performAction(action: String) {
             when (action) {
                 "new_tab" -> newFileDialog()
@@ -431,23 +447,23 @@ class StudioMainActivity : AppCompatActivity() {
                     DownloadCenter.showIdleWindow()
                 }
                 // Android Studio Tools menu items
-                "device_manager" -> openTools(context, "device_manager")
-                "sdk_manager" -> openTools(context, "sdk_manager")
-                "resource_manager" -> openTools(context, "resource_manager")
-                "agp_upgrade" -> openTools(context, "agp_upgrade")
-                "android_sdk_upgrade" -> openTools(context, "android_sdk_upgrade")
-                "troubleshoot_device" -> openTools(context, "troubleshoot_device")
-                "app_links" -> openTools(context, "app_links")
-                "firebase" -> openTools(context, "firebase")
-                "layout_inspector" -> openTools(context, "layout_inspector")
-                "generate_javadoc" -> openTools(context, "generate_javadoc")
-                "create_cli_launcher" -> openTools(context, "create_cli_launcher")
-                "services" -> openTools(context, "services")
-                "markdown" -> openTools(context, "markdown")
-                "xml_actions" -> openTools(context, "xml_actions")
-                "cling" -> openTools(context, "cling")
-                "groovy_console" -> openTools(context, "groovy_console")
-                "kotlin" -> openTools(context, "kotlin")
+                "device_manager" -> openTool("device_manager")
+                "sdk_manager" -> openTool("sdk_manager")
+                "resource_manager" -> openTool("resource_manager")
+                "agp_upgrade" -> openTool("agp_upgrade")
+                "android_sdk_upgrade" -> openTool("android_sdk_upgrade")
+                "troubleshoot_device" -> openTool("troubleshoot_device")
+                "app_links" -> openTool("app_links")
+                "firebase" -> openTool("firebase")
+                "layout_inspector" -> openTool("layout_inspector")
+                "generate_javadoc" -> openTool("generate_javadoc")
+                "create_cli_launcher" -> openTool("create_cli_launcher")
+                "services" -> openTool("services")
+                "markdown" -> openTool("markdown")
+                "xml_actions" -> openTool("xml_actions")
+                "cling" -> openTool("cling")
+                "groovy_console" -> openTool("groovy_console")
+                "kotlin" -> openTool("kotlin")
                 "file_manager" -> FileManagerActivity.start(context)
                 "git" -> {
                     val activity = context as? StudioMainActivity
@@ -467,9 +483,7 @@ class StudioMainActivity : AppCompatActivity() {
                 }
                 "terminal" -> centerPane = "terminal"
                 "assistant" -> context.startActivity(Intent(context, AiWorkspaceActivity::class.java))
-                "settings" -> {
-                    context.startActivity(Intent(context, SettingsActivity::class.java))
-                }
+                "settings" -> showSettingsOverlay = true
                 "about" -> AlertDialog.Builder(context)
                     .setTitle("About MobileStudio")
                     .setMessage("MobileStudio IDE\nAIDE-style Android IDE rebuilt with Jetpack Compose.\n\nEditor, Gradle build, terminal, file tree and AI assistant are wired in.")
@@ -596,6 +610,23 @@ class StudioMainActivity : AppCompatActivity() {
                 DownloadManagerWindow(
                     activity = activity,
                     onDismiss = { showDownloadManager = false }
+                )
+            }
+
+            // Android Studio style in-window tool windows. These deliberately
+            // live in this activity instead of launching a second activity, so
+            // the editor and project stay visible (dimmed) behind the window.
+            if (showToolsOverlay) {
+                ToolsWindowOverlay(
+                    activity = activity,
+                    initialTab = toolsInitialTab,
+                    onClose = { showToolsOverlay = false },
+                )
+            }
+            if (showSettingsOverlay) {
+                SettingsWindowOverlay(
+                    activity = activity,
+                    onClose = { showSettingsOverlay = false },
                 )
             }
         }
@@ -1314,21 +1345,25 @@ private fun TopMenuBar(
 ) {
     val menus = remember {
         listOf(
-            StudioMenu("files", listOf(
+            StudioMenu("File", listOf(
                 StudioMenuItem("New", "", subItems = listOf(
                     StudioMenuItem("Project...", "new_project"),
                     StudioMenuItem("File...", "new_file"),
                     StudioMenuItem("Folder...", "new_folder"),
                 )),
                 StudioMenuItem("Open Project...", "open_project"),
+                StudioMenuItem("Recent Projects", "recent_projects"),
+                StudioMenuItem("Recent Files", "recent_files"),
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Save", "save", "Ctrl+S"),
                 StudioMenuItem("Save All", "save_all"),
                 StudioMenuItem("Close Tab", "close_tab", "Ctrl+W"),
                 StudioMenuItem("", divider = true),
+                StudioMenuItem("Settings...", "settings", "Ctrl+Alt+S"),
+                StudioMenuItem("", divider = true),
                 StudioMenuItem("Exit", "exit")
             )),
-            StudioMenu("edit", listOf(
+            StudioMenu("Edit", listOf(
                 StudioMenuItem("Undo", "undo", "Ctrl+Z"),
                 StudioMenuItem("Redo", "redo", "Ctrl+Shift+Z"),
                 StudioMenuItem("", divider = true),
@@ -1343,28 +1378,28 @@ private fun TopMenuBar(
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Close All Tabs", "close_all_tabs")
             )),
-            StudioMenu("view", listOf(
+            StudioMenu("View", listOf(
                 StudioMenuItem("Editor", "pane_editor"),
                 StudioMenuItem("Build Log", "pane_buildlog"),
                 StudioMenuItem("Terminal", "pane_terminal"),
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Project Files Drawer", "drawer")
             )),
-            StudioMenu("move", listOf(
+            StudioMenu("Navigate", listOf(
                 StudioMenuItem("Next Tab", "next_tab", "Ctrl+Tab"),
                 StudioMenuItem("Previous Tab", "prev_tab", "Ctrl+Shift+Tab"),
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Go to Line...", "goto_line", "Ctrl+G")
             )),
-            StudioMenu("code", listOf(
+            StudioMenu("Code", listOf(
                 StudioMenuItem("Comment / Uncomment", "comment", "Ctrl+/"),
                 StudioMenuItem("Reformat Code", "reformat", "Ctrl+Alt+L"),
                 StudioMenuItem("Optimize Imports", "optimize", "Ctrl+Alt+O")
             )),
-            StudioMenu("run", listOf(
+            StudioMenu("Run", listOf(
                 StudioMenuItem("Run 'app'", "run", "Shift+F10")
             )),
-            StudioMenu("tools", listOf(
+            StudioMenu("Tools", listOf(
                 StudioMenuItem("Terminal", "terminal", "Alt+F12"),
                 StudioMenuItem("AI Assistant", "assistant"),
                 StudioMenuItem("", divider = true),
@@ -1391,89 +1426,88 @@ private fun TopMenuBar(
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Download Manager", "downloads")
             )),
-            StudioMenu("IDE", listOf(
-                StudioMenuItem("Settings...", "settings"),
-                StudioMenuItem("Recent Projects", "recent_projects"),
-                StudioMenuItem("Recent Files", "recent_files"),
+            StudioMenu("VCS", listOf(
+                StudioMenuItem("Git...", "git"),
+                StudioMenuItem("File Manager", "file_manager")
+            )),
+            StudioMenu("Window", listOf(
+                StudioMenuItem("Editor", "pane_editor"),
+                StudioMenuItem("Build Log", "pane_buildlog"),
+                StudioMenuItem("Terminal", "pane_terminal"),
+                StudioMenuItem("Project Files Drawer", "drawer"),
+                StudioMenuItem("", divider = true),
+                StudioMenuItem("Download Manager", "downloads")
+            )),
+            StudioMenu("Help", listOf(
                 StudioMenuItem("About MobileStudio", "about")
             ))
         )
     }
     var openMenu by remember { mutableStateOf<String?>(null) }
     var gearOpen by remember { mutableStateOf(false) }
-    var menuBarOpen by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier.fillMaxWidth().height(46.dp).background(MenuBarBg).padding(start = 0.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(34.dp).clickable { menuBarOpen = !menuBarOpen }, contentAlignment = Alignment.Center) {
-            Text("☰", color = Color.White, fontSize = 20.sp)
-        }
-        if (menuBarOpen) {
-            Row(modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-                menus.forEach { menu ->
-                    Box {
-                        Text(
-                            text = menu.label,
-                            color = if (openMenu == menu.label) Color(0xFF82AAFF) else Color.White,
-                            fontSize = 13.sp,
-                            modifier = Modifier
-                                .clickable { openMenu = if (openMenu == menu.label) null else menu.label }
-                                .padding(horizontal = 5.dp, vertical = 10.dp)
-                        )
-                        DropdownMenu(
-                            expanded = openMenu == menu.label,
-                            onDismissRequest = { openMenu = null },
-                            modifier = Modifier.width(240.dp).background(Color(0xFF2B2D30))
-                        ) {
-                            menu.items.forEach { item ->
-                                if (item.divider) {
-                                    Divider(color = Color(0xFF4A4D50), modifier = Modifier.padding(vertical = 4.dp))
-                                } else if (item.subItems.isNotEmpty()) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                                Text(item.label, color = Color(0xFFE6E6E6), fontSize = 13.sp)
-                                                Spacer(modifier = Modifier.weight(1f))
-                                                Text("›", color = Color(0xFF888888), fontSize = 13.sp)
+        Row(modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+            menus.forEach { menu ->
+                Box {
+                    Text(
+                        text = menu.label,
+                        color = if (openMenu == menu.label) Color(0xFF3574F0) else Color(0xFFDFE1E5),
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .clickable { openMenu = if (openMenu == menu.label) null else menu.label }
+                            .padding(horizontal = 7.dp, vertical = 10.dp)
+                    )
+                    DropdownMenu(
+                        expanded = openMenu == menu.label,
+                        onDismissRequest = { openMenu = null },
+                        modifier = Modifier.width(250.dp).background(Color(0xFF2B2D30))
+                    ) {
+                        menu.items.forEach { item ->
+                            if (item.divider) {
+                                Divider(color = Color(0xFF4A4D50), modifier = Modifier.padding(vertical = 4.dp))
+                            } else if (item.subItems.isNotEmpty()) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                            Text(item.label, color = Color(0xFFE6E6E6), fontSize = 13.sp)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text("›", color = Color(0xFF888888), fontSize = 13.sp)
+                                        }
+                                    },
+                                    onClick = {
+                                        openMenu = null
+                                        showSubMenuDialog(activity, item.label, item.subItems, onAction)
+                                    },
+                                    modifier = Modifier.height(36.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                            Text(item.label, color = Color(0xFFE6E6E6), fontSize = 13.sp)
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            if (item.shortcut.isNotEmpty()) {
+                                                Text(item.shortcut, color = Color(0xFF888888), fontSize = 11.sp)
                                             }
-                                        },
-                                        onClick = {
-                                            openMenu = null
-                                            menuBarOpen = false
-                                            showSubMenuDialog(activity, item.label, item.subItems, onAction)
-                                        },
-                                        modifier = Modifier.height(36.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp)
-                                    )
-                                } else {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                                Text(item.label, color = Color(0xFFE6E6E6), fontSize = 13.sp)
-                                                Spacer(modifier = Modifier.weight(1f))
-                                                if (item.shortcut.isNotEmpty()) {
-                                                    Text(item.shortcut, color = Color(0xFF888888), fontSize = 11.sp)
-                                                }
-                                            }
-                                        },
-                                        onClick = {
-                                            openMenu = null
-                                            menuBarOpen = false
-                                            onAction(item.action)
-                                        },
-                                        modifier = Modifier.height(36.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp)
-                                    )
-                                }
+                                        }
+                                    },
+                                    onClick = {
+                                        openMenu = null
+                                        onAction(item.action)
+                                    },
+                                    modifier = Modifier.height(36.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                )
                             }
                         }
                     }
                 }
             }
-        } else {
-            Spacer(modifier = Modifier.weight(1f))
         }
         Canvas(modifier = Modifier.size(32.dp).clickable { onRun() }.padding(3.dp)) {
             val w = size.width; val h = size.height
@@ -1893,6 +1927,76 @@ private fun LineNumberEditText.setHighlighted(content: String) {
 /** 프로젝트 열기 다이얼로그 */
 private fun openExistingProjectDialog(activity: StudioMainActivity) {
     activity.pickDir.launch(null)
+}
+
+/**
+ * Android Studio style Settings window drawn over the IDE. This is not a
+ * separate activity: the editor, project tree and toolbars stay alive behind
+ * the dimmed scrim, and closing the window returns to the exact same state.
+ */
+@Composable
+private fun SettingsWindowOverlay(activity: StudioMainActivity, onClose: () -> Unit) {
+    BackHandler { onClose() }
+    val close by rememberUpdatedState(onClose)
+    val controller = remember(activity) {
+        SettingsController(activity) { close() }
+    }
+    MobileStudioTheme {
+        Box(Modifier.fillMaxSize().background(Color(0xAA000000))) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
+            ) {
+                Surface(Modifier.fillMaxSize(), color = Palette.bg) {
+                    controller.SettingsScreen()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Android Studio style Tools tool-window. The existing [ToolsPanel] view tree
+ * is embedded directly, so opening SDK Manager, Device Manager, Logcat, etc.
+ * no longer replaces the editor with a separate activity.
+ */
+@Composable
+private fun ToolsWindowOverlay(
+    activity: StudioMainActivity,
+    initialTab: String,
+    onClose: () -> Unit,
+) {
+    BackHandler { onClose() }
+    val close by rememberUpdatedState(onClose)
+    val panel = remember(activity) {
+        ToolsPanel(activity) { close() }
+    }
+    DisposableEffect(panel) {
+        activity.toolsPanelForResult = panel
+        onDispose {
+            if (activity.toolsPanelForResult === panel) {
+                activity.toolsPanelForResult = null
+            }
+            panel.dispose()
+        }
+    }
+    Box(Modifier.fillMaxSize().background(Color(0xAA000000))) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(8.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .border(1.dp, Color(0xFF393B40), RoundedCornerShape(6.dp))
+        ) {
+            AndroidView(
+                factory = { panel.create(initialTab) },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
 }
 
 /** Opens the Android Studio-style Tools activity on the given tab. */
