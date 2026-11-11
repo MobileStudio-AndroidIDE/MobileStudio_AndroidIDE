@@ -340,6 +340,12 @@ class OcEngine(private val context: Context) : EngineBridge {
             put("nGpuLayers", settings.effectiveGpuLayers())
             put("nThreads", settings.effectiveThreadCount())
             put("autoTune", settings.autoTuneLocal)
+            // Flash attention: 0=DISABLED, 1=AUTO, 2=ENABLED (llama.cpp enum).
+            // Explicit values are honoured so benchmarks can pin a mode; the
+            // provider defaults to AUTO when the key is absent.
+            put("flash_attn", 1)
+            // KV cache type: 0=F32, 1=F16, 8=Q8_0.
+            put("kv_cache_type", 1)
         }
 
     /**
