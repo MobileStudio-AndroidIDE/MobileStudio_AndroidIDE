@@ -241,6 +241,7 @@ internal class ToolsPanel(
             "sdk_manager", "sdk_platforms", "sdk_tools", "sdk_update_manager",
             "sdk_installation", "sdk_configuration", "ndk_manager", "cmake_manager",
             "build_tools_manager", "platform_tools_manager", "emulator_manager" -> "sdk_dev"
+            "android_sdk_upgrade" -> "sdk_dev"
             "jdk_manager", "jdk_installation", "jdk_version_selection", "jdk_configuration",
             "java_runtime_info", "java_env_variables" -> "java_dev"
             "device_manager", "virtual_device_manager", "avd_configuration",
@@ -300,6 +301,8 @@ internal class ToolsPanel(
             "all" -> renderAllCards()
             "sdk_dev" -> {
                 rootContainer.addView(buildStudioStyleSdkCard())
+                rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildSdkUpgradeCard())
                 rootContainer.addView(spacer(dp(8)))
                 ToolchainManager.Kind.values().filter { it == ToolchainManager.Kind.SDK }.forEach { kind ->
                     rootContainer.addView(buildKindCard(kind))
@@ -665,6 +668,43 @@ internal class ToolsPanel(
             })
             addView(secondaryButton("Stop AI Background Service") {
                 AIBackgroundService.stopService(host)
+            })
+        })
+        return card
+    }
+
+    private fun buildSdkUpgradeCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Android SDK Upgrade Assistant"))
+        val toolchain = ToolchainManager(host)
+        val installed = toolchain.installedVersions(ToolchainManager.Kind.SDK)
+        val available = toolchain.availableVersions(ToolchainManager.Kind.SDK)
+        card.addView(TextView(host).apply {
+            text = t("Installed SDK versions: " + installed.joinToString(", "))
+            textSize = 12f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(8))
+        })
+        card.addView(TextView(host).apply {
+            text = t("Available SDK versions: " + available.joinToString(", "))
+            textSize = 12f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(8))
+        })
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Upgrade") {
+                val installer = BootstrapSdkInstaller(host, onLog = { }, onProgress = { })
+                installer.install { ok ->
+                    toast(if (ok) "Android SDK update completed" else "Android SDK update failed")
+                }
+            })
+            addView(secondaryButton("Refresh") {
+                renderCategory(currentCategory)
             })
         })
         return card
