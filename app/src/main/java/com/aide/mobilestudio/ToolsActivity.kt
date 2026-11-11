@@ -351,6 +351,8 @@ internal class ToolsPanel(
                 rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildRuntimeToolsCard())
                 rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildServicesCard())
+                rootContainer.addView(spacer(dp(8)))
                 val remainingKinds = ToolchainManager.Kind.values().filter { kind ->
                     kind != ToolchainManager.Kind.SDK &&
                         kind != ToolchainManager.Kind.JDK &&
@@ -371,6 +373,8 @@ internal class ToolsPanel(
     /** Renders all tool cards (used by the "All" category). */
     private fun renderAllCards() {
         rootContainer.removeAllViews()
+        rootContainer.addView(buildServicesCard())
+        rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildDeviceManagerCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildTroubleshootCard())
@@ -409,6 +413,8 @@ internal class ToolsPanel(
 
     private fun renderAll() {
         rootContainer.removeAllViews()
+        rootContainer.addView(buildServicesCard())
+        rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildDeviceManagerCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildTroubleshootCard())
@@ -619,6 +625,47 @@ internal class ToolsPanel(
             orientation = LinearLayout.HORIZONTAL
             addView(primaryButton("Refresh") { renderCategory(currentCategory) })
             addView(secondaryButton("Open Terminal for adb") { AndroidShellActivity.start(host, filesDir) })
+        })
+        return card
+    }
+
+    private fun buildServicesCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Services"))
+        card.addView(TextView(host).apply {
+            text = t("MobileStudio background service status and controls")
+            textSize = 12f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(8))
+        })
+        card.addView(TextView(host).apply {
+            text = t(
+                if (AIBackgroundService.isRunning) "Background AI service is running"
+                else "Background AI service is stopped"
+            )
+            textSize = 13f
+            setTextColor(StudioUi.color(if (AIBackgroundService.isRunning) StudioUi.Green else StudioUi.TextSoft))
+            setTypeface(null, Typeface.BOLD)
+        })
+        card.addView(TextView(host).apply {
+            text = t("Background AI log: " + File(filesDir, "background_ai.log").absolutePath)
+            textSize = 11f
+            setTextColor(StudioUi.color(StudioUi.Muted))
+            typeface = Typeface.MONOSPACE
+        })
+        card.addView(spacer(dp(8)))
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Start AI Background Service") {
+                AIBackgroundService.startService(host)
+            })
+            addView(secondaryButton("Stop AI Background Service") {
+                AIBackgroundService.stopService(host)
+            })
         })
         return card
     }
