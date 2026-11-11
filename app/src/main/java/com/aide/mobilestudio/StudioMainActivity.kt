@@ -253,6 +253,7 @@ class StudioMainActivity : AppCompatActivity() {
         var showSettingsOverlay by remember { mutableStateOf(false) }
         var showToolsOverlay by remember { mutableStateOf(false) }
         var toolsInitialTab by remember { mutableStateOf("sdk_manager") }
+        var settingsInitialPage by remember { mutableStateOf<String?>(null) }
         val logLines = remember { mutableStateListOf<LogLine>() }
         val context: Context = LocalContext.current
 
@@ -453,17 +454,29 @@ class StudioMainActivity : AppCompatActivity() {
                 "agp_upgrade" -> openTool("agp_upgrade")
                 "android_sdk_upgrade" -> openTool("android_sdk_upgrade")
                 "troubleshoot_device" -> openTool("troubleshoot_device")
-                "app_links" -> openTool("app_links")
+                "app_links" -> {
+                    settingsInitialPage = "app_links"
+                    showSettingsOverlay = true
+                }
                 "firebase" -> openTool("firebase")
-                "layout_inspector" -> openTool("layout_inspector")
+                "layout_inspector" -> {
+                    settingsInitialPage = "layout_inspector"
+                    showSettingsOverlay = true
+                }
                 "generate_javadoc" -> openTool("generate_javadoc")
                 "create_cli_launcher" -> openTool("create_cli_launcher")
                 "services" -> openTool("services")
-                "markdown" -> openTool("markdown")
+                "markdown" -> {
+                    settingsInitialPage = "l_markdown"
+                    showSettingsOverlay = true
+                }
                 "xml_actions" -> openTool("xml_actions")
                 "cling" -> openTool("cling")
                 "groovy_console" -> openTool("groovy_console")
-                "kotlin" -> openTool("kotlin")
+                "kotlin" -> {
+                    settingsInitialPage = "l_kotlin"
+                    showSettingsOverlay = true
+                }
                 "file_manager" -> FileManagerActivity.start(context)
                 "git" -> {
                     val activity = context as? StudioMainActivity
@@ -626,6 +639,7 @@ class StudioMainActivity : AppCompatActivity() {
             if (showSettingsOverlay) {
                 SettingsWindowOverlay(
                     activity = activity,
+                    initialPageId = settingsInitialPage,
                     onClose = { showSettingsOverlay = false },
                 )
             }
@@ -1935,11 +1949,15 @@ private fun openExistingProjectDialog(activity: StudioMainActivity) {
  * the dimmed scrim, and closing the window returns to the exact same state.
  */
 @Composable
-private fun SettingsWindowOverlay(activity: StudioMainActivity, onClose: () -> Unit) {
+private fun SettingsWindowOverlay(
+    activity: StudioMainActivity,
+    initialPageId: String? = null,
+    onClose: () -> Unit,
+) {
     BackHandler { onClose() }
     val close by rememberUpdatedState(onClose)
     val controller = remember(activity) {
-        SettingsController(activity) { close() }
+        SettingsController(activity, onClose = { close() }, initialPageId = initialPageId)
     }
     MobileStudioTheme {
         Box(Modifier.fillMaxSize().background(Color(0xAA000000))) {

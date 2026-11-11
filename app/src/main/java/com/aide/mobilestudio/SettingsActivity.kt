@@ -68,7 +68,7 @@ const val PREFS_NAME = "mobilestudio_settings"
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val controller = SettingsController(this) { finish() }
+        val controller = SettingsController(this, onClose = { finish() })
         setContent {
             MobileStudioTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Palette.bg) {
@@ -82,6 +82,7 @@ class SettingsActivity : ComponentActivity() {
 internal class SettingsController(
     private val host: ComponentActivity,
     private val onClose: () -> Unit,
+    private val initialPageId: String? = null,
 ) : ContextWrapper(host) {
 
     private val prefs: SharedPreferences by lazy {
@@ -458,7 +459,7 @@ internal class SettingsController(
     // ------------------------------------------------------------
     @Composable
     internal fun SettingsScreen() {
-        val startPath = remember { initialPath() }
+        val startPath = remember { initialPageId?.let { findPath(it) ?: initialPath() } ?: initialPath() }
         var path by remember { mutableStateOf(startPath) }
         var expanded by remember {
             mutableStateOf(setOf("appearance_behavior", "languages_frameworks") + startPath.dropLast(1))
