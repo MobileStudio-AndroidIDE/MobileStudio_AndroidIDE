@@ -315,6 +315,8 @@ internal class ToolsPanel(
             "android_dev" -> {
                 rootContainer.addView(buildDeviceManagerCard())
                 rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildTroubleshootCard())
+                rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildLogcatCard())
                 rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildApkToolsCard())
@@ -371,6 +373,8 @@ internal class ToolsPanel(
         rootContainer.removeAllViews()
         rootContainer.addView(buildDeviceManagerCard())
         rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildTroubleshootCard())
+        rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildLanguageCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildAiCard())
@@ -406,6 +410,8 @@ internal class ToolsPanel(
     private fun renderAll() {
         rootContainer.removeAllViews()
         rootContainer.addView(buildDeviceManagerCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildTroubleshootCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildLanguageCard())
         rootContainer.addView(spacer(dp(8)))
@@ -465,6 +471,95 @@ internal class ToolsPanel(
         val devices = AdbDeviceManager.listDevices()
         card.addView(TextView(host).apply {
             text = t("Connected devices (" + devices.size + ")")
+            textSize = 12f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(6))
+        })
+        for (d in devices) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(0), dp(4), dp(0), dp(4))
+            }
+            row.addView(TextView(host).apply {
+                text = "●"
+                setTextColor(
+                    if (d.state == AdbDeviceManager.DeviceState.DEVICE) StudioUi.color(StudioUi.Green) else StudioUi.color(StudioUi.Amber)
+                )
+                textSize = 12f
+                setPadding(dp(0), 0, dp(8), dp(0))
+            })
+            val info = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setPadding(dp(8), 0, dp(8), 0)
+            }
+            info.addView(TextView(host).apply {
+                text = d.model.ifBlank { d.serial }
+                textSize = 13f
+                setTextColor(StudioUi.color(StudioUi.Text))
+                setTypeface(null, Typeface.BOLD)
+            })
+            info.addView(TextView(host).apply {
+                text = buildString {
+                    append(d.serial)
+                    append("  ·  ")
+                    append(d.state.name.lowercase())
+                    if (d.apiLevel > 0) {
+                        append("  ·  API ")
+                        append(d.apiLevel)
+                    }
+                    if (d.abi.isNotBlank()) {
+                        append("  ·  ")
+                        append(d.abi)
+                    }
+                    if (d.isEmulator) append("  ·  emulator")
+                }
+                textSize = 11f
+                setTextColor(StudioUi.color(StudioUi.TextSoft))
+                typeface = Typeface.MONOSPACE
+            })
+            row.addView(info)
+            row.addView(secondaryButton("Logcat") {
+                LogcatActivity.start(host, d.product.ifBlank { d.model }, 0)
+            })
+            card.addView(row)
+        }
+        card.addView(spacer(dp(8)))
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Refresh") { renderCategory(currentCategory) })
+            addView(secondaryButton("Open Terminal for adb") { AndroidShellActivity.start(host, filesDir) })
+        })
+        return card
+    }
+
+    private fun buildTroubleshootCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Troubleshoot Device Connections"))
+        card.addView(TextView(host).apply {
+            text = t("Check Android Debug Bridge device state and connection health")
+            textSize = 12f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(8))
+        })
+        val adbInfo = AdbDeviceManager.resolveAdbBinary(host)
+        card.addView(TextView(host).apply {
+            text = t(
+                if (adbInfo?.isAvailable == true) "Android Debug Bridge ready: " + adbInfo?.adbPath
+                else "ADB binary not found. Install platform-tools from Tools > Download Manager."
+            )
+            textSize = 12f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(8))
+        })
+        val devices = AdbDeviceManager.listDevices()
+        card.addView(TextView(host).apply {
+            text = t("Connected devices (${devices.size})")
             textSize = 12f
             setTextColor(StudioUi.color(StudioUi.TextSoft))
             setPadding(0, 0, 0, dp(6))
