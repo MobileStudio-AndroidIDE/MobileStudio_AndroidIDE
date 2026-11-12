@@ -157,8 +157,11 @@ class StudioMainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 마지막으로 연 프로젝트 복원
-        val lastProject = getLastProject()
+        // Tools > Create Command Line Launcher hands us a project directory
+        // straight through the intent; it wins over the restored project.
+        val intentProject = intent?.getStringExtra("project_dir")
+            ?.let { path -> File(path).takeIf { it.isDirectory } }
+        val lastProject = intentProject?.absolutePath ?: getLastProject()
         if (lastProject != null && File(lastProject).isDirectory) {
             openProject(File(lastProject))
         } else {

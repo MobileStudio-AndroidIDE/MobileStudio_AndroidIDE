@@ -175,7 +175,9 @@ class BuildBootActivity : AppCompatActivity() {
     private fun launchMain() {
         if (isFinishing || launchedMain) return
         launchedMain = true
-        startActivity(Intent(this, StudioMainActivity::class.java))
+        val next = Intent(this, StudioMainActivity::class.java)
+        intent.getStringExtra("project_dir")?.let { next.putExtra("project_dir", it) }
+        startActivity(next)
         finish()
     }
 }

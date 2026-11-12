@@ -31,6 +31,12 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.StringReader
+import java.util.concurrent.TimeUnit
+import javax.xml.parsers.SAXParserFactory
+import org.xml.sax.InputSource
+import org.xml.sax.SAXParseException
+import org.xml.sax.helpers.DefaultHandler
 import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
 import com.aide.mobilestudio.ai.OpencodeEnvironment
 import java.io.InputStream
@@ -286,6 +292,7 @@ internal class ToolsPanel(
             "generate_javadoc", "cling", "groovy_console" -> "java_dev"
             "agp_upgrade" -> "build_gradle"
             "firebase" -> "android_dev"
+            "create_cli_launcher", "xml_actions" -> "additional"
             "gradle_settings", "gradle_configuration", "gradle_cache_management",
             "build_configuration", "build_tools_configuration" -> "build_gradle"
             "terminal", "external_tools", "project_structure", "plugins", "developer_tools" -> "additional"
@@ -349,6 +356,8 @@ internal class ToolsPanel(
                 }
             }
             "java_dev" -> {
+                rootContainer.addView(buildJavadocCard())
+                rootContainer.addView(spacer(dp(8)))
                 ToolchainManager.Kind.values().filter { it == ToolchainManager.Kind.JDK }.forEach { kind ->
                     rootContainer.addView(buildKindCard(kind))
                     rootContainer.addView(spacer(dp(8)))
@@ -385,6 +394,10 @@ internal class ToolsPanel(
                 }
             }
             "additional" -> {
+                rootContainer.addView(buildCliLauncherCard())
+                rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildXmlActionsCard())
+                rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildLanguageCard())
                 rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildAiCard())
@@ -428,6 +441,12 @@ internal class ToolsPanel(
         rootContainer.addView(buildFirebaseCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildAgpUpgradeCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildJavadocCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildCliLauncherCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildXmlActionsCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildDeviceManagerCard())
         rootContainer.addView(spacer(dp(8)))
@@ -474,6 +493,12 @@ internal class ToolsPanel(
         rootContainer.addView(buildFirebaseCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildAgpUpgradeCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildJavadocCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildCliLauncherCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildXmlActionsCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildDeviceManagerCard())
         rootContainer.addView(spacer(dp(8)))
@@ -1261,6 +1286,396 @@ internal class ToolsPanel(
 
         return if (changed.isEmpty()) "Firebase setup already present"
         else "Updated: " + changed.joinToString(", ")
+    }
+
+    // ------------------------------------------------------------
+    // Shared: run a toolchain binary and capture its output
+    // ------------------------------------------------------------
+
+    /**
+     * Runs [args] with stdout+stderr merged, bounded by [timeoutMs].
+     * Returns exit code (-1 on failure/timeout) and everything printed.
+     */
+    private fun runToolProcess(args: List<String>, cwd: File, timeoutMs: Long): Pair<Int, String> {
+        return try {
+            val process = ProcessBuilder(args)
+                .directory(cwd)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            if (process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)) {
+                process.exitValue() to output
+            } else {
+                process.destroyForcibly()
+                -1 to (output + "\n[timed out after ${timeoutMs / 1000}s]")
+            }
+        } catch (e: Exception) {
+            -1 to (e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /** Locates a JDK tool (`javadoc`, `javac`, …) without walking the huge NDK. */
+    private fun findJdkTool(name: String): File? {
+        val roots = mutableListOf<File>()
+        toolchain.activeJdkHome()?.let { roots += it }
+        File(filesDir, "toolchain/jdk").listFiles()?.forEach { roots += it }
+        for (root in roots) {
+            if (!root.isDirectory) continue
+            for (candidate in listOf(
+                File(root, "bin/$name"),
+                File(root, "bin/$name.real")
+            )) {
+                if (candidate.isFile && candidate.length() > 0L) return candidate
+            }
+            File(root, "bin").listFiles()
+                ?.firstOrNull { it.isFile && it.name.startsWith(name) && it.length() > 0L }
+                ?.let { return it }
+        }
+        return null
+    }
+
+    // ------------------------------------------------------------
+    // Generate Javadoc
+    // ------------------------------------------------------------
+
+    private fun javaSourceFiles(root: File): List<File> =
+        root.walkTopDown()
+            .onEnter { it.name !in setOf(".gradle", ".idea", "build", ".git", "node_modules", ".cxx", "out", "captures") }
+            .filter { it.isFile && it.extension == "java" }
+            .toList()
+
+    /** Runs `javadoc` over the project's Java sources and opens the result. */
+    private fun buildJavadocCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Generate Javadoc"))
+
+        val root = currentProjectDirOrNull()
+        if (root == null) {
+            card.addView(TextView(host).apply {
+                text = t("Open a project to generate API documentation for its Java sources.")
+                textSize = 12f
+                setTextColor(StudioUi.color(StudioUi.TextSoft))
+                setPadding(0, 0, 0, dp(8))
+            })
+            card.addView(primaryButton("Open Project") {
+                FileManagerActivity.start(host, projectMode = true)
+            })
+            return card
+        }
+
+        val javadoc = findJdkTool("javadoc")
+        val javaCount = javaSourceFiles(root).size
+        card.addView(TextView(host).apply {
+            text = t(
+                if (javadoc == null) "javadoc was not found in the installed JDK."
+                else "javadoc: ${javadoc.absolutePath}\nJava sources in ${root.name}: $javaCount"
+            )
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setTextColor(StudioUi.color(if (javadoc != null) StudioUi.TextSoft else StudioUi.Amber))
+            setPadding(0, 0, 0, dp(8))
+        })
+
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Generate") {
+                if (javadoc == null) {
+                    toast("Install a JDK with javadoc first")
+                    return@primaryButton
+                }
+                if (javaCount == 0) {
+                    toast("No .java files in this project")
+                    return@primaryButton
+                }
+                generateJavadoc(root, javadoc)
+            })
+            addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
+            addView(secondaryButton("Open Output") {
+                val index = File(root, "build/docs/javadoc/index.html")
+                if (index.isFile) HtmlViewerActivity.openFile(host, index.absolutePath, "Javadoc")
+                else toast("No Javadoc output yet")
+            })
+        })
+        return card
+    }
+
+    private fun generateJavadoc(root: File, javadoc: File) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(t("Generate Javadoc"))
+            .setMessage(t("Collecting sources..."))
+            .setCancelable(false)
+            .create()
+        dialog.show()
+
+        scope.launch(Dispatchers.IO) {
+            val sources = javaSourceFiles(root)
+            val outDir = File(root, "build/docs/javadoc").apply { mkdirs() }
+            val androidJar = BuildToolchain.sdkDir(host)
+                ?.listFiles { d -> d.isDirectory && d.name.startsWith("android-") }
+                ?.sortedByDescending { it.name }
+                ?.firstNotNullOfOrNull { plat -> File(plat, "android.jar").takeIf { it.isFile } }
+
+            val argFile = File(cacheDir, "javadoc-args.txt")
+            val args = mutableListOf(
+                javadoc.absolutePath,
+                "-d", outDir.absolutePath,
+                "-encoding", "UTF-8",
+                "-quiet",
+                "-Xdoclint:none"
+            )
+            androidJar?.let { args += listOf("-classpath", it.absolutePath) }
+            args += sources.map { it.absolutePath }
+            argFile.writeText(args.drop(1).joinToString("\n") { arg ->
+                if (arg.contains(' ')) "\"$arg\"" else arg
+            })
+
+            host.runOnUiThread { dialog.setMessage(t("Running javadoc on ${sources.size} files...")) }
+
+            val (code, output) = runToolProcess(
+                listOf(javadoc.absolutePath, "@${argFile.absolutePath}"),
+                root,
+                180_000L
+            )
+
+            withContext(Dispatchers.Main) {
+                runCatching { dialog.dismiss() }
+                val index = File(outDir, "index.html")
+                if (code == 0 && index.isFile) {
+                    HtmlViewerActivity.openFile(host, index.absolutePath, "Javadoc")
+                    toast("Javadoc generated")
+                } else {
+                    showTextDialog("javadoc output", output.take(8000).ifBlank { "exit code $code" })
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Create Command Line Launcher
+    // ------------------------------------------------------------
+
+    private fun cliLauncherScript(): String {
+        val d = '$'
+        return """
+#!/system/bin/sh
+# MobileStudio command line launcher.
+# Usage: studio [project-directory]
+DIR="${d}1"
+if [ -n "${d}DIR" ] && [ -d "${d}DIR" ]; then
+  exec /system/bin/am start -n com.aide.mobilestudio/.BuildBootActivity \
+    --es project_dir "${d}DIR" >/dev/null 2>&1
+else
+  exec /system/bin/am start -n com.aide.mobilestudio/.BuildBootActivity >/dev/null 2>&1
+fi
+""".trimIndent()
+    }
+
+    private fun cliLauncherFile(): File =
+        File(filesDir, "toolchain/runtime-tools/bin/studio")
+
+    private fun buildCliLauncherCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Create Command Line Launcher"))
+
+        val launcher = cliLauncherFile()
+        card.addView(TextView(host).apply {
+            text = t(
+                if (launcher.isFile) "Installed at ${launcher.absolutePath}"
+                else "Not installed yet. Creates a 'studio' command for the terminal."
+            )
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setTextColor(StudioUi.color(if (launcher.isFile) StudioUi.Green else StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(4))
+        })
+        card.addView(TextView(host).apply {
+            text = t("Usage: studio [project-directory]  —  opens MobileStudio on that project.")
+            textSize = 11f
+            setTextColor(StudioUi.color(StudioUi.Muted))
+            setPadding(0, 0, 0, dp(8))
+        })
+
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton(if (launcher.isFile) "Reinstall" else "Create Launcher") {
+                runCatching {
+                    launcher.parentFile?.mkdirs()
+                    launcher.writeText(cliLauncherScript())
+                    launcher.setExecutable(true, false)
+                    toast("Launcher installed: ${launcher.absolutePath}")
+                    renderCategory(currentCategory)
+                }.onFailure { toast("Failed: ${it.message}") }
+            })
+            addView(secondaryButton("Show Script") {
+                showTextDialog("studio launcher", cliLauncherScript())
+            })
+            addView(secondaryButton("Copy Path") {
+                copyToClipboard("studio launcher", launcher.absolutePath)
+            })
+        })
+        return card
+    }
+
+    // ------------------------------------------------------------
+    // XML Actions
+    // ------------------------------------------------------------
+
+    /** SAX probe for well-formedness; null when the text parses cleanly. */
+    private fun xmlParseError(text: String): String? = try {
+        val factory = SAXParserFactory.newInstance()
+        runCatching {
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+        }
+        factory.newSAXParser().parse(InputSource(StringReader(text)), object : DefaultHandler() {})
+        null
+    } catch (e: SAXParseException) {
+        "line ${e.lineNumber}, column ${e.columnNumber}: ${e.message}"
+    } catch (e: Exception) {
+        e.message ?: "parse failed"
+    }
+
+    /**
+     * Re-indents XML without restructuring it: tags are placed on their own
+     * lines at their depth, while text content and comments are preserved
+     * verbatim. Anything already well-formed stays semantically identical.
+     */
+    private fun prettyPrintXml(src: String): String {
+        val out = StringBuilder()
+        var depth = 0
+        var i = 0
+        val n = src.length
+        fun indent() { out.append("  ".repeat(depth.coerceAtLeast(0))) }
+
+        while (i < n) {
+            val c = src[i]
+            when {
+                src.startsWith("<!--", i) -> {
+                    val end = src.indexOf("-->", i + 4).let { if (it < 0) n else it + 3 }
+                    indent(); out.append(src, i, end).append('\n'); i = end
+                }
+                src.startsWith("<![CDATA[", i) -> {
+                    val end = src.indexOf("]]>", i + 9).let { if (it < 0) n else it + 3 }
+                    indent(); out.append(src, i, end).append('\n'); i = end
+                }
+                c == '<' -> {
+                    var j = i + 1
+                    var quote = '\u0000'
+                    while (j < n) {
+                        val ch = src[j]
+                        if (quote != '\u0000') {
+                            if (ch == quote) quote = '\u0000'
+                        } else if (ch == '"' || ch == '\'') quote = ch
+                        else if (ch == '>') break
+                        j++
+                    }
+                    if (j >= n) { out.append(src, i, n); break }
+                    val tag = src.substring(i, j + 1)
+                    val isClose = tag.startsWith("</")
+                    val isDecl = tag.startsWith("<?")
+                    val isOtherDecl = tag.startsWith("<!") && !tag.startsWith("<!--")
+                    val isSelf = tag.endsWith("/>") || isDecl || isOtherDecl
+                    if (isClose) depth = (depth - 1).coerceAtLeast(0)
+                    indent(); out.append(tag)
+                    if (isClose || isSelf) {
+                        out.append('\n')
+                    } else {
+                        var k = j + 1
+                        while (k < n && src[k].isWhitespace()) k++
+                        if (k >= n || src[k] == '<') out.append('\n')
+                        depth++
+                    }
+                    i = j + 1
+                }
+                else -> {
+                    var j = i
+                    while (j < n && src[j] != '<') j++
+                    val text = src.substring(i, j).trim()
+                    if (text.isNotEmpty()) out.append(text)
+                    i = j
+                }
+            }
+        }
+        return out.toString().trimEnd() + "\n"
+    }
+
+    private fun currentXmlFile(): File? {
+        val file = (host as? StudioMainActivity)?.currentFile ?: return null
+        return file.takeIf { it.isFile && it.extension.equals("xml", ignoreCase = true) }
+    }
+
+    private fun buildXmlActionsCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("XML Actions"))
+
+        val current = currentXmlFile()
+        card.addView(TextView(host).apply {
+            text = t(
+                if (current != null) "Current file: ${current.name}"
+                else "Open an XML file to enable these actions."
+            )
+            textSize = 12f
+            setTextColor(StudioUi.color(if (current != null) StudioUi.TextSoft else StudioUi.Muted))
+            setPadding(0, 0, 0, dp(8))
+        })
+
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Validate") {
+                val file = current ?: run { toast("Open an XML file first"); return@primaryButton }
+                val err = xmlParseError(runCatching { file.readText() }.getOrDefault(""))
+                if (err == null) showTextDialog("${file.name} — valid", "Well-formed XML.")
+                else showTextDialog("${file.name} — invalid", err)
+            })
+            addView(secondaryButton("Format") {
+                val file = current ?: run { toast("Open an XML file first"); return@secondaryButton }
+                val text = runCatching { file.readText() }.getOrDefault("")
+                val err = xmlParseError(text)
+                if (err != null) {
+                    showTextDialog("Cannot format", err)
+                    return@secondaryButton
+                }
+                val formatted = prettyPrintXml(text)
+                runCatching { file.writeText(formatted) }
+                    .onSuccess {
+                        (host as? StudioMainActivity)?.let { ide ->
+                            ide.openFileInEditor(file)
+                            EditorPaneState.content = formatted
+                            EditorPaneState.unsaved = false
+                        }
+                        toast("Formatted ${file.name}")
+                        renderCategory(currentCategory)
+                    }
+                    .onFailure { toast("Write failed: ${it.message}") }
+            })
+            addView(secondaryButton("Visual Editor") {
+                val file = current ?: run { toast("Open an XML file first"); return@secondaryButton }
+                XmlVisualEditorActivity.start(host, file)
+            })
+        })
+
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(secondaryButton("Layout Preview") {
+                val file = current ?: run { toast("Open an XML file first"); return@secondaryButton }
+                LayoutPreviewActivity.start(host, file)
+            })
+            addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
+        })
+        return card
     }
 
     private fun buildLogcatCard(): View {
