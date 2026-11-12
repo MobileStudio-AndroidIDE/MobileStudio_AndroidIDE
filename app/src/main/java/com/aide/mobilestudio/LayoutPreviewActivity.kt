@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.PorterDuff
@@ -212,6 +213,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private var liveSyncEnabled = true
     private var isLandscape = false
     private var minSdkVersion: Int? = null
+    private var deviceSkin = "pixel" // pixel, galaxy, iphone, generic
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -242,18 +244,36 @@ class LayoutPreviewActivity : AppCompatActivity() {
     }
 
     private fun showXmlPreview(file: File) {
-        phoneFrame = try {
-            assets.open("smartphone.png").use { BitmapFactory.decodeStream(it) }
-                ?: Bitmap.createBitmap(719, 1560, Bitmap.Config.ARGB_8888)
-        } catch (e: Exception) {
-            Log.e(TAG, "Load smartphone.png failed", e)
-            Bitmap.createBitmap(719, 1560, Bitmap.Config.ARGB_8888)
-        }
+        loadPhoneFrameForSkin()
 
         buildUI()
         loadXmlToNodes()
         renderDesign()
         renderLayoutLibInBackground()
+    }
+
+    /**
+     * 기기 스킨에 따라 전화기 프레임 이미지를 로드.
+     * assets/ 에 없는 스킨은 기본 빈 비트맵 사용.
+     */
+    private fun loadPhoneFrameForSkin() {
+        val assetName = when (deviceSkin) {
+            "pixel" -> "smartphone.png"
+            "galaxy" -> "smartphone_galaxy.png"
+            "iphone" -> "smartphone_iphone.png"
+            else -> "smartphone.png"
+        }
+        phoneFrame = try {
+            assets.open(assetName).use { BitmapFactory.decodeStream(it) }
+                ?: createDefaultPhoneBitmap()
+        } catch (e: Exception) {
+            Log.e(TAG, "Load $assetName failed", e)
+            createDefaultPhoneBitmap()
+        }
+    }
+
+    private fun createDefaultPhoneBitmap(): Bitmap {
+        return Bitmap.createBitmap(719, 1560, Bitmap.Config.ARGB_8888)
     }
 
     // =========================================================================
@@ -397,6 +417,41 @@ class LayoutPreviewActivity : AppCompatActivity() {
                     Toast.makeText(this@LayoutPreviewActivity,
                         if (isKo) "회전: ${if (isLandscape) "가로" else "세로"}"
                         else "Rotation: ${if (isLandscape) "Landscape" else "Portrait"}",
+                        Toast.LENGTH_SHORT).show()
+                }
+            })
+
+            // 기기 스킨 선택기 (Pixel, Galaxy, iPhone, Generic)
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = when (deviceSkin) {
+                    "pixel" -> "📱 Pixel"
+                    "galaxy" -> "📱 Galaxy"
+                    "iphone" -> "📱 iPhone"
+                    else -> "📱 Generic"
+                }
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener {
+                    deviceSkin = when (deviceSkin) {
+                        "pixel" -> "galaxy"
+                        "galaxy" -> "iphone"
+                        "iphone" -> "generic"
+                        else -> "pixel"
+                    }
+                    text = when (deviceSkin) {
+                        "pixel" -> "📱 Pixel"
+                        "galaxy" -> "📱 Galaxy"
+                        "iphone" -> "📱 iPhone"
+                        else -> "📱 Generic"
+                    }
+                    loadPhoneFrameForSkin()
+                    renderDesign()
+                    refreshWidgetPreview()
+                    val isKo2 = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                    Toast.makeText(this@LayoutPreviewActivity,
+                        if (isKo2) "기기: ${deviceSkin}" else "Device: $deviceSkin",
                         Toast.LENGTH_SHORT).show()
                 }
             })
@@ -1774,14 +1829,19 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private fun renderDesign() {
         val root = rootNode ?: return
         val d = resources.displayMetrics.density
-        // Device-specific content area
+        // Device skin + size specific content area
         val (designW, designH) = when (deviceSize) {
             "tablet" -> Pair((800 * d).toInt(), (1200 * d).toInt())
             "foldable" -> Pair((1200 * d).toInt(), (800 * d).toInt())
-            else -> Pair(
-                if (phoneScreenWidth > 0) phoneScreenWidth.toInt() else (360 * d).toInt(),
-                if (phoneScreenHeight > 0) phoneScreenHeight.toInt() else (694 * d).toInt()
-            )
+            else -> when (deviceSkin) {
+                "pixel" -> Pair((360 * d).toInt(), (640 * d).toInt())
+                "galaxy" -> Pair((340 * d).toInt(), (720 * d).toInt())
+                "iphone" -> Pair((330 * d).toInt(), (700 * d).toInt())
+                else -> Pair(
+                    if (phoneScreenWidth > 0) phoneScreenWidth.toInt() else (360 * d).toInt(),
+                    if (phoneScreenHeight > 0) phoneScreenHeight.toInt() else (694 * d).toInt()
+                )
+            }
         }
         
         // Landscape: swap width/height
