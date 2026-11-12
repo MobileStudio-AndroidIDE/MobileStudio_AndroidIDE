@@ -211,6 +211,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private var deviceSize = "phone" // phone, tablet, foldable
     private var liveSyncEnabled = true
     private var isLandscape = false
+    private var minSdkVersion: Int? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -222,6 +223,9 @@ class LayoutPreviewActivity : AppCompatActivity() {
             showError("File not found.")
             return
         }
+
+        // 프로젝트 minSdkVersion 읽기
+        minSdkVersion = readMinSdkVersion(targetFile)
 
         when (file.extension.lowercase()) {
             "xml" -> if (isDrawableResource(file)) showDrawablePreview(file) else showXmlPreview(file)
@@ -2559,6 +2563,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private fun loadXmlToNodes() {
         val xml = targetFile?.readText() ?: ""
         rootNode = parseXmlToNodes(xml)
+        showApiCompatibilityWarnings(rootNode)
     }
 
     private fun parseXmlToNodes(xml: String): XmlNode? {
@@ -3063,6 +3068,124 @@ $resourceEntry
                     cornerRadius = 16f
                 }
             )
+    }
+
+    /**
+     * 프로젝트의 build.gradle에서 minSdkVersion을 읽음.
+     * 앱 모듈의 build.gradle 또는 AndroidManifest.xml의 uses-sdk를 탐색.
+     */
+    private fun readMinSdkVersion(file: File?): Int? {
+        file ?: return null
+        var dir: File? = file.parentFile
+        var up = 0
+        while (dir != null && up < 8) {
+            // build.gradle.kts 또는 build.gradle
+            val buildGradle = File(dir, "build.gradle.kts")
+            val buildGradleGroovy = File(dir, "build.gradle")
+            val manifest = File(dir, "src/main/AndroidManifest.xml")
+
+            for (bg in listOf(buildGradle, buildGradleGroovy)) {
+                if (bg.isFile) {
+                    try {
+                        val content = bg.readText()
+                        val sdkRegex = Regex("""(?i)minSdk\s*(version)?\s*[:=]\s*(\d+)""")
+                        val m = sdkRegex.find(content)
+                        if (m != null) {
+                            return m.groupValues[2].toIntOrNull()
+                        }
+                        // minSdkVersion = 21 (groovy)
+                        val sdkRegex2 = Regex("""minSdkVersion\s*=\s*(\d+)""")
+                        val m2 = sdkRegex2.find(content)
+                        if (m2 != null) {
+                            return m2.groupValues[1].toIntOrNull()
+                        }
+                    } catch (_: Exception) { }
+                }
+            }
+
+            // AndroidManifest.xml의 uses-sdk
+            if (manifest.isFile) {
+                try {
+                    val content = manifest.readText()
+                    val sdkRegex = Regex("""android:minSdkVersion\s*=\s*["'](\d+)["']""")
+                    val m = sdkRegex.find(content)
+                    if (m != null) {
+                        return m.groupValues[1].toIntOrNull()
+                    }
+                } catch (_: Exception) { }
+            }
+
+            dir = dir.parentFile
+            up++
+        }
+        return null
+    }
+
+    /**
+     * XML 노드 트리를 순회하며 minSdkVersion보다 높은 API 레벨이 필요한
+     * 속성을 찾아 경고 메시지를 반환.
+     */
+    private fun checkApiCompatibility(node: XmlNode): List<String> {
+        val warnings = mutableListOf<String>()
+        val minSdk = minSdkVersion ?: return warnings
+
+        // 일반 속성 → min API 레벨 매핑
+        val apiGatedAttrs = mapOf(
+            "android:layout_marginStart" to 17,
+            "android:layout_marginEnd" to 17,
+            "android:layout_marginHorizontal" to 17,
+            "android:layout_marginVertical" to 17,
+            "android:layout_constraintStart_toStartOf" to 17,
+            "android:layout_constraintStart_toEndOf" to 17,
+            "android:layout_constraintEnd_toStartOf" to 17,
+            "android:layout_constraintEnd_toEndOf" to 17,
+            "android:autoSizeTextType" to 26,
+            "android:autoSizeText" to 26,
+            "android:fontFamily" to 16,
+            "android:textFontWeight" to 28,
+            "android:letterSpacing" to 21,
+            "android:lineSpacingAdditional" to 21,
+            "android:lineSpacingMultiplier" to 21,
+            "android:textAppearance" to 23,
+            "android:importantForAccessibility" to 16,
+            "android:importantForAutofill" to 26,
+            "android:autofillHints" to 26,
+            "android:tooltipText" to 26,
+            "android:elevation" to 21,
+            "android:translationZ" to 21,
+            "android:stateListAnimator" to 21,
+            "android:outlineProvider" to 21,
+            "android:ripple" to 21,
+            "android:backgroundTint" to 21,
+            "android:backgroundTintMode" to 21,
+            "android:clickable" to 14,
+            "android:focusable" to 14
+        )
+
+        fun checkNode(n: XmlNode) {
+            for ((attr, minApi) in apiGatedAttrs) {
+                if (n.attrs[attr] != null && minApi > minSdk) {
+                    warnings.add("<${n.tagName}> ${attr} requires API $minApi (minSdk=$minSdk)")
+                }
+            }
+            n.children.forEach { checkNode(it) }
+        }
+
+        checkNode(node)
+        return warnings
+    }
+
+    /**
+     * API 호환성 경고를 Output 패널에 표시.
+     */
+    private fun showApiCompatibilityWarnings(root: XmlNode?) {
+        if (root == null) return
+        val warnings = checkApiCompatibility(root)
+        if (warnings.isNotEmpty()) {
+            val header = "----- API Compatibility Warnings (minSdk=${minSdkVersion}) -----\n"
+            val body = warnings.joinToString("\n") { "⚠ $it" }
+            addOutput("$header$body")
+        }
     }
 
     /**
