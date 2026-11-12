@@ -1820,9 +1820,9 @@ class LayoutPreviewActivity : AppCompatActivity() {
         var scale = 1f
 
         // 터치 상태
-        private var touchMode = 0          // 0 none, 1 drag, 2 resize, 4 pan
+        private var touchMode = 0          // 0 none, 1 drag, 2 resize, 3 constraint, 4 pan, 5 rotate
         private var touchNode: XmlNode? = null
-        private var touchHandle = 0        // 1..8 리사이즈 핸들, 9 회전
+        private var touchHandle = 0        // 1..8 리사이즈, 9 회전, 11-16 제약조건 핸들
         private var lastX = 0f
         private var lastY = 0f
         private var lastRawX = 0f
@@ -1887,6 +1887,25 @@ class LayoutPreviewActivity : AppCompatActivity() {
             strokeWidth = 1f
             style = Paint.Style.STROKE
         }
+        private val constraintHandlePaint = Paint().apply {
+            color = "#00E676".toColorInt()
+            style = Paint.Style.FILL
+        }
+        private val constraintHandleStroke = Paint().apply {
+            color = "#00E676".toColorInt()
+            strokeWidth = 1.5f
+            style = Paint.Style.STROKE
+        }
+        private val constraintLinePaint = Paint().apply {
+            color = "#00E676".toColorInt()
+            strokeWidth = 1f
+            style = Paint.Style.STROKE
+            setPathEffect(android.graphics.DashPathEffect(floatArrayOf(6f, 6f), 0f))
+        }
+        private val constraintTargetPaint = Paint().apply {
+            color = "#00E676".toColorInt()
+            style = Paint.Style.FILL
+        }
 
         fun setNodes(root: XmlNode?) {
             this.rootNode = root
@@ -1927,6 +1946,9 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 canvas.drawRect(n.rect, nodeStroke)
             }
 
+            // ConstraintLayout 제약 조건선 (연결된 뷰 사이 점선)
+            drawConstraintLines(canvas)
+
             // 선택 오버레이
             val sel = selectedNode
             if (sel != null && !sel.isRoot) {
@@ -1963,6 +1985,27 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 val (cx, cy) = p
                 canvas.drawRect(cx - hs, cy - hs, cx + hs, cy + hs, handleFill)
                 canvas.drawRect(cx - hs, cy - hs, cx + hs, cy + hs, handleStroke)
+            }
+
+            // ConstraintLayout 제약조건 핸들 (6개: top, bottom, left, right, start, end)
+            // 부모가 ConstraintLayout인 경우에만 표시
+            val isConstraintChild = n.parent != null &&
+                n.parent?.tagName?.lowercase()?.contains("constraintlayout") == true
+            if (isConstraintChild) {
+                val ch = 7f * d
+                val chandles = listOf(
+                    11 to (r.centerX().toFloat() to r.top.toFloat()),      // top
+                    12 to (r.centerX().toFloat() to r.bottom.toFloat()),    // bottom
+                    13 to (r.left.toFloat() to r.centerY().toFloat()),      // left
+                    14 to (r.right.toFloat() to r.centerY().toFloat()),     // right
+                    15 to (r.left.toFloat() to r.centerY().toFloat()),      // start
+                    16 to (r.right.toFloat() to r.centerY().toFloat())      // end
+                )
+                chandles.forEach { (id, p) ->
+                    val (cx, cy) = p
+                    canvas.drawCircle(cx, cy, ch, constraintHandlePaint)
+                    canvas.drawCircle(cx, cy, ch + 1.5f, constraintHandleStroke)
+                }
             }
 
             // 회전 각도 표시
@@ -2020,6 +2063,106 @@ class LayoutPreviewActivity : AppCompatActivity() {
             if (r.top >= r.bottom) r.bottom = r.top + 1
         }
 
+        private fun drawConstraintLines(canvas: Canvas) {
+            val d = resources.displayMetrics.density
+            nodes.forEach { n ->
+                if (n.isRoot) return@forEach
+                val parent = n.parent ?: return@forEach
+                if (parent.tagName.lowercase().contains("constraintlayout") != true) return@forEach
+
+                val from = n.rect
+                val attrs = n.attrs
+
+                fun drawLineTo(ref: String?, fromX: Float, fromY: Float, toX: Float, toY: Float) {
+                    if (ref.isNullOrBlank()) return
+                    val s = ref.trim()
+                    if (s.equals("parent", ignoreCase = true)) {
+                        // Draw to parent edge
+                        canvas.drawLine(fromX, fromY, toX, toY, constraintLinePaint)
+                        canvas.drawCircle(toX, toY, 5f * d, constraintTargetPaint)
+                        return
+                    }
+                    if (s.startsWith("@+id/") || s.startsWith("@id/")) {
+                        val idName = s.removePrefix("@+id/").removePrefix("@id/")
+                        val target = nodes.firstOrNull { it.attrs["android:id"] == "@+id/$idName" ||
+                            it.attrs["android:id"] == "@id/$idName" }
+                        if (target != null && target !== n) {
+                            val tr = target.rect
+                            canvas.drawLine(fromX, fromY, tr.centerX().toFloat(), tr.centerY().toFloat(), constraintLinePaint)
+                            canvas.drawCircle(tr.centerX().toFloat(), tr.centerY().toFloat(), 5f * d, constraintTargetPaint)
+                        }
+                    }
+                }
+
+                // Top constraint
+                attrs["layout_constraintTop_toTopOf"]?.let {
+                    drawLineTo(it, from.centerX().toFloat(), from.top.toFloat(),
+                        from.centerX().toFloat(), 0f)
+                }
+                attrs["layout_constraintTop_toBottomOf"]?.let { ref ->
+                    val target = nodes.firstOrNull { it.attrs["android:id"] == ref.removePrefix("@+id/").removePrefix("@id/") }
+                    if (target != null) {
+                        drawLineTo(ref, from.centerX().toFloat(), from.top.toFloat(),
+                            target.rect.centerX().toFloat(), target.rect.bottom.toFloat())
+                    }
+                }
+                // Bottom constraint
+                attrs["layout_constraintBottom_toTopOf"]?.let { ref ->
+                    val target = nodes.firstOrNull { it.attrs["android:id"] == ref.removePrefix("@+id/").removePrefix("@id/") }
+                    if (target != null) {
+                        drawLineTo(ref, from.centerX().toFloat(), from.bottom.toFloat(),
+                            target.rect.centerX().toFloat(), target.rect.top.toFloat())
+                    }
+                }
+                attrs["layout_constraintBottom_toBottomOf"]?.let {
+                    drawLineTo(it, from.centerX().toFloat(), from.bottom.toFloat(),
+                        from.centerX().toFloat(), (from.top + parent.rect.height()).toFloat())
+                }
+                // Left constraint
+                attrs["layout_constraintLeft_toLeftOf"]?.let {
+                    drawLineTo(it, from.left.toFloat(), from.centerY().toFloat(),
+                        0f, from.centerY().toFloat())
+                }
+                attrs["layout_constraintLeft_toRightOf"]?.let { ref ->
+                    val target = nodes.firstOrNull { it.attrs["android:id"] == ref.removePrefix("@+id/").removePrefix("@id/") }
+                    if (target != null) {
+                        drawLineTo(ref, from.left.toFloat(), from.centerY().toFloat(),
+                            target.rect.right.toFloat(), target.rect.centerY().toFloat())
+                    }
+                }
+                // Right constraint
+                attrs["layout_constraintRight_toLeftOf"]?.let { ref ->
+                    val target = nodes.firstOrNull { it.attrs["android:id"] == ref.removePrefix("@+id/").removePrefix("@id/") }
+                    if (target != null) {
+                        drawLineTo(ref, from.right.toFloat(), from.centerY().toFloat(),
+                            target.rect.left.toFloat(), target.rect.centerY().toFloat())
+                    }
+                }
+                attrs["layout_constraintRight_toRightOf"]?.let {
+                    drawLineTo(it, from.right.toFloat(), from.centerY().toFloat(),
+                        parent.rect.width().toFloat(), from.centerY().toFloat())
+                }
+            }
+        }
+
+        private fun hitConstraintHandle(n: XmlNode, x: Float, y: Float): Int {
+            if (n.parent?.tagName?.lowercase()?.contains("constraintlayout") != true) return 0
+            val r = n.rect
+            val ch = 20f
+            val handles = mapOf(
+                11 to Pair(r.centerX().toFloat(), r.top.toFloat()),
+                12 to Pair(r.centerX().toFloat(), r.bottom.toFloat()),
+                13 to Pair(r.left.toFloat(), r.centerY().toFloat()),
+                14 to Pair(r.right.toFloat(), r.centerY().toFloat()),
+                15 to Pair(r.left.toFloat(), r.centerY().toFloat()),
+                16 to Pair(r.right.toFloat(), r.centerY().toFloat())
+            )
+            handles.forEach { (id, p) ->
+                if (Math.abs(x - p.first) < ch && Math.abs(y - p.second) < ch) return id
+            }
+            return 0
+        }
+
         private fun hitNode(x: Float, y: Float): XmlNode? {
             for (i in nodes.indices.reversed()) {
                 val n = nodes[i]
@@ -2041,6 +2184,15 @@ class LayoutPreviewActivity : AppCompatActivity() {
                     lastRawX = event.x; lastRawY = event.y
                     val sel = selectedNode
                     if (sel != null && !sel.isRoot) {
+                        // ConstraintLayout 제약조건 핸들 확인 (최우선)
+                        val ch = hitConstraintHandle(sel, x, y)
+                        if (ch != 0) {
+                            touchMode = 3
+                            touchHandle = ch
+                            touchNode = sel
+                            startRect.set(sel.rect)
+                            return true
+                        }
                         val h = hitResizeHandle(sel, x, y)
                         if (h != 0) {
                             touchMode = if (h == 9) 5 else 2
@@ -2130,6 +2282,12 @@ class LayoutPreviewActivity : AppCompatActivity() {
                             invalidate()
                             return true
                         }
+                        3 -> {
+                            val n = touchNode ?: return true
+                            // Constraint drag: 시각적 피드백만 (드래그 중 선 그리기는 invalidate로)
+                            invalidate()
+                            return true
+                        }
                         4 -> {
                             panX += event.x - lastRawX
                             panY += event.y - lastRawY
@@ -2162,6 +2320,14 @@ class LayoutPreviewActivity : AppCompatActivity() {
                             val n = touchNode
                             if (n != null) onGeometryCommitted?.invoke(n)
                         }
+                        3 -> {
+                            val n = touchNode
+                            if (n != null) {
+                                // Constraint drag 종료: 드래그 위치 기반으로 제약조건 생성
+                                commitConstraintFromDrag(n, x, y, touchHandle)
+                                onGeometryCommitted?.invoke(n)
+                            }
+                        }
                         4 -> {
                             val now = System.currentTimeMillis()
                             if (now - lastTapTime < tapThreshold) {
@@ -2184,6 +2350,58 @@ class LayoutPreviewActivity : AppCompatActivity() {
             return Math.toDegrees(
                 Math.atan2((y - n.rect.centerY()).toDouble(), (x - n.rect.centerX()).toDouble())
             ).toFloat()
+        }
+
+        /**
+         * Constraint 핸들 드래그 종료 시 제약조건 속성을 XML 노드에 기록.
+         * handle: 11=top, 12=bottom, 13=left, 14=right, 15=start, 16=end
+         * (x, y)는 드래그 종료 지점 (캔버스 좌표, scale/pan 적용 후)
+         */
+        private fun commitConstraintFromDrag(n: XmlNode, x: Float, y: Float, handle: Int) {
+            val parent = n.parent ?: return
+            if (parent.tagName.lowercase().contains("constraintlayout") != true) return
+
+            val d = resources.displayMetrics.density
+            val threshold = 15f * d
+
+            // 드래그 종료 지점이 어떤 뷰에 가까운지 찾음
+            val targetNode = nodes.firstOrNull { tn ->
+                tn !== n && tn.rect.contains(x.toInt(), y.toInt())
+            }
+
+            val attrKey = when (handle) {
+                11 -> "layout_constraintTop_toTopOf"
+                12 -> "layout_constraintBottom_toBottomOf"
+                13, 15 -> "layout_constraintLeft_toLeftOf" // left/start (LTR)
+                14, 16 -> "layout_constraintRight_toRightOf" // right/end (LTR)
+                else -> return
+            }
+
+            if (targetNode != null) {
+                val targetId = targetNode.attrs["android:id"]
+                if (targetId != null && targetId.isNotEmpty()) {
+                    n.setAttr(attrKey, targetId)
+                }
+            } else {
+                // 부모에 붙임 (가장 가까운 부모 엣지)
+                val pr = parent.rect
+                val distTop = Math.abs(y - pr.top.toFloat())
+                val distBottom = Math.abs(y - pr.bottom.toFloat())
+                val distLeft = Math.abs(x - pr.left.toFloat())
+                val distRight = Math.abs(x - pr.right.toFloat())
+                val minDist = minOf(distTop, distBottom, distLeft, distRight)
+
+                if (minDist <= threshold * 2) {
+                    when {
+                        handle == 11 && distTop == minDist -> n.setAttr(attrKey, "parent")
+                        handle == 12 && distBottom == minDist -> n.setAttr(attrKey, "parent")
+                        handle == 13 && distLeft == minDist -> n.setAttr(attrKey, "parent")
+                        handle == 14 && distRight == minDist -> n.setAttr(attrKey, "parent")
+                        handle == 15 && distLeft == minDist -> n.setAttr(attrKey, "parent")
+                        handle == 16 && distRight == minDist -> n.setAttr(attrKey, "parent")
+                    }
+                }
+            }
         }
     }
 
