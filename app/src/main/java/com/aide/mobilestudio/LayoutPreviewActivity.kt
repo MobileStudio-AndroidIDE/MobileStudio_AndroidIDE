@@ -1404,10 +1404,107 @@ class LayoutPreviewActivity : AppCompatActivity() {
             is FrameLayout -> FrameLayout.LayoutParams(width, height).also { p ->
                 attrs["layout_gravity"]?.let { p.gravity = parseGravity(it) }
             }
+            is ConstraintLayout -> {
+                ConstraintLayout.LayoutParams(width, height).also { p ->
+                    applyConstraintLayoutParams(p, attrs)
+                }
+            }
             else -> ViewGroup.MarginLayoutParams(width, height)
         }
         if (lp is ViewGroup.MarginLayoutParams) applyMargins(lp, attrs)
         child.layoutParams = lp
+    }
+
+    /**
+     * ConstraintLayout 제약 속성을 파싱해 ConstraintLayout.LayoutParams에 적용.
+     * 지원: toTopOf/toBottomOf/toLeftOf/toRightOf/toStartOf/toEndOf,
+     * horizontal/vertical_bias, dimension ratio, gone margin.
+     */
+    private fun applyConstraintLayoutParams(p: ConstraintLayout.LayoutParams, attrs: Map<String, String>) {
+        // Top constraints
+        attrs["layout_constraintTop_toTopOf"]?.let { p.topToTop = resolveConstraintId(it) }
+        attrs["layout_constraintTop_toBottomOf"]?.let { p.topToBottom = resolveConstraintId(it) }
+        // Bottom constraints
+        attrs["layout_constraintBottom_toTopOf"]?.let { p.bottomToTop = resolveConstraintId(it) }
+        attrs["layout_constraintBottom_toBottomOf"]?.let { p.bottomToBottom = resolveConstraintId(it) }
+        // Left/Start constraints
+        attrs["layout_constraintLeft_toLeftOf"]?.let { p.leftToLeft = resolveConstraintId(it) }
+        attrs["layout_constraintLeft_toRightOf"]?.let { p.leftToRight = resolveConstraintId(it) }
+        attrs["layout_constraintStart_toStartOf"]?.let { p.startToStart = resolveConstraintId(it) }
+        attrs["layout_constraintStart_toEndOf"]?.let { p.startToEnd = resolveConstraintId(it) }
+        // Right/End constraints
+        attrs["layout_constraintRight_toLeftOf"]?.let { p.rightToLeft = resolveConstraintId(it) }
+        attrs["layout_constraintRight_toRightOf"]?.let { p.rightToRight = resolveConstraintId(it) }
+        attrs["layout_constraintEnd_toStartOf"]?.let { p.endToStart = resolveConstraintId(it) }
+        attrs["layout_constraintEnd_toEndOf"]?.let { p.endToEnd = resolveConstraintId(it) }
+        // Baseline
+        attrs["layout_constraintBaseline_toBaselineOf"]?.let { p.baselineToBaseline = resolveConstraintId(it) }
+        // Bias
+        attrs["layout_constraintHorizontal_bias"]?.toFloatOrNull()?.let { p.horizontalBias = it }
+        attrs["layout_constraintVertical_bias"]?.toFloatOrNull()?.let { p.verticalBias = it }
+        // Dimension
+        attrs["layout_constraintWidth"]?.let {
+            when (it.lowercase()) {
+                "wrap_content" -> p.width = ConstraintLayout.LayoutParams.WRAP_CONTENT
+                "match_parent", "0dp", "match_constraint" -> p.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+                else -> parseDimen(it)?.toInt()?.let { p.width = it }
+            }
+        }
+        attrs["layout_constraintHeight"]?.let {
+            when (it.lowercase()) {
+                "wrap_content" -> p.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
+                "match_parent", "0dp", "match_constraint" -> p.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+                else -> parseDimen(it)?.toInt()?.let { p.height = it }
+            }
+        }
+        // Gone margins
+        attrs["layout_goneMarginTop"]?.toFloatOrNull()?.let { p.goneTopMargin = it.toInt() }
+        attrs["layout_goneMarginBottom"]?.toFloatOrNull()?.let { p.goneBottomMargin = it.toInt() }
+        attrs["layout_goneMarginLeft"]?.toFloatOrNull()?.let { p.goneLeftMargin = it.toInt() }
+        attrs["layout_goneMarginRight"]?.toFloatOrNull()?.let { p.goneRightMargin = it.toInt() }
+        attrs["layout_goneMarginStart"]?.toFloatOrNull()?.let { p.goneStartMargin = it.toInt() }
+        attrs["layout_goneMarginEnd"]?.toFloatOrNull()?.let { p.goneEndMargin = it.toInt() }
+        // Chains
+        attrs["layout_constraintHorizontal_chainStyle"]?.let {
+            p.horizontalChainStyle = when (it.lowercase()) {
+                "spread" -> ConstraintLayout.LayoutParams.CHAIN_SPREAD
+                "spread_inside" -> ConstraintLayout.LayoutParams.CHAIN_SPREAD_INSIDE
+                "packed" -> ConstraintLayout.LayoutParams.CHAIN_PACKED
+                else -> ConstraintLayout.LayoutParams.CHAIN_SPREAD
+            }
+        }
+        attrs["layout_constraintVertical_chainStyle"]?.let {
+            p.verticalChainStyle = when (it.lowercase()) {
+                "spread" -> ConstraintLayout.LayoutParams.CHAIN_SPREAD
+                "spread_inside" -> ConstraintLayout.LayoutParams.CHAIN_SPREAD_INSIDE
+                "packed" -> ConstraintLayout.LayoutParams.CHAIN_PACKED
+                else -> ConstraintLayout.LayoutParams.CHAIN_SPREAD
+            }
+        }
+        // Weight
+        attrs["layout_constraintHorizontal_weight"]?.toFloatOrNull()?.let { p.horizontalWeight = it }
+        attrs["layout_constraintVertical_weight"]?.toFloatOrNull()?.let { p.verticalWeight = it }
+        // Dimension ratio
+        attrs["layout_constraintDimensionRatio"]?.let { p.dimensionRatio = it }
+    }
+
+    /**
+     * Constraint 타겟 ID 문자열("@+id/foo", "@id/foo", "parent")를 뷰 ID int로 변환.
+     * 실제 뷰 ID 맵이 구성된 후에는 resolveConstraintIdToViewId 로 대체해야 함.
+     */
+    private fun resolveConstraintId(ref: String?): Int {
+        if (ref.isNullOrBlank()) return ConstraintLayout.LayoutParams.UNSET
+        val s = ref.trim()
+        return when {
+            s.equals("parent", ignoreCase = true) -> ConstraintLayout.LayoutParams.PARENT_ID
+            s.startsWith("@+id/") || s.startsWith("@id/") -> {
+                val idName = s.removePrefix("@+id/").removePrefix("@id/")
+                // 실제 뷰 ID는 buildViewTreeRecursive 단계에서 매핑됨.
+                // 여기선 placeholder: 뷰가 생성된 후 applyConstraintLayout에서 재결정.
+                idName.hashCode().toInt()
+            }
+            else -> ConstraintLayout.LayoutParams.UNSET
+        }
     }
 
     private fun applyMargins(p: ViewGroup.MarginLayoutParams, attrs: Map<String, String>) {
@@ -2964,17 +3061,42 @@ class LayoutPreviewActivity : AppCompatActivity() {
 
     private fun buildPreviewFromNodes(node: XmlNode): View {
         val host = FrameLayout(this)
-        // Theme background for the preview canvas
         host.setBackgroundColor(if (isDarkTheme) "#0F1218".toColorInt() else Color.WHITE)
-        buildViewTreeRecursive(node, host)
+
+        // 1단계: 전체 트리 순회하며 뷰 생성과 ID 맵 구축
+        val viewIdMap = LinkedHashMap<String, Int>()
+        buildViewTreeWithIdMap(node, host, viewIdMap)
+
+        // 2단계: ConstraintLayout 제약 대상을 실제 뷰 ID로 재결정
+        resolveConstraintViewIds(node, viewIdMap)
+
         return host
     }
 
-    private fun buildViewTreeRecursive(node: XmlNode, parent: ViewGroup) {
-        val v = buildWidgetView(node.tagName, node.attrs)
+    /**
+     * 뷰 트리를 생성하면서 각 노드의 android:id를 뷰 ID에 매핑한다.
+     */
+    private fun buildViewTreeWithIdMap(
+        node: XmlNode,
+        parent: ViewGroup,
+        viewIdMap: MutableMap<String, Int>
+    ) {
+        val v = buildWidgetView(node.tagName, node.attrs) ?: return
         node.view = v
 
-        // 체크박스 등 자연 크기 측정 (scaleX/Y resize 기준)
+        // 뷰 ID 할당: android:id가 있으면 이름 기반, 없으면 자동 생성
+        val idName = node.attrs["android:id"]?.removePrefix("@+id/")?.removePrefix("@id/")
+        if (idName.isNullOrBlank()) {
+            v.id = View.generateViewId()
+        } else {
+            viewIdMap[idName]?.let { v.id = it } ?: run {
+                val generatedId = View.generateViewId()
+                v.id = generatedId
+                viewIdMap[idName] = generatedId
+            }
+        }
+
+        // 체크박스 등 자연 크기 측정
         if (v is CompoundButton) {
             v.measure(
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
@@ -2984,14 +3106,68 @@ class LayoutPreviewActivity : AppCompatActivity() {
             node.naturalH = v.measuredHeight
         }
 
-        val lp = FrameLayout.LayoutParams(node.rect.width(), node.rect.height())
-        lp.leftMargin = node.rect.left
-        lp.topMargin = node.rect.top
+        val lp: ViewGroup.LayoutParams = when (parent) {
+            is ConstraintLayout -> {
+                ConstraintLayout.LayoutParams(
+                    node.rect.width().coerceAtLeast(0),
+                    node.rect.height().coerceAtLeast(0)
+                ).also { p ->
+                    p.leftMargin = node.rect.left
+                    p.topMargin = node.rect.top
+                    applyConstraintLayoutParams(p, node.attrs)
+                }
+            }
+            else -> {
+                FrameLayout.LayoutParams(node.rect.width(), node.rect.height()).also { p ->
+                    p.leftMargin = node.rect.left
+                    p.topMargin = node.rect.top
+                }
+            }
+        }
         parent.addView(v, lp)
 
         node.children.forEach { child ->
-            buildViewTreeRecursive(child, parent)
+            buildViewTreeWithIdMap(child, parent, viewIdMap)
         }
+    }
+
+    /**
+     * ConstraintLayout 제약 대상 ID를 실제 뷰 ID로 재결정.
+     * buildViewTreeWithIdMap가 실행된 후 모든 뷰가 생성되었으므로,
+     * XML 노드의 android:id와 뷰 객체를 매핑해 constraint 타겟을 연결한다.
+     */
+    private fun resolveConstraintViewIds(node: XmlNode, viewIdMap: Map<String, Int>) {
+        val v = node.view ?: return
+        val lp = v.layoutParams
+        if (lp is ConstraintLayout.LayoutParams) {
+            val attrs = node.attrs
+            fun resolve(ref: String?): Int {
+                if (ref.isNullOrBlank()) return ConstraintLayout.LayoutParams.UNSET
+                val s = ref.trim()
+                return when {
+                    s.equals("parent", ignoreCase = true) -> ConstraintLayout.LayoutParams.PARENT_ID
+                    s.startsWith("@+id/") || s.startsWith("@id/") -> {
+                        val idName = s.removePrefix("@+id/").removePrefix("@id/")
+                        viewIdMap[idName] ?: ConstraintLayout.LayoutParams.UNSET
+                    }
+                    else -> ConstraintLayout.LayoutParams.UNSET
+                }
+            }
+            attrs["layout_constraintTop_toTopOf"]?.let { lp.topToTop = resolve(it) }
+            attrs["layout_constraintTop_toBottomOf"]?.let { lp.topToBottom = resolve(it) }
+            attrs["layout_constraintBottom_toTopOf"]?.let { lp.bottomToTop = resolve(it) }
+            attrs["layout_constraintBottom_toBottomOf"]?.let { lp.bottomToBottom = resolve(it) }
+            attrs["layout_constraintLeft_toLeftOf"]?.let { lp.leftToLeft = resolve(it) }
+            attrs["layout_constraintLeft_toRightOf"]?.let { lp.leftToRight = resolve(it) }
+            attrs["layout_constraintStart_toStartOf"]?.let { lp.startToStart = resolve(it) }
+            attrs["layout_constraintStart_toEndOf"]?.let { lp.startToEnd = resolve(it) }
+            attrs["layout_constraintRight_toLeftOf"]?.let { lp.rightToLeft = resolve(it) }
+            attrs["layout_constraintRight_toRightOf"]?.let { lp.rightToRight = resolve(it) }
+            attrs["layout_constraintEnd_toStartOf"]?.let { lp.endToStart = resolve(it) }
+            attrs["layout_constraintEnd_toEndOf"]?.let { lp.endToEnd = resolve(it) }
+            attrs["layout_constraintBaseline_toBaselineOf"]?.let { lp.baselineToBaseline = resolve(it) }
+        }
+        node.children.forEach { resolveConstraintViewIds(it, viewIdMap) }
     }
 
     // =========================================================================
