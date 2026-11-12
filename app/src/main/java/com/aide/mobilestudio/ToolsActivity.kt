@@ -124,6 +124,16 @@ internal class ToolsPanel(
 
     private fun t(value: String): String = AppLanguage.literal(this, value)
 
+    private val DEFAULT_GROOVY_SNIPPET = """
+def squares = (1..5).collect { it * it }
+println "squares = " + squares
+squares.last()
+""".trimIndent()
+
+    private val DEFAULT_CLING_SNIPPET = """#include <cstdio>
+int x = 6 * 7;
+printf("x = %d\\n", x);"""
+
     /**
      * The project the IDE currently has open. Live IDE state wins, then the
      * persisted Tools preference, then the general IDE preference, so tool
@@ -358,6 +368,10 @@ internal class ToolsPanel(
             "java_dev" -> {
                 rootContainer.addView(buildJavadocCard())
                 rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildGroovyConsoleCard())
+                rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildClingCard())
+                rootContainer.addView(spacer(dp(8)))
                 ToolchainManager.Kind.values().filter { it == ToolchainManager.Kind.JDK }.forEach { kind ->
                     rootContainer.addView(buildKindCard(kind))
                     rootContainer.addView(spacer(dp(8)))
@@ -444,6 +458,10 @@ internal class ToolsPanel(
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildJavadocCard())
         rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildGroovyConsoleCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildClingCard())
+        rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildCliLauncherCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildXmlActionsCard())
@@ -495,6 +513,10 @@ internal class ToolsPanel(
         rootContainer.addView(buildAgpUpgradeCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildJavadocCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildGroovyConsoleCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildClingCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildCliLauncherCard())
         rootContainer.addView(spacer(dp(8)))
@@ -1296,18 +1318,44 @@ internal class ToolsPanel(
      * Runs [args] with stdout+stderr merged, bounded by [timeoutMs].
      * Returns exit code (-1 on failure/timeout) and everything printed.
      */
-    private fun runToolProcess(args: List<String>, cwd: File, timeoutMs: Long): Pair<Int, String> {
+    /**
+     * Runs [args] with stdout+stderr merged, bounded by [timeoutMs], optionally
+     * feeding [stdin]. Launches through [ExecHelper] so shebang wrappers in the
+     * noexec app-data dir and glibc ELFs both actually start — a plain
+     * ProcessBuilder fails with EACCES on the JDK's bin/java script.
+     */
+    private fun runToolProcess(
+        args: List<String>,
+        cwd: File,
+        timeoutMs: Long,
+        stdin: String? = null
+    ): Pair<Int, String> {
         return try {
-            val process = ProcessBuilder(args)
-                .directory(cwd)
-                .redirectErrorStream(true)
+            val process = ExecHelper.createProcess(this, args, cwd)
+                .apply { redirectErrorStream(true) }
                 .start()
-            val output = process.inputStream.bufferedReader().readText()
-            if (process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)) {
-                process.exitValue() to output
+            val out = StringBuilder()
+            val reader = Thread {
+                runCatching {
+                    process.inputStream.bufferedReader().forEachLine {
+                        synchronized(out) { out.append(it).append('\n') }
+                    }
+                }
+            }.apply { isDaemon = true; start() }
+            if (stdin != null) {
+                runCatching { process.outputStream.bufferedWriter().use { it.write(stdin) } }
             } else {
+                runCatching { process.outputStream.close() }
+            }
+            val exited = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+            if (!exited) {
                 process.destroyForcibly()
-                -1 to (output + "\n[timed out after ${timeoutMs / 1000}s]")
+                reader.join(2_000)
+                -1 to (synchronized(out) { out.toString() } +
+                    "\n[timed out after ${timeoutMs / 1000}s]")
+            } else {
+                reader.join(2_000)
+                process.exitValue() to synchronized(out) { out.toString() }
             }
         } catch (e: Exception) {
             -1 to (e.message ?: e.javaClass.simpleName)
@@ -1674,6 +1722,308 @@ fi
                 LayoutPreviewActivity.start(host, file)
             })
             addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
+        })
+        return card
+    }
+
+    // ------------------------------------------------------------
+    // Groovy Console
+    // ------------------------------------------------------------
+
+    /** Groovy jars shipped inside the active Gradle distribution. */
+    private fun groovyClasspath(): List<File> {
+        val lib = File(BuildToolchain.gradleHome(host), "lib")
+        val jars = mutableListOf<File>()
+        lib.listFiles()?.filterTo(jars) {
+            it.isFile && it.name.startsWith("groovy-") && it.name.endsWith(".jar")
+        }
+        File(lib, "plugins").listFiles()?.filterTo(jars) {
+            it.isFile && it.name.startsWith("groovy-") && it.name.endsWith(".jar")
+        }
+        return jars.sortedBy { it.name }
+    }
+
+    /**
+     * Evaluator wrapper: runs the user snippet through GroovyShell and echoes
+     * the value of its last expression, so the console behaves like a REPL
+     * instead of silently discarding results.
+     */
+    private fun groovyWrapperScript(): String = """
+def code = new File(args[0]).text
+try {
+    def r = new GroovyShell().evaluate(code)
+    if (r != null) println r
+} catch (Throwable t) {
+    System.err.println(t.toString())
+    System.exit(1)
+}
+""".trimIndent()
+
+    private fun groovySnippetPrefs() =
+        getSharedPreferences("tools_console", MODE_PRIVATE)
+
+    private fun buildGroovyConsoleCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Groovy Console"))
+
+        val javaBin = findJdkTool("java")
+        val groovyJars = groovyClasspath()
+        card.addView(TextView(host).apply {
+            text = t(
+                when {
+                    javaBin == null ->
+                        "No JDK found — install one in Tools > JDK first."
+                    groovyJars.isEmpty() ->
+                        "Groovy not found in ${BuildToolchain.gradleHome(host).name}."
+                    else ->
+                        "java: ${javaBin.absolutePath}\n" +
+                            "groovy: ${groovyJars.size} jar(s) from " +
+                            BuildToolchain.gradleHome(host).name
+                }
+            )
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setTextColor(
+                StudioUi.color(
+                    when {
+                        javaBin == null -> StudioUi.Amber
+                        groovyJars.isEmpty() -> StudioUi.Amber
+                        else -> StudioUi.TextSoft
+                    }
+                )
+            )
+            setPadding(0, 0, 0, dp(8))
+        })
+
+        val snippet = EditText(this).apply {
+            setSingleLine(false)
+            minLines = 4
+            maxLines = 12
+            gravity = Gravity.TOP
+            typeface = Typeface.MONOSPACE
+            textSize = 13f
+            setTextColor(StudioUi.color(StudioUi.Text))
+            setHintTextColor(StudioUi.color(StudioUi.Muted))
+            background = StudioUi.inputBg(host)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            hint = "Groovy snippet"
+            setText(groovySnippetPrefs().getString("groovy", DEFAULT_GROOVY_SNIPPET))
+            setSelection(text.length)
+        }
+        card.addView(snippet)
+
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Run") {
+                val code = snippet.text.toString()
+                if (code.isBlank()) {
+                    toast("Type a Groovy snippet first")
+                    return@primaryButton
+                }
+                if (javaBin == null) {
+                    toast("No JDK installed")
+                    return@primaryButton
+                }
+                if (groovyJars.isEmpty()) {
+                    toast("Groovy not found in the Gradle distribution")
+                    return@primaryButton
+                }
+                groovySnippetPrefs().edit().putString("groovy", code).apply()
+                val snip = File(cacheDir, "groovy_console_snippet.groovy")
+                    .apply { writeText(code) }
+                val wrapper = File(cacheDir, "groovy_console_wrapper.groovy")
+                    .apply { writeText(groovyWrapperScript()) }
+
+                val dialog = AlertDialog.Builder(this@ToolsPanel)
+                    .setTitle(t("Groovy Console"))
+                    .setMessage(t("Running..."))
+                    .setCancelable(false)
+                    .create()
+                dialog.show()
+                scope.launch(Dispatchers.IO) {
+                    val cp = groovyJars.joinToString(":") { it.absolutePath }
+                    val (exit, out) = runToolProcess(
+                        listOf(
+                            javaBin.absolutePath, "-cp", cp,
+                            "groovy.ui.GroovyMain",
+                            wrapper.absolutePath, snip.absolutePath
+                        ),
+                        filesDir,
+                        90_000L
+                    )
+                    withContext(Dispatchers.Main) {
+                        runCatching { dialog.dismiss() }
+                        showTextDialog(
+                            "Groovy output",
+                            out.ifBlank { "exit code $exit" }
+                        )
+                    }
+                }
+            })
+            addView(secondaryButton("Clear") {
+                snippet.setText("")
+                groovySnippetPrefs().edit().remove("groovy").apply()
+            })
+            addView(secondaryButton("Refresh") {
+                renderCategory(currentCategory)
+            })
+        })
+        card.addView(TextView(host).apply {
+            text = t(
+                "The value of the snippet's last expression is printed after " +
+                    "any println output, and errors are reported verbatim."
+            )
+            textSize = 11f
+            setTextColor(StudioUi.color(StudioUi.Muted))
+            setPadding(0, dp(6), 0, 0)
+        })
+        return card
+    }
+
+    // ------------------------------------------------------------
+    // Cling (C++ interpreter)
+    // ------------------------------------------------------------
+
+    /**
+     * Locates a `cling` executable under the toolchain root. The heavy tool
+     * trees (ndk/sdk/gradle/jdk) are skipped — cling is never shipped inside
+     * them and walking the NDK would take seconds.
+     */
+    private fun findClingBinary(): File? {
+        val root = File(filesDir, "toolchain")
+        if (!root.isDirectory) return null
+        var found: File? = null
+        runCatching {
+            root.walkTopDown()
+                .onEnter { it.name !in setOf("ndk", "sdk", "gradle", "jdk", ".git", "build") }
+                .maxDepth(6)
+                .forEach { f ->
+                    if (found == null && f.isFile && f.name == "cling" && f.length() > 0L) {
+                        found = f
+                    }
+                }
+        }
+        return found
+    }
+
+    private fun clingSnippetPrefs() =
+        getSharedPreferences("tools_console", MODE_PRIVATE)
+
+    private fun buildClingCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Cling (C++ Interpreter)"))
+
+        var clingBin: File? = null
+        val status = TextView(host).apply {
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setPadding(0, 0, 0, dp(8))
+        }
+        card.addView(status)
+
+        val snippet = EditText(this).apply {
+            setSingleLine(false)
+            minLines = 4
+            maxLines = 12
+            gravity = Gravity.TOP
+            typeface = Typeface.MONOSPACE
+            textSize = 13f
+            setTextColor(StudioUi.color(StudioUi.Text))
+            setHintTextColor(StudioUi.color(StudioUi.Muted))
+            background = StudioUi.inputBg(host)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            hint = "C++ snippet"
+            setText(clingSnippetPrefs().getString("cling", DEFAULT_CLING_SNIPPET))
+            setSelection(text.length)
+        }
+        card.addView(snippet)
+
+        fun showLocateResult(bin: File?) {
+            clingBin = bin
+            status.text = t(
+                if (bin != null) "Found: ${bin.absolutePath}"
+                else "cling is not installed. Place the binary under " +
+                    "filesDir/toolchain and tap Locate."
+            )
+            status.setTextColor(
+                StudioUi.color(if (bin != null) StudioUi.Green else StudioUi.Amber)
+            )
+        }
+        showLocateResult(null)
+        status.text = t("Searching the toolchain for cling...")
+        scope.launch(Dispatchers.IO) {
+            val bin = findClingBinary()
+            withContext(Dispatchers.Main) {
+                if (!host.isFinishing && !host.isDestroyed) showLocateResult(bin)
+            }
+        }
+
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Run") {
+                val bin = clingBin ?: run {
+                    toast("cling is not installed")
+                    return@primaryButton
+                }
+                val code = snippet.text.toString()
+                if (code.isBlank()) {
+                    toast("Type a C++ snippet first")
+                    return@primaryButton
+                }
+                clingSnippetPrefs().edit().putString("cling", code).apply()
+                val file = File(cacheDir, "cling_snippet.C").apply { writeText(code) }
+
+                val dialog = AlertDialog.Builder(this@ToolsPanel)
+                    .setTitle(t("Cling"))
+                    .setMessage(t("Running..."))
+                    .setCancelable(false)
+                    .create()
+                dialog.show()
+                scope.launch(Dispatchers.IO) {
+                    val (exit, out) = runToolProcess(
+                        listOf(bin.absolutePath, file.absolutePath),
+                        filesDir,
+                        60_000L
+                    )
+                    withContext(Dispatchers.Main) {
+                        runCatching { dialog.dismiss() }
+                        showTextDialog(
+                            "Cling output",
+                            out.ifBlank { "exit code $exit (no output)" }
+                        )
+                    }
+                }
+            })
+            addView(secondaryButton("Locate") {
+                status.text = t("Searching the toolchain for cling...")
+                scope.launch(Dispatchers.IO) {
+                    val bin = findClingBinary()
+                    withContext(Dispatchers.Main) {
+                        if (!host.isFinishing && !host.isDestroyed) showLocateResult(bin)
+                    }
+                }
+            })
+            addView(secondaryButton("Refresh") {
+                renderCategory(currentCategory)
+            })
+        })
+        card.addView(TextView(host).apply {
+            text = t(
+                "Cling batch mode does not echo expression values — print " +
+                    "results with printf or std::cout. Cling is not bundled " +
+                    "with MobileStudio."
+            )
+            textSize = 11f
+            setTextColor(StudioUi.color(StudioUi.Muted))
+            setPadding(0, dp(6), 0, 0)
         })
         return card
     }
