@@ -457,15 +457,9 @@ class StudioMainActivity : AppCompatActivity() {
                 "agp_upgrade" -> openTool("agp_upgrade")
                 "android_sdk_upgrade" -> openTool("android_sdk_upgrade")
                 "troubleshoot_device" -> openTool("troubleshoot_device")
-                "app_links" -> {
-                    settingsInitialPage = "app_links"
-                    showSettingsOverlay = true
-                }
+                "app_links" -> openTool("app_links")
                 "firebase" -> openTool("firebase")
-                "layout_inspector" -> {
-                    settingsInitialPage = "layout_inspector"
-                    showSettingsOverlay = true
-                }
+                "layout_inspector" -> openTool("layout_inspector")
                 "generate_javadoc" -> openTool("generate_javadoc")
                 "create_cli_launcher" -> openTool("create_cli_launcher")
                 "services" -> openTool("services")

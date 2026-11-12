@@ -12,6 +12,10 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.util.Xml
+import java.security.KeyStore
+import java.security.MessageDigest
+import org.xmlpull.v1.XmlPullParser
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -121,6 +125,9 @@ internal class ToolsPanel(
 
     /** Selected tab in the SDK Manager card: 0 = SDK Platforms, 1 = SDK Tools, 2 = SDK Update Sites. */
     private var sdkManagerTab: Int = 0
+
+    /** Last layout file selected in the Layout Inspector card (survives re-renders). */
+    private var layoutInspectorPath: String? = null
 
     private fun t(value: String): String = AppLanguage.literal(this, value)
 
@@ -384,6 +391,10 @@ printf("x = %d\\n", x);"""
                 rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildFirebaseCard())
                 rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildLayoutInspectorCard())
+                rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildAppLinksCard())
+                rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildTroubleshootCard())
                 rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildLogcatCard())
@@ -454,6 +465,10 @@ printf("x = %d\\n", x);"""
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildFirebaseCard())
         rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildLayoutInspectorCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildAppLinksCard())
+        rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildAgpUpgradeCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildJavadocCard())
@@ -509,6 +524,10 @@ printf("x = %d\\n", x);"""
         rootContainer.addView(buildResourceManagerCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildFirebaseCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildLayoutInspectorCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildAppLinksCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildAgpUpgradeCard())
         rootContainer.addView(spacer(dp(8)))
@@ -2028,6 +2047,479 @@ try {
         return card
     }
 
+    // ------------------------------------------------------------
+    // Layout Inspector (static XML view hierarchy)
+    // ------------------------------------------------------------
+
+    private class LayoutNode(
+        val tag: String,
+        val line: Int,
+        val attrs: Map<String, String>,
+        val children: MutableList<LayoutNode> = mutableListOf(),
+    )
+
+    /** Source layout XML files of the project (res/layout, res/layout-land, …). */
+    private fun projectLayoutFiles(root: File): List<File> =
+        root.walkTopDown()
+            .onEnter {
+                it.name !in setOf(".gradle", ".idea", "build", ".git", "node_modules", ".cxx", "out")
+            }
+            .filter {
+                it.isFile && it.extension == "xml" &&
+                    it.parentFile?.name?.startsWith("layout") == true
+            }
+            .sortedBy { it.path }
+            .toList()
+
+    /** Builds the element tree of a layout XML document. */
+    private fun parseLayoutTree(text: String): LayoutNode? {
+        val parser = Xml.newPullParser()
+        parser.setInput(text.reader())
+        var root: LayoutNode? = null
+        val stack = ArrayDeque<LayoutNode>()
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            when (event) {
+                XmlPullParser.START_TAG -> {
+                    val attrs = (0 until parser.attributeCount).associate { i ->
+                        parser.getAttributeName(i).substringAfterLast(':') to
+                            (parser.getAttributeValue(i) ?: "")
+                    }
+                    val node = LayoutNode(parser.name, parser.lineNumber, attrs)
+                    val parent = stack.lastOrNull()
+                    if (parent != null) parent.children.add(node) else root = node
+                    stack.addLast(node)
+                }
+                XmlPullParser.END_TAG -> if (stack.isNotEmpty()) stack.removeLast()
+            }
+            event = parser.next()
+        }
+        return root
+    }
+
+    /** Indented `tag #id [w x h] (visibility) :line` lines, capped for the UI. */
+    private fun layoutTreeLines(
+        node: LayoutNode,
+        depth: Int = 0,
+        out: MutableList<String> = mutableListOf(),
+    ): MutableList<String> {
+        if (out.size >= 400 || depth > 30) return out
+        val id = node.attrs["id"]
+        val w = node.attrs["layout_width"]
+        val h = node.attrs["layout_height"]
+        val vis = node.attrs["visibility"]
+        out += buildString {
+            append("  ".repeat(depth))
+            append(node.tag)
+            id?.let { append("  #").append(it.substringAfterLast('/')) }
+            if (w != null || h != null) {
+                append("  [").append(w ?: "?").append(" x ").append(h ?: "?").append("]")
+            }
+            if (vis != null && vis != "visible") append("  (").append(vis).append(")")
+            append("  :").append(node.line)
+        }
+        node.children.forEach { layoutTreeLines(it, depth + 1, out) }
+        return out
+    }
+
+    /**
+     * Tools > Layout Inspector. Parses the selected layout XML and shows its
+     * view hierarchy with ids, dimensions, visibility and source lines —
+     * the static counterpart of the live inspector, which needs a device.
+     */
+    private fun buildLayoutInspectorCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Layout Inspector"))
+
+        val root = currentProjectDirOrNull()
+        if (root == null) {
+            card.addView(TextView(host).apply {
+                text = t("Open a project to inspect its layout XML files.")
+                textSize = 12f
+                setTextColor(StudioUi.color(StudioUi.TextSoft))
+                setPadding(0, 0, 0, dp(8))
+            })
+            card.addView(primaryButton("Open Project") {
+                FileManagerActivity.start(host, projectMode = true)
+            })
+            return card
+        }
+
+        val layouts = projectLayoutFiles(root)
+        val current = (host as? StudioMainActivity)?.currentFile
+            ?.takeIf { it.isFile && it.parentFile?.name?.startsWith("layout") == true }
+        val selected = layoutInspectorPath?.let { File(it) }?.takeIf { it.isFile }
+            ?: current
+            ?: layouts.firstOrNull()
+
+        if (selected == null) {
+            card.addView(TextView(host).apply {
+                text = t("No layout XML found under ${root.name}/res/layout.")
+                textSize = 12f
+                setTextColor(StudioUi.color(StudioUi.Amber))
+                setPadding(0, 0, 0, dp(8))
+            })
+            card.addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
+            return card
+        }
+        layoutInspectorPath = selected.absolutePath
+
+        val xmlText = runCatching { selected.readText() }.getOrDefault("")
+        val err = xmlParseError(xmlText)
+        val tree = if (err == null) parseLayoutTree(xmlText) else null
+        val lines = tree?.let { layoutTreeLines(it) } ?: emptyList()
+
+        card.addView(TextView(host).apply {
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setPadding(0, 0, 0, dp(6))
+            if (err != null) {
+                text = t("${shortPath(selected.absolutePath)} — not well-formed: $err")
+                setTextColor(StudioUi.color(StudioUi.Red))
+            } else {
+                text = t(
+                    "${shortPath(selected.absolutePath)} — " +
+                        "${lines.size} element(s) shown"
+                )
+                setTextColor(StudioUi.color(StudioUi.Green))
+            }
+        })
+
+        if (err == null) {
+            card.addView(TextView(host).apply {
+                text = lines.joinToString("\n").ifBlank { t("(empty document)") }
+                textSize = 11f
+                typeface = Typeface.MONOSPACE
+                setTextColor(StudioUi.color(StudioUi.Text))
+                setTextIsSelectable(true)
+                background = StudioUi.rounded(
+                    host, fill = StudioUi.Surface, stroke = StudioUi.Border, radiusDp = 6
+                )
+                setPadding(dp(8), dp(6), dp(8), dp(6))
+            })
+            if (lines.size >= 400) {
+                card.addView(TextView(host).apply {
+                    text = t("Hierarchy truncated at 400 elements.")
+                    textSize = 11f
+                    setTextColor(StudioUi.color(StudioUi.Muted))
+                    setPadding(0, dp(4), 0, 0)
+                })
+            }
+        }
+
+        card.addView(spacer(dp(8)))
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Choose Layout") {
+                if (layouts.isEmpty()) {
+                    toast("No layout XML found")
+                    return@primaryButton
+                }
+                val labels = layouts.map { shortPath(it.absolutePath) }.toTypedArray()
+                AlertDialog.Builder(this@ToolsPanel)
+                    .setTitle(t("Layouts"))
+                    .setItems(labels) { _, which ->
+                        layoutInspectorPath = layouts[which].absolutePath
+                        renderCategory(currentCategory)
+                    }
+                    .setNegativeButton(t("Cancel"), null)
+                    .show()
+            })
+            addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
+            addView(secondaryButton("Open in Editor") {
+                if (!openProjectFile(selected)) toast("File not found")
+            })
+        })
+        return card
+    }
+
+    // ------------------------------------------------------------
+    // App Links Assistant
+    // ------------------------------------------------------------
+
+    private data class AppLinkFilter(
+        val manifest: String,
+        val autoVerify: Boolean,
+        val schemes: List<String>,
+        val hosts: List<String>,
+        val paths: List<String>,
+    )
+
+    /** All intent-filters of one manifest that declare web hosts. */
+    private fun parseAppLinkFilters(file: File): List<AppLinkFilter> {
+        val out = mutableListOf<AppLinkFilter>()
+        runCatching {
+            val parser = Xml.newPullParser()
+            parser.setInput(file.reader())
+            var inFilter = false
+            var auto = false
+            val schemes = mutableListOf<String>()
+            val hosts = mutableListOf<String>()
+            val paths = mutableListOf<String>()
+            var event = parser.eventType
+            while (event != XmlPullParser.END_DOCUMENT) {
+                when (event) {
+                    XmlPullParser.START_TAG -> {
+                        val name = parser.name
+                        if (name == "intent-filter") {
+                            inFilter = true
+                            auto = false
+                            schemes.clear(); hosts.clear(); paths.clear()
+                            for (i in 0 until parser.attributeCount) {
+                                val an = parser.getAttributeName(i).substringAfterLast(':')
+                                if (an == "autoVerify" && parser.getAttributeValue(i) == "true") {
+                                    auto = true
+                                }
+                            }
+                        } else if (inFilter && name == "autoVerify") {
+                            for (i in 0 until parser.attributeCount) {
+                                val an = parser.getAttributeName(i).substringAfterLast(':')
+                                if (an == "value" && parser.getAttributeValue(i) == "true") {
+                                    auto = true
+                                }
+                            }
+                        } else if (inFilter && name == "data") {
+                            for (i in 0 until parser.attributeCount) {
+                                when (parser.getAttributeName(i).substringAfterLast(':')) {
+                                    "scheme" -> parser.getAttributeValue(i)?.let { schemes += it }
+                                    "host" -> parser.getAttributeValue(i)?.let { hosts += it }
+                                    "path", "pathPrefix", "pathSuffix" ->
+                                        parser.getAttributeValue(i)?.let { paths += it }
+                                }
+                            }
+                        }
+                    }
+                    XmlPullParser.END_TAG -> {
+                        if (parser.name == "intent-filter" && inFilter) {
+                            inFilter = false
+                            if (hosts.isNotEmpty()) {
+                                out += AppLinkFilter(
+                                    file.absolutePath, auto,
+                                    schemes.distinct(), hosts.distinct(), paths.distinct()
+                                )
+                            }
+                        }
+                    }
+                }
+                event = parser.next()
+            }
+        }
+        return out
+    }
+
+    /** SHA-256 fingerprint of the project's debug signing certificate. */
+    private fun projectSigningFingerprint(root: File): String? {
+        val candidates = listOf(
+            File(root, "debug.keystore"),
+            File(filesDir, ".android/debug.keystore"),
+            File(root, ".android/debug.keystore"),
+            File(filesDir, "debug.keystore"),
+        )
+        val password = BuildToolsConfig.signingStorePassword(this).toCharArray()
+        val alias = BuildToolsConfig.signingKeyAlias(this)
+        for (file in candidates) {
+            if (!file.isFile) continue
+            for (type in listOf("JKS", "PKCS12")) {
+                val cert = try {
+                    val store = KeyStore.getInstance(type)
+                    file.inputStream().use { store.load(it, password) }
+                    store.getCertificate(alias)
+                } catch (_: Exception) {
+                    null
+                }
+                if (cert != null) {
+                    val digest = MessageDigest.getInstance("SHA-256").digest(cert.encoded)
+                    return digest.joinToString(":") {
+                        (it.toInt() and 0xFF).toString(16).uppercase().padStart(2, '0')
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Tools > App Links Assistant. Lists the manifest's web intent-filters,
+     * computes the assetlinks.json statement from the debug signing cert,
+     * and verifies the hosted statements over the network.
+     */
+    private fun buildAppLinksCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("App Links Assistant"))
+
+        val root = currentProjectDirOrNull()
+        if (root == null) {
+            card.addView(TextView(host).apply {
+                text = t("Open a project to analyze its AndroidManifest.xml.")
+                textSize = 12f
+                setTextColor(StudioUi.color(StudioUi.TextSoft))
+                setPadding(0, 0, 0, dp(8))
+            })
+            card.addView(primaryButton("Open Project") {
+                FileManagerActivity.start(host, projectMode = true)
+            })
+            return card
+        }
+
+        val pkg = readPackageNameFromGradle(root)
+        val fingerprint = projectSigningFingerprint(root)
+        val manifests = root.walkTopDown()
+            .onEnter {
+                it.name !in setOf(".gradle", ".idea", "build", ".git", "node_modules", ".cxx", "out")
+            }
+            .filter { it.isFile && it.name == "AndroidManifest.xml" }
+            .toList()
+        val filters = manifests.flatMap { m ->
+            parseAppLinkFilters(m).map { it.copy(manifest = m.absolutePath) }
+        }
+        val autoCount = filters.count { it.autoVerify }
+
+        fun row(label: String, value: String, color: String): TextView =
+            TextView(host).apply {
+                text = t("$label: $value")
+                textSize = 12f
+                typeface = Typeface.MONOSPACE
+                setTextColor(StudioUi.color(color))
+                setPadding(0, 0, 0, dp(4))
+            }
+
+        card.addView(row("applicationId", pkg, StudioUi.TextSoft))
+        card.addView(
+            if (fingerprint != null) row("signing cert SHA-256", fingerprint, StudioUi.Green)
+            else row("signing cert SHA-256", "debug.keystore not found", StudioUi.Amber)
+        )
+        card.addView(
+            if (filters.isEmpty()) {
+                row("web intent-filters", "none in ${manifests.size} manifest(s)", StudioUi.Amber)
+            } else {
+                row(
+                    "web intent-filters",
+                    "${filters.size} ($autoCount with android:autoVerify)",
+                    StudioUi.TextSoft
+                )
+            }
+        )
+
+        filters.take(12).forEach { f ->
+            val scheme = f.schemes.firstOrNull() ?: "https"
+            val url = scheme + "://" + f.hosts.first() +
+                (f.paths.firstOrNull() ?: "")
+            card.addView(TextView(host).apply {
+                text = (if (f.autoVerify) "\u2713 " else "  ") + url +
+                    "\n    " + shortPath(f.manifest)
+                textSize = 12f
+                typeface = Typeface.MONOSPACE
+                setTextColor(
+                    StudioUi.color(if (f.autoVerify) StudioUi.Green else StudioUi.TextSoft)
+                )
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+            })
+        }
+        if (filters.size > 12) {
+            card.addView(TextView(host).apply {
+                text = t("… and ${filters.size - 12} more")
+                textSize = 11f
+                setTextColor(StudioUi.color(StudioUi.Muted))
+                setPadding(0, dp(4), 0, 0)
+            })
+        }
+
+        card.addView(spacer(dp(8)))
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Verify Hosts") {
+                val hosts = filters.flatMap { f ->
+                    val scheme = f.schemes.firstOrNull() ?: "https"
+                    f.hosts.map { host -> scheme to host }
+                }.distinct()
+                if (hosts.isEmpty()) {
+                    toast("No hosts declared in the manifest")
+                    return@primaryButton
+                }
+                val dialog = AlertDialog.Builder(this@ToolsPanel)
+                    .setTitle(t("App Links verification"))
+                    .setMessage(t("Fetching assetlinks.json from ${hosts.size} host(s)..."))
+                    .setCancelable(false)
+                    .create()
+                dialog.show()
+                scope.launch(Dispatchers.IO) {
+                    val report = buildString {
+                        for ((scheme, host) in hosts) {
+                            val url = "$scheme://$host/.well-known/assetlinks.json"
+                            appendLine(url)
+                            try {
+                                val conn = URL(url).openConnection() as HttpURLConnection
+                                conn.connectTimeout = 10_000
+                                conn.readTimeout = 10_000
+                                conn.instanceFollowRedirects = true
+                                val code = conn.responseCode
+                                appendLine("  HTTP $code")
+                                if (code == 200) {
+                                    val body = conn.inputStream.bufferedReader().readText()
+                                    appendLine(
+                                        "  package $pkg: " +
+                                            (if (body.contains(pkg)) "found" else "MISSING")
+                                    )
+                                    if (fingerprint != null) {
+                                        appendLine(
+                                            "  certificate: " +
+                                                (if (body.contains(fingerprint)) "found"
+                                                else "MISSING")
+                                        )
+                                    }
+                                }
+                                conn.disconnect()
+                            } catch (e: Exception) {
+                                appendLine("  error: ${e.message ?: e.javaClass.simpleName}")
+                            }
+                            appendLine()
+                        }
+                    }.trimEnd()
+                    withContext(Dispatchers.Main) {
+                        runCatching { dialog.dismiss() }
+                        showTextDialog("App Links verification", report)
+                    }
+                }
+            })
+            addView(secondaryButton("Statement") {
+                val fps = fingerprint?.let { "\"$it\"" } ?: ""
+                val json = """
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "$pkg",
+    "sha256_cert_fingerprints": [$fps]
+  }
+}]
+""".trimIndent()
+                if (fingerprint == null) {
+                    toast("debug.keystore not found — fingerprint list is empty")
+                }
+                showTextDialog("assetlinks.json", json)
+            })
+            addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
+        })
+        card.addView(TextView(host).apply {
+            text = t(
+                "Verify fetches https://host/.well-known/assetlinks.json and " +
+                    "checks this package and certificate against it."
+            )
+            textSize = 11f
+            setTextColor(StudioUi.color(StudioUi.Muted))
+            setPadding(0, dp(6), 0, 0)
+        })
+        return card
+    }
+
     private fun buildLogcatCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2142,8 +2634,11 @@ try {
             File(projectDir, "app/build.gradle")
         ).firstOrNull { it.exists() } ?: return "com.example.app"
         val text = gradleFile.readText()
-        val regex = Regex("""applicationId\s*[=(]?\s*['"]([^'"]+)['"]""")
-        return regex.find(text)?.groupValues?.get(1) ?: "com.example.app"
+        Regex("""applicationId\s*[=(]?\s*['"]([^'"]+)['"]""")
+            .find(text)?.let { return it.groupValues[1] }
+        Regex("""namespace\s*[=(]?\s*['"]([^'"]+)['"]""")
+            .find(text)?.let { return it.groupValues[1] }
+        return "com.example.app"
     }
 
     private fun buildDependencySearchCard(): View {
