@@ -465,6 +465,16 @@ class LayoutPreviewActivity : AppCompatActivity() {
                         Toast.LENGTH_SHORT).show()
                 }
             })
+
+            // 테마 편집기 (primary/background/surface 색상 편집)
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = "🎨 Theme"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener { showThemeEditor() }
+            })
         }
         root.addView(topBar)
 
@@ -3758,6 +3768,162 @@ $resourceEntry
             .setView(body)
             .setTitle(if (isKo) "레이아웃 변형" else "Layout Variants")
             .setPositiveButton(if (isKo) "닫기" else "Close", null)
+            .show()
+            .window?.setBackgroundDrawable(
+                GradientDrawable().apply {
+                    setColor(StudioUi.color(StudioUi.Surface2))
+                    cornerRadius = 16f
+                }
+            )
+    }
+
+    /**
+     * Theme Editor (Android Studio 스타일).
+     * 프로젝트의 colors.xml 또는 themes.xml에서 primary, background, surface 색상을
+     * 편집하고 실시간으로 프리뷰에 반영한다.
+     */
+    private fun showThemeEditor() {
+        val isKo = AppLanguage.isKorean(this)
+        val resDir = findResDir(targetFile)
+        if (resDir == null) {
+            Toast.makeText(this, if (isKo) "res 디렉터리를 찾을 수 없습니다." else "res directory not found.",
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val colorsFile = File(resDir, "values/colors.xml")
+        val themesFile = File(resDir, "values/themes.xml")
+
+        // 기존 색상 값 읽기
+        var primaryColor = "#6200EE"
+        var secondaryColor = "#03DAC6"
+        var backgroundColor = "#FFFFFF"
+        var surfaceColor = "#FFFFFF"
+
+        if (colorsFile.isFile) {
+            try {
+                val content = colorsFile.readText()
+                val colorRegex = Regex("""<color name="(colorPrimary|colorSecondary|android:colorBackground|colorSurface)">([^<]+)</color>""")
+                for (m in colorRegex.findAll(content)) {
+                    when (m.groupValues[1]) {
+                        "colorPrimary" -> primaryColor = m.groupValues[2]
+                        "colorSecondary" -> secondaryColor = m.groupValues[2]
+                        "android:colorBackground" -> backgroundColor = m.groupValues[2]
+                        "colorSurface" -> surfaceColor = m.groupValues[2]
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            setBackgroundColor(StudioUi.color(StudioUi.Surface2))
+        }
+
+        body.addView(TextView(this).apply {
+            text = if (isKo) "테마 편집기" else "Theme Editor"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(12))
+        })
+
+        data class ColorField(val label: String, val name: String, var value: String)
+
+        val fields = listOf(
+            ColorField(if (isKo) "Primary 색상" else "Primary Color", "colorPrimary", primaryColor),
+            ColorField(if (isKo) "Secondary 색상" else "Secondary Color", "colorSecondary", secondaryColor),
+            ColorField(if (isKo) "Background 색상" else "Background Color", "android:colorBackground", backgroundColor),
+            ColorField(if (isKo) "Surface 색상" else "Surface Color", "colorSurface", surfaceColor)
+        )
+
+        val inputs = mutableMapOf<String, EditText>()
+
+        for (field in fields) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 0, 0, dp(12))
+            }
+            row.addView(TextView(this).apply {
+                text = field.label
+                textSize = 13f
+                setTextColor(Color.WHITE)
+            })
+            val input = EditText(this).apply {
+                setText(field.value)
+                hint = "#RRGGBB"
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                setHintTextColor("#8B949E".toColorInt())
+                setBackgroundColor("#232936".toColorInt())
+                setPadding(dp(10), dp(8), dp(10), dp(8))
+                setSingleLine(true)
+                layoutParams = LinearLayout.LayoutParams(-1, -2)
+            }
+            inputs[field.name] = input
+            row.addView(input)
+            body.addView(row)
+        }
+
+        // 미리보기 색상 블록
+        body.addView(TextView(this).apply {
+            text = if (isKo) "미리보기" else "Preview"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(12), 0, dp(8))
+        })
+        val previewRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val colorNames = listOf("colorPrimary" to "#6200EE", "colorSecondary" to "#03DAC6",
+            "android:colorBackground" to "#FFFFFF", "colorSurface" to "#FFFFFF")
+        for ((name, default) in colorNames) {
+            val block = View(this).apply {
+                setBackgroundColor(inputs[name]?.text?.toString()?.let { it.takeIf { it.startsWith("#") }?.toColorInt() } ?: default.toColorInt())
+                layoutParams = LinearLayout.LayoutParams(dp(40), dp(40)).apply { topMargin = dp(8); rightMargin = dp(8) }
+            }
+            previewRow.addView(block)
+        }
+        body.addView(previewRow)
+
+        AlertDialog.Builder(this)
+            .setView(body)
+            .setTitle(if (isKo) "테마 편집" else "Edit Theme")
+            .setPositiveButton(if (isKo) "저장" else "Save") { _, _ ->
+                pushUndo()
+                try {
+                    // colors.xml 업데이트 또는 생성
+                    colorsFile.parentFile.mkdirs()
+                    var colorsXml = if (colorsFile.isFile) colorsFile.readText() else """<?xml version="1.0" encoding="utf-8"?>
+<resources>
+</resources>"""
+
+                    for ((name, input) in inputs) {
+                        val value = input.text.toString().trim()
+                        val colorTag = """    <color name="$name">$value</color>"""
+                        if (colorsXml.contains("name=\"$name\"")) {
+                            colorsXml = colorsXml.replace(Regex("""<color name="$name">[^<]*</color>"""), colorTag)
+                        } else if (colorsXml.contains("<resources>")) {
+                            colorsXml = colorsXml.replace("</resources>", "$colorTag\n</resources>")
+                        }
+                    }
+                    colorsFile.writeText(colorsXml)
+
+                    val isKo2 = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                    Toast.makeText(this@LayoutPreviewActivity,
+                        if (isKo2) "테마 저장됨: colors.xml" else "Theme saved: colors.xml",
+                        Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Theme save error", e)
+                    val isKo2 = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                    Toast.makeText(this@LayoutPreviewActivity,
+                        if (isKo2) "저장 실패: ${e.message}" else "Save failed: ${e.message}",
+                        Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(if (isKo) "취소" else "Cancel", null)
             .show()
             .window?.setBackgroundDrawable(
                 GradientDrawable().apply {
