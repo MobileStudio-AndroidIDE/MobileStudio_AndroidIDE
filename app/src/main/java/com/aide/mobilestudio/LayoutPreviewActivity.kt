@@ -2677,7 +2677,8 @@ class LayoutPreviewActivity : AppCompatActivity() {
 
     private fun showNodeMenu(node: XmlNode) {
         val isKo = AppLanguage.isKorean(this)
-        val options = arrayOf("Duplicate", "Delete", "Properties", "Convert to...", "Extract to Resource...")
+        val options = arrayOf("Duplicate", "Delete", "Properties", "Convert to...",
+            "Extract to Resource...", "Convert to ConstraintLayout")
         AlertDialog.Builder(this)
             .setTitle("<${node.tagName}> ${node.id ?: ""}")
             .setItems(options) { _, which ->
@@ -2695,6 +2696,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
                     2 -> showNodePropertyEditor(node)
                     3 -> showConvertNodeDialog(node)
                     4 -> showExtractToResourceDialog(node)
+                    5 -> convertLayoutToConstraintLayout(node)
                 }
             }.show()
     }
@@ -3106,6 +3108,90 @@ $resourceEntry
             }
             .setNegativeButton(if (isKo) "취소" else "Cancel", null)
             .show()
+    }
+
+    /**
+     * Convert to ConstraintLayout (Android Studio 스타일 레이아웃 변환).
+     * LinearLayout/RelativeLayout 등을 ConstraintLayout으로 바꾸고,
+     * 각 자식에 위치 기반 제약조건(layout_constraint*_)을 자동 추가한다.
+     */
+    private fun convertLayoutToConstraintLayout(node: XmlNode) {
+        val isKo = AppLanguage.isKorean(this)
+        val low = node.tagName.lowercase()
+        if (!low.contains("linearlayout") && !low.contains("rellativelayout") &&
+            !low.contains("framelayout") && !low.contains("relativelayout")) {
+            Toast.makeText(this, if (isKo) "레이아웃 컨테이너만 변환 가능합니다."
+                else "Only layout containers can be converted.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        pushUndo()
+        val oldTag = node.tagName
+        val newTag = "androidx.constraintlayout.widget.ConstraintLayout"
+
+        // 태그 변경
+        node.tagName = newTag
+
+        // xmlns:app 추가 (없는 경우)
+        if (node.attrs.none { it.key == "xmlns:app" }) {
+            node.attrs["xmlns:app"] = "http://schemas.android.com/apk/res-auto"
+        }
+
+        // ConstraintLayout-unsupported 속성 제거 (layout_weight 등)
+        node.attrs.remove("android:layout_weight")
+        node.attrs.remove("android:orientation")
+
+        // 자식들에 제약조건 추가
+        val children = node.children.toList()
+        for ((idx, child) in children.withIndex()) {
+            // 기본적으로 부모에 양쪽 모서리를 제약
+            child.setAttr("layout_constraintTop_toTopOf", "parent")
+            child.setAttr("layout_constraintBottom_toBottomOf", "parent")
+            child.setAttr("layout_constraintStart_toStartOf", "parent")
+            child.setAttr("layout_constraintEnd_toEndOf", "parent")
+
+            // 선형 배치가Vertical이면 상하 연결 (체인)
+            if (low.contains("linearlayout")) {
+                val orient = node.attrs["android:orientation"]
+                if (orient == "vertical" || orient == null) {
+                    if (idx > 0) {
+                        val prev = children[idx - 1]
+                        val prevId = prev.attrs["android:id"]
+                        if (prevId != null && prevId.isNotEmpty()) {
+                            child.setAttr("layout_constraintTop_toBottomOf", prevId)
+                            child.setAttr("layout_constraintTop_toTopOf", null)
+                        }
+                    }
+                    if (idx == 0) {
+                        child.setAttr("layout_constraintTop_toTopOf", "parent")
+                    }
+                } else {
+                    // horizontal
+                    if (idx > 0) {
+                        val prev = children[idx - 1]
+                        val prevId = prev.attrs["android:id"]
+                        if (prevId != null && prevId.isNotEmpty()) {
+                            child.setAttr("layout_constraintStart_toEndOf", prevId)
+                            child.setAttr("layout_constraintStart_toStartOf", null)
+                        }
+                    }
+                    if (idx == 0) {
+                        child.setAttr("layout_constraintStart_toStartOf", "parent")
+                    }
+                }
+            }
+
+            // 레이아웃 관련 속성 정리 (ConstraintLayout과 충돌하는 속성)
+            child.attrs.remove("android:layout_weight")
+        }
+
+        commitChange()
+        designCanvas.select(node)
+
+        val isKo2 = AppLanguage.isKorean(this@LayoutPreviewActivity)
+        Toast.makeText(this@LayoutPreviewActivity,
+            if (isKo2) "$oldTag → ConstraintLayout 변환됨" else "$oldTag → ConstraintLayout converted",
+            Toast.LENGTH_SHORT).show()
     }
 
     // =========================================================================
