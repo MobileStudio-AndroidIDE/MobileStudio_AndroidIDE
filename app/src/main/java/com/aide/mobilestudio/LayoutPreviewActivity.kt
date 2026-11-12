@@ -508,8 +508,18 @@ class LayoutPreviewActivity : AppCompatActivity() {
      *  - 하단: 위젯 팔레트 (편집 모드에서 표시)
      */
     private fun buildDesignPanel(): View {
-        return FrameLayout(this).apply {
+        val dPanel = LinearLayout(this).apply {
             tag = "design_panel"
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor("#0F1218".toColorInt())
+        }
+
+        // 왼쪽: 노드 트리 (컴포넌트 트리)
+        val nodeTree = buildNodeTreePanel()
+        dPanel.addView(nodeTree, LinearLayout.LayoutParams(dp(220), -1))
+
+        // 오른쪽: 디자인 캔버스 + 프리뷰
+        val designArea = FrameLayout(this).apply {
             setBackgroundColor("#0F1218".toColorInt())
 
             // 편집 캔버스 (스마트폰 화면 영역에 정렬, 투명 배경)
@@ -535,6 +545,123 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 dp(132),
                 Gravity.BOTTOM
             ))
+        }
+        dPanel.addView(designArea, LinearLayout.LayoutParams(0, -1, 1f))
+
+        return dPanel
+    }
+
+    /**
+     * 노드 트리 패널 (Android Studio Component Tree 스타일).
+     * XML 계층 구조를 트리로 표시하고, 항목 클릭 시 해당 노드를 선택/하이라이트.
+     */
+    private fun buildNodeTreePanel(): View {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor("#161A20".toColorInt())
+        }
+
+        // 헤더
+        container.addView(TextView(this).apply {
+            text = "Component Tree"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(dp(12), dp(10), dp(12), dp(8))
+            setBackgroundColor("#21252B".toColorInt())
+        })
+
+        // 트리 스크롤
+        val treeScroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+            setBackgroundColor("#161A20".toColorInt())
+        }
+        val treeRoot = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        treeScroll.addView(treeRoot)
+        container.addView(treeScroll)
+
+        // 리프레시 버튼
+        container.addView(Button(this).apply {
+            text = "Refresh Tree"
+            textSize = 11f
+            setTextColor(Color.WHITE)
+            setBackgroundColor("#2B3140".toColorInt())
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply {
+                topMargin = dp(6); bottomMargin = dp(6)
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+            setOnClickListener { refreshNodeTree(treeRoot) }
+        })
+
+        // 초기 렌더링
+        refreshNodeTree(treeRoot)
+
+        return container
+    }
+
+    private fun refreshNodeTree(treeRoot: LinearLayout) {
+        treeRoot.removeAllViews()
+        val root = rootNode
+        if (root == null) {
+            treeRoot.addView(TextView(this).apply {
+                text = "No nodes"
+                textSize = 12f
+                setTextColor("#8B949E".toColorInt())
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+            })
+            return
+        }
+        addNodeTreeItems(treeRoot, root, 0)
+    }
+
+    private fun addNodeTreeItems(parent: LinearLayout, node: XmlNode, depth: Int) {
+        val isKo = AppLanguage.isKorean(this)
+        val isSelected = selectedNode == node
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(12 + depth * 12), dp(6), dp(8), dp(6))
+            setBackgroundColor(if (isSelected) 0xFF4F8EF7.toInt() else 0xFF161A20.toInt())
+            setOnClickListener {
+                selectedNode = node
+                designCanvas.select(node)
+                refreshNodeTree(parent)
+                val isKo2 = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                Toast.makeText(this@LayoutPreviewActivity, "<${node.tagName}> selected", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 깊이 인디케이터
+        if (depth > 0) {
+            row.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(4), dp(4))
+                setBackgroundColor("#4F8EF7".toColorInt())
+            })
+        }
+
+        // 아이콘 + 태그명
+        val icon = if (node.isLayout) "▭" else "○"
+        row.addView(TextView(this).apply {
+            text = icon
+            textSize = 12f
+            setTextColor(if (isSelected) Color.WHITE else "#C9D1D9".toColorInt())
+            setPadding(0, 0, dp(4), 0)
+        })
+        row.addView(TextView(this).apply {
+            text = "<${node.tagName}${node.id?.let { " #$it" } ?: ""}"
+            textSize = 12f
+            setTextColor(if (isSelected) Color.WHITE else "#C9D1D9".toColorInt())
+            typeface = Typeface.MONOSPACE
+        })
+
+        parent.addView(row)
+
+        // 자식 노드 재귀
+        node.children.forEach { child ->
+            addNodeTreeItems(parent, child, depth + 1)
         }
     }
 
