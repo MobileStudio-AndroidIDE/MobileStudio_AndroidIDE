@@ -333,6 +333,16 @@ class LayoutPreviewActivity : AppCompatActivity() {
                     refreshWidgetPreview()
                 }
             })
+
+            // 템플릿 갤러리 (XML 몰라도 쉽게 레이아웃 생성)
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = "🎨 Templates"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener { showTemplateGallery() }
+            })
         }
         root.addView(topBar)
 
@@ -2291,6 +2301,286 @@ class LayoutPreviewActivity : AppCompatActivity() {
             }
             .setNegativeButton(if (isKo) "취소" else "Cancel", null)
             .show()
+    }
+
+    // =========================================================================
+    // 템플릿 갤러리 (XML 몰라도 쉽게 레이아웃 생성)
+    // =========================================================================
+
+    private data class LayoutTemplate(
+        val name: String,
+        val desc: String,
+        val xml: String
+    )
+
+    private val layoutTemplates = listOf(
+        LayoutTemplate(
+            "Empty Activity",
+            "Simple ConstraintLayout with centered text",
+            """<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/textHello"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hello, World!"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>"""
+        ),
+        LayoutTemplate(
+            "Login Form",
+            "Card with email/password fields and login button",
+            """<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center">
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        style="@style/Widget.MaterialComponents.CardView">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sign In"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:layout_gravity="center"
+                android:layout_marginBottom="24dp" />
+
+            <EditText
+                android:id="@+id/inputEmail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Email"
+                android:inputType="textEmailAddress"
+                android:layout_marginBottom="16dp" />
+
+            <EditText
+                android:id="@+id/inputPassword"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Password"
+                android:inputType="textPassword"
+                android:layout_marginBottom="24dp" />
+
+            <Button
+                android:id="@+id/btnLogin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Login" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>"""
+        ),
+        LayoutTemplate(
+            "Bottom Navigation",
+            "BottomNavigationView with 3 destinations",
+            """<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/fragmentContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/bottomNavigation" />
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        app:menu="@menu/bottom_nav_menu" />
+
+</RelativeLayout>"""
+        ),
+        LayoutTemplate(
+            "List Screen",
+            "RecyclerView with header and swipe-to-refresh",
+            """<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/headerTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="My Items"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:padding="16dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/itemList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp" />
+
+</LinearLayout>"""
+        ),
+        LayoutTemplate(
+            "Profile Page",
+            "Avatar, name, stats row, and action buttons",
+            """<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:padding="24dp">
+
+    <ImageView
+        android:id="@+id/avatar"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:background="#E0E0E0"
+        android:contentDescription="Profile avatar" />
+
+    <TextView
+        android:id="@+id/displayName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="John Doe"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginTop="16dp" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="128 Posts"
+            android:textSize="14sp"
+            android:padding="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1.2K Followers"
+            android:textSize="14sp"
+            android:padding="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="456 Following"
+            android:textSize="14sp"
+            android:padding="8dp" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnEdit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Edit Profile"
+        android:layout_marginTop="24dp" />
+
+</LinearLayout>"""
+        )
+    )
+
+    private fun showTemplateGallery() {
+        val isKo = AppLanguage.isKorean(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            setBackgroundColor(StudioUi.color(StudioUi.Surface2))
+        }
+
+        root.addView(TextView(this).apply {
+            text = if (isKo) "템플릿 선택" else "Choose Template"
+            textSize = 17f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(12))
+        })
+
+        val scroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, -2)
+        }
+        scroll.addView(root)
+
+        for (tpl in layoutTemplates) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                setBackgroundColor("#232936".toColorInt())
+                layoutParams = LinearLayout.LayoutParams(-1, -2).apply {
+                    bottomMargin = dp(10)
+                }
+                setOnClickListener {
+                    pushUndo()
+                    suppressFileObserver = true
+                    targetFile?.writeText(tpl.xml)
+                    suppressFileObserver = false
+                    loadXmlToNodes()
+                    renderDesign()
+                    refreshWidgetPreview()
+                    Toast.makeText(this@LayoutPreviewActivity,
+                        if (isKo) "템플릿 적용: ${tpl.name}" else "Applied: ${tpl.name}",
+                        Toast.LENGTH_SHORT).show()
+                }
+            }
+            card.addView(TextView(this).apply {
+                text = tpl.name
+                textSize = 15f
+                setTextColor(Color.WHITE)
+                typeface = Typeface.DEFAULT_BOLD
+            })
+            card.addView(TextView(this).apply {
+                text = tpl.desc
+                textSize = 12f
+                setTextColor("#8B949E".toColorInt())
+                setPadding(0, dp(4), 0, 0)
+            })
+            scroll.addView(card)
+        }
+
+        root.addView(scroll)
+
+        AlertDialog.Builder(this)
+            .setView(scroll)
+            .setPositiveButton(if (isKo) "닫기" else "Close", null)
+            .show()
+            .window?.setBackgroundDrawable(
+                GradientDrawable().apply {
+                    setColor(StudioUi.color(StudioUi.Surface2))
+                    cornerRadius = 16f
+                }
+            )
     }
 
     private fun duplicateNode(node: XmlNode) {
