@@ -372,6 +372,16 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 setOnClickListener { showTemplateGallery() }
             })
 
+            // 레이아웃 변형 (Variants: land, night, etc.)
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = "🔀 Variants"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener { showLayoutVariantsDialog() }
+            })
+
             // 라이브 싱크 토글 (소스 ↔ 디자인 실시간 동기화)
             addView(Button(this@LayoutPreviewActivity).apply {
                 text = if (liveSyncEnabled) "🔄 Sync On" else "🔄 Sync Off"
@@ -3647,6 +3657,106 @@ $resourceEntry
 
         AlertDialog.Builder(this)
             .setView(scroll)
+            .setPositiveButton(if (isKo) "닫기" else "Close", null)
+            .show()
+            .window?.setBackgroundDrawable(
+                GradientDrawable().apply {
+                    setColor(StudioUi.color(StudioUi.Surface2))
+                    cornerRadius = 16f
+                }
+            )
+    }
+
+    /**
+     * Layout Variants (Android Studio 스타일).
+     * 현재 레이아웃의 land, night 등 대체 버전을 res/ 하위 디렉터리에 생성한다.
+     * 생성된 변형 파일은 다른 설정 qualifier를 가진 동일한 파일명으로 저장됨.
+     */
+    private fun showLayoutVariantsDialog() {
+        val isKo = AppLanguage.isKorean(this)
+        val resDir = findResDir(targetFile)
+        if (resDir == null) {
+            Toast.makeText(this, if (isKo) "res 디렉터리를 찾을 수 없습니다." else "res directory not found.",
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val layoutDir = File(resDir, "layout")
+        if (!layoutDir.isDirectory) {
+            Toast.makeText(this, if (isKo) "layout 디렉터리가 없습니다." else "layout directory not found.",
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val currentFileName = targetFile?.name ?: "layout.xml"
+
+        val variants = listOf(
+            "land" to "세로 → 가로 (land)",
+            "night" to "라이트 → 다크 (night)",
+            "landNight" to "가로 + 다크 (land/night)",
+            "sw600dp" to "태블릿 (sw600dp)",
+            "sw720dp" to "대형 태블릿 (sw720dp)"
+        )
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            setBackgroundColor(StudioUi.color(StudioUi.Surface2))
+        }
+
+        body.addView(TextView(this).apply {
+            text = if (isKo) "변형 레이아웃 생성" else "Create Layout Variant"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(12))
+        })
+        body.addView(TextView(this).apply {
+            text = "현재 파일: $currentFileName"
+            textSize = 13f
+            typeface = Typeface.MONOSPACE
+            setTextColor("#4F8EF7".toColorInt())
+            setPadding(0, 0, 0, dp(16))
+        })
+
+        for ((qualifier, label) in variants) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, dp(8))
+            }
+            val btn = Button(this).apply {
+                text = label
+                textSize = 12f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                layoutParams = LinearLayout.LayoutParams(-2, -2)
+                setOnClickListener {
+                    val isKo2 = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                    val variantDir = File(resDir, "layout-$qualifier")
+                    variantDir.mkdirs()
+                    val variantFile = File(variantDir, currentFileName)
+                    try {
+                        val xml = targetFile?.readText() ?: ""
+                        variantFile.writeText(xml)
+                        Toast.makeText(this@LayoutPreviewActivity,
+                            if (isKo2) "변형 생성: $qualifier/$currentFileName" else "Variant created: $qualifier/$currentFileName",
+                            Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Create variant error", e)
+                        Toast.makeText(this@LayoutPreviewActivity,
+                            if (isKo2) "생성 실패: ${e.message}" else "Create failed: ${e.message}",
+                            Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            row.addView(btn)
+            body.addView(row)
+        }
+
+        AlertDialog.Builder(this)
+            .setView(body)
+            .setTitle(if (isKo) "레이아웃 변형" else "Layout Variants")
             .setPositiveButton(if (isKo) "닫기" else "Close", null)
             .show()
             .window?.setBackgroundDrawable(
