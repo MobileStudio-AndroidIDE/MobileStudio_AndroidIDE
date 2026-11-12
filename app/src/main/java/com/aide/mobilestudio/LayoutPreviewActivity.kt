@@ -1994,7 +1994,8 @@ class LayoutPreviewActivity : AppCompatActivity() {
     }
 
     private fun showNodeMenu(node: XmlNode) {
-        val options = arrayOf("Duplicate", "Delete", "Properties")
+        val isKo = AppLanguage.isKorean(this)
+        val options = arrayOf("Duplicate", "Delete", "Properties", "Convert to...")
         AlertDialog.Builder(this)
             .setTitle("<${node.tagName}> ${node.id ?: ""}")
             .setItems(options) { _, which ->
@@ -2009,9 +2010,233 @@ class LayoutPreviewActivity : AppCompatActivity() {
                         deleteNode(node)
                         commitChange()
                     }
-                    2 -> showXmlPropertyEditor(targetFile ?: return@setItems)
+                    2 -> showNodePropertyEditor(node)
+                    3 -> showConvertNodeDialog(node)
                 }
             }.show()
+    }
+
+    /**
+     * Visual property inspector for a single XmlNode. Lets users edit attributes
+     * without touching XML source — Android Studio-style property panel.
+     */
+    private fun showNodePropertyEditor(node: XmlNode) {
+        val isKo = AppLanguage.isKorean(this)
+        val scroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, -2)
+        }
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            setBackgroundColor(StudioUi.color(StudioUi.Surface2))
+        }
+
+        // Header
+        body.addView(TextView(this).apply {
+            text = if (isKo) "속성 편집기" else "Property Inspector"
+            textSize = 17f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(8))
+        })
+        body.addView(TextView(this).apply {
+            text = "<${node.tagName}>${node.id?.let { " android:id=\"$it\"" } ?: ""}"
+            textSize = 13f
+            typeface = Typeface.MONOSPACE
+            setTextColor("#4F8EF7".toColorInt())
+            setPadding(0, 0, 0, dp(16))
+        })
+
+        // Common attributes with labels, hints
+        data class AttrDef(val attr: String, val label: String, val hint: String)
+
+        val commonAttrs = listOf(
+            AttrDef("android:id", "ID", "@+id/..."),
+            AttrDef("android:layout_width", "Width", "wrap_content / match_parent / dp"),
+            AttrDef("android:layout_height", "Height", "wrap_content / match_parent / dp"),
+            AttrDef("android:layout_margin", "Margin", "dp value"),
+            AttrDef("android:layout_marginLeft", "Margin Left", "dp"),
+            AttrDef("android:layout_marginTop", "Margin Top", "dp"),
+            AttrDef("android:layout_marginRight", "Margin Right", "dp"),
+            AttrDef("android:layout_marginBottom", "Margin Bottom", "dp"),
+            AttrDef("android:padding", "Padding", "dp value"),
+            AttrDef("android:paddingLeft", "Padding Left", "dp"),
+            AttrDef("android:paddingTop", "Padding Top", "dp"),
+            AttrDef("android:paddingRight", "Padding Right", "dp"),
+            AttrDef("android:paddingBottom", "Padding Bottom", "dp"),
+            AttrDef("android:text", "Text", "Label text"),
+            AttrDef("android:hint", "Hint", "Placeholder"),
+            AttrDef("android:textSize", "Text Size", "sp value"),
+            AttrDef("android:textColor", "Text Color", "#RRGGBB"),
+            AttrDef("android:background", "Background", "#RRGGBB or drawable"),
+            AttrDef("android:backgroundTint", "Tint", "#RRGGBB"),
+            AttrDef("android:gravity", "Gravity", "center | start | end | top | bottom"),
+            AttrDef("android:visibility", "Visibility", "visible | gone | invisible"),
+            AttrDef("android:enabled", "Enabled", "true | false"),
+            AttrDef("android:clickable", "Clickable", "true | false"),
+        )
+
+        val editors = mutableMapOf<String, EditText>()
+
+        for (def in commonAttrs) {
+            val attr = def.attr
+            val label = def.label
+            val hint = def.hint
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, dp(8))
+            }
+            row.addView(TextView(this).apply {
+                text = label
+                textSize = 13f
+                setTextColor("#C9D1D9".toColorInt())
+                layoutParams = LinearLayout.LayoutParams(dp(120), -2)
+            })
+            val current = node.attrs[attr] ?: ""
+            val input = EditText(this).apply {
+                setText(current)
+                setHint(hint)
+                textSize = 12f
+                setTextColor(Color.WHITE)
+                setHintTextColor("#8B949E".toColorInt())
+                setBackgroundColor("#232936".toColorInt())
+                setPadding(dp(10), dp(8), dp(10), dp(8))
+                setSingleLine(true)
+                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            }
+            editors[attr] = input
+            row.addView(input)
+            body.addView(row)
+        }
+
+        // Custom attribute adder
+        body.addView(TextView(this).apply {
+            text = if (isKo) "사용자 속성 추가" else "Add Custom Attribute"
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(16), 0, dp(8))
+        })
+        val customKey = EditText(this).apply {
+            hint = "attribute name (e.g. android:src)"
+            textSize = 12f
+            setSingleLine(true)
+            setBackgroundColor("#232936".toColorInt())
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
+        val customVal = EditText(this).apply {
+            hint = "value"
+            textSize = 12f
+            setSingleLine(true)
+            setBackgroundColor("#232936".toColorInt())
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
+        val addRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, dp(16))
+        }
+        addRow.addView(customKey)
+        addRow.addView(customVal)
+        body.addView(addRow)
+        body.addView(Button(this).apply {
+            text = if (isKo) "속성 추가" else "Add Attribute"
+            textSize = 12f
+            setBackgroundColor("#1A5C3A".toColorInt())
+            setTextColor(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) }
+            setOnClickListener {
+                val k = customKey.text.toString().trim()
+                val v = customVal.text.toString().trim()
+                if (k.isNotEmpty() && v.isNotEmpty()) {
+                    node.setAttr(k, v)
+                    customKey.text.clear()
+                    customVal.text.clear()
+                    commitChange()
+                    val isKo2 = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                    Toast.makeText(this@LayoutPreviewActivity, "$k added", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
+
+        // Apply button
+        body.addView(Button(this).apply {
+            text = if (isKo) "적용" else "Apply Changes"
+            textSize = 14f
+            setBackgroundColor("#4F8EF7".toColorInt())
+            setTextColor(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply {
+                topMargin = dp(16); gravity = Gravity.CENTER_HORIZONTAL
+            }
+            setOnClickListener {
+                pushUndo()
+                for ((attr, input) in editors) {
+                    val v = input.text.toString().trim()
+                    if (v.isEmpty()) node.attrs.remove(attr) else node.setAttr(attr, v)
+                }
+                commitChange()
+                Toast.makeText(this@LayoutPreviewActivity, if (isKo) "속성 적용됨" else "Properties applied", Toast.LENGTH_SHORT).show()
+            }
+        }, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.CENTER_HORIZONTAL })
+
+        scroll.addView(body)
+        AlertDialog.Builder(this)
+            .setTitle(node.tagName)
+            .setView(scroll)
+            .setPositiveButton(if (isKo) "닫기" else "Close", null)
+            .show()
+            .window?.setBackgroundDrawable(
+                GradientDrawable().apply {
+                    setColor(StudioUi.color(StudioUi.Surface2))
+                    cornerRadius = 16f
+                }
+            )
+    }
+
+    /**
+     * Convert the selected node to a different tag type (keeps children + most attrs).
+     */
+    private fun showConvertNodeDialog(node: XmlNode) {
+        val isKo = AppLanguage.isKorean(this)
+        val input = EditText(this).apply {
+            hint = "New tag (e.g. ConstraintLayout, CardView)"
+            setSingleLine(true)
+            setText(node.tagName)
+            setTextColor(Color.WHITE)
+            setHintTextColor("#8B949E".toColorInt())
+            setBackgroundColor("#232936".toColorInt())
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        AlertDialog.Builder(this)
+            .setTitle(if (isKo) "노드 타입 변환" else "Convert Node Type")
+            .setMessage(if (isKo) "자식 노드와 대부분의 속성을 유지합니다." else "Keeps children and most attributes.")
+            .setView(input)
+            .setPositiveButton(if (isKo) "변환" else "Convert") { _, _ ->
+                val newTag = input.text.toString().trim()
+                if (newTag.isNotEmpty() && newTag != node.tagName) {
+                    pushUndo()
+                    val oldTag = node.tagName
+                    val parent = node.parent
+                    val idx = parent?.children?.indexOf(node) ?: -1
+                    if (idx >= 0) {
+                        val newNode = XmlNode(newTag).apply {
+                            attrs.putAll(node.attrs)
+                            this.parent = node.parent
+                            this.children.addAll(node.children)
+                        }
+                        newNode.children.forEach { it.parent = newNode }
+                        parent?.children?.set(idx, newNode)
+                        selectedNode = newNode
+                        commitChange()
+                        designCanvas.select(newNode)
+                    }
+                    val isKo2 = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                    Toast.makeText(this@LayoutPreviewActivity, "$oldTag → $newTag", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(if (isKo) "취소" else "Cancel", null)
+            .show()
     }
 
     private fun duplicateNode(node: XmlNode) {
