@@ -63,6 +63,7 @@ import com.aide.mobilestudio.LineLevel
 import com.aide.mobilestudio.GradleRunner
 import com.aide.mobilestudio.JreGradleInstaller
 import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
+import com.aide.mobilestudio.LayoutPreviewActivity
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -506,6 +507,22 @@ class StudioMainActivity : AppCompatActivity() {
                 "app_links" -> openTool("app_links")
                 "firebase" -> openTool("firebase")
                 "layout_inspector" -> openTool("layout_inspector")
+                "preview_design" -> {
+                    (context as? StudioMainActivity)?.let { activity ->
+                        val tabName = activity.tabs.getOrNull(activity.selectedTab) ?: return@let
+                        if (!tabName.endsWith(".xml", ignoreCase = true)) {
+                            Toast.makeText(context, "Design Preview is only available for XML layout files",
+                                Toast.LENGTH_SHORT).show()
+                            return@let
+                        }
+                        val file = File(activity.currentProjectDir ?: activity.filesDir, tabName)
+                        if (!file.exists()) {
+                            Toast.makeText(context, "File not found: $tabName", Toast.LENGTH_SHORT).show()
+                            return@let
+                        }
+                        LayoutPreviewActivity.start(activity, file)
+                    }
+                }
                 "generate_javadoc" -> openTool("generate_javadoc")
                 "create_cli_launcher" -> openTool("create_cli_launcher")
                 "services" -> openTool("services")
@@ -1440,6 +1457,7 @@ private fun TopMenuBar(
                 StudioMenuItem("Build Log", "pane_buildlog"),
                 StudioMenuItem("Terminal", "pane_terminal"),
                 StudioMenuItem("", divider = true),
+                StudioMenuItem("Design Preview", "preview_design"),
                 StudioMenuItem("Project Files Drawer", "drawer")
             )),
             StudioMenu("Navigate", listOf(
