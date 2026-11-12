@@ -443,8 +443,54 @@ class StudioMainActivity : AppCompatActivity() {
                 }
                 "goto_line" -> showGoToLineDialog()
                 "comment" -> toggleComment()
-                "reformat" -> Toast.makeText(context, "Reformat Code is not available yet", Toast.LENGTH_SHORT).show()
-                "optimize" -> Toast.makeText(context, "Optimize Imports is not available yet", Toast.LENGTH_SHORT).show()
+                "reformat" -> {
+                    EditorPaneState.editor?.let { editor ->
+                        val src = editor.text?.toString() ?: return@let
+                        val ext = activity.currentFile?.extension
+                            ?: activity.tabs.getOrNull(activity.selectedTab)?.substringAfterLast('.')
+                            ?: ""
+                        if (!CodeFormatter.isFormattable(ext)) {
+                            Toast.makeText(context, "No formatter for .$ext files",
+                                Toast.LENGTH_SHORT).show()
+                            return@let
+                        }
+                        val formatted = CodeFormatter.format(src, ext)
+                        if (formatted != src) {
+                            editor.setText(formatted)
+                            activity.fileContent = formatted
+                            EditorPaneState.content = formatted
+                            EditorPaneState.unsaved = true
+                            Toast.makeText(context,
+                                "Reformatted ${activity.currentFile?.name ?: "file"}",
+                                Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Already formatted", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                "optimize" -> {
+                    EditorPaneState.editor?.let { editor ->
+                        val src = editor.text?.toString() ?: return@let
+                        val ext = activity.currentFile?.extension
+                            ?: activity.tabs.getOrNull(activity.selectedTab)?.substringAfterLast('.')
+                            ?: ""
+                        if (!CodeFormatter.isImportOptimizable(ext)) {
+                            Toast.makeText(context, "Optimize Imports not supported for .$ext files",
+                                Toast.LENGTH_SHORT).show()
+                            return@let
+                        }
+                        val result = CodeFormatter.optimizeImports(src)
+                        if (result != src) {
+                            editor.setText(result)
+                            activity.fileContent = result
+                            EditorPaneState.content = result
+                            EditorPaneState.unsaved = true
+                            Toast.makeText(context, "Optimized imports", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "No unused imports", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
                 "run" -> startBuild()
                 "downloads" -> {
                     showDownloadManager = true
