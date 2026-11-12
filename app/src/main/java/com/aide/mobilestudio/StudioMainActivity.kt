@@ -510,8 +510,9 @@ class StudioMainActivity : AppCompatActivity() {
                 "preview_design" -> {
                     (context as? StudioMainActivity)?.let { activity ->
                         val tabName = activity.tabs.getOrNull(activity.selectedTab) ?: return@let
-                        if (!tabName.endsWith(".xml", ignoreCase = true)) {
-                            Toast.makeText(context, "Design Preview is only available for XML layout files",
+                        val ext = tabName.substringAfterLast('.').lowercase()
+                        if (ext != "xml" && ext != "kt") {
+                            Toast.makeText(context, "Design Preview is available for XML and Kotlin (Compose) files",
                                 Toast.LENGTH_SHORT).show()
                             return@let
                         }
