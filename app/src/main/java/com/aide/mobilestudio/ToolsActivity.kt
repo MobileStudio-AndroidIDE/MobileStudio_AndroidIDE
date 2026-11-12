@@ -118,6 +118,42 @@ internal class ToolsPanel(
 
     private fun t(value: String): String = AppLanguage.literal(this, value)
 
+    /**
+     * The project the IDE currently has open. Live IDE state wins, then the
+     * persisted Tools preference, then the general IDE preference, so tool
+     * cards never report "Open a project first" while an editor tab is open.
+     */
+    private fun currentProjectDirOrNull(): File? {
+        (host as? StudioMainActivity)?.currentProjectDir?.let { if (it.isDirectory) return it }
+        getSharedPreferences("ide", MODE_PRIVATE).getString("last_project_dir", null)
+            ?.let { File(it).takeIf { d -> d.isDirectory } }?.let { return it }
+        getSharedPreferences("mobilestudio_settings", MODE_PRIVATE).getString("last_project", null)
+            ?.let { File(it).takeIf { d -> d.isDirectory } }?.let { return it }
+        return null
+    }
+
+    /** Opens a resource/source file in the embedded editor when possible. */
+    private fun openProjectFile(file: File): Boolean {
+        if (!file.exists()) {
+            toast("File not found: ${file.name}")
+            return false
+        }
+        val ide = host as? StudioMainActivity ?: return false
+        ide.openFileInEditor(file)
+        return true
+    }
+
+    /** One shared dialog for "you need a project" prompts. */
+    private fun requireProject(onProject: (File) -> Unit): File? {
+        val dir = currentProjectDirOrNull()
+        if (dir == null) {
+            toast("Open a project first")
+            return null
+        }
+        onProject(dir)
+        return dir
+    }
+
     /** Builds the panel and returns the root view to embed in the IDE. */
     fun create(tabId: String?): View {
         toolchain = ToolchainManager(host)
@@ -246,7 +282,10 @@ internal class ToolsPanel(
             "java_runtime_info", "java_env_variables" -> "java_dev"
             "device_manager", "virtual_device_manager", "avd_configuration",
             "android_sdk_inspector", "apk_analyzer", "layout_inspector", "logcat",
-            "device_explorer" -> "android_dev"
+            "device_explorer", "resource_manager", "firebase", "app_links" -> "android_dev"
+            "generate_javadoc", "cling", "groovy_console" -> "java_dev"
+            "agp_upgrade" -> "build_gradle"
+            "firebase" -> "android_dev"
             "gradle_settings", "gradle_configuration", "gradle_cache_management",
             "build_configuration", "build_tools_configuration" -> "build_gradle"
             "terminal", "external_tools", "project_structure", "plugins", "developer_tools" -> "additional"
@@ -318,6 +357,10 @@ internal class ToolsPanel(
             "android_dev" -> {
                 rootContainer.addView(buildDeviceManagerCard())
                 rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildResourceManagerCard())
+                rootContainer.addView(spacer(dp(8)))
+                rootContainer.addView(buildFirebaseCard())
+                rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildTroubleshootCard())
                 rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildLogcatCard())
@@ -330,6 +373,8 @@ internal class ToolsPanel(
                 }
             }
             "build_gradle" -> {
+                rootContainer.addView(buildAgpUpgradeCard())
+                rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildBuildOptionsCard())
                 rootContainer.addView(spacer(dp(8)))
                 rootContainer.addView(buildCacheManagerCard())
@@ -378,6 +423,12 @@ internal class ToolsPanel(
         rootContainer.removeAllViews()
         rootContainer.addView(buildServicesCard())
         rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildResourceManagerCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildFirebaseCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildAgpUpgradeCard())
+        rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildDeviceManagerCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildTroubleshootCard())
@@ -417,6 +468,12 @@ internal class ToolsPanel(
     private fun renderAll() {
         rootContainer.removeAllViews()
         rootContainer.addView(buildServicesCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildResourceManagerCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildFirebaseCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildAgpUpgradeCard())
         rootContainer.addView(spacer(dp(8)))
         rootContainer.addView(buildDeviceManagerCard())
         rootContainer.addView(spacer(dp(8)))
@@ -710,6 +767,502 @@ internal class ToolsPanel(
         return card
     }
 
+    /**
+     * Tools > Resource Manager. Indexes the open project's res/ tree through
+     * [ResourceIndex], lists resources grouped by type, and searches them by
+     * name; selecting a result opens the declaring file in the editor.
+     */
+    private fun buildResourceManagerCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Resource Manager"))
+
+        val projectDir = currentProjectDirOrNull()
+        if (projectDir == null) {
+            card.addView(TextView(host).apply {
+                text = t("Open a project to index its res/ folder, layouts, drawables and values.")
+                textSize = 12f
+                setTextColor(StudioUi.color(StudioUi.TextSoft))
+                setPadding(0, 0, 0, dp(8))
+            })
+            card.addView(primaryButton("Open Project") {
+                FileManagerActivity.start(host, projectMode = true)
+            })
+            return card
+        }
+
+        val status = TextView(host).apply {
+            textSize = 12f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(6))
+        }
+        fun refreshStatus() {
+            val entries = ResourceIndex.getAllEntries()
+            val total = entries.values.sumOf { it.size }
+            status.text = if (!ResourceIndex.isIndexed()) {
+                t("Not indexed yet — ${projectDir.name}")
+            } else {
+                t("$total resources across ${entries.size} types — ${projectDir.name}")
+            }
+            status.setTextColor(
+                StudioUi.color(if (ResourceIndex.isIndexed()) StudioUi.Green else StudioUi.Amber)
+            )
+        }
+        refreshStatus()
+        card.addView(status)
+
+        // Grouped type list -------------------------------------------------
+        val typeList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        card.addView(typeList)
+        fun refreshTypes() {
+            typeList.removeAllViews()
+            val entries = ResourceIndex.getAllEntries()
+                .filterValues { it.isNotEmpty() }
+                .toSortedMap(compareByDescending<ResourceIndex.ResourceType> { it.ordinal })
+            if (entries.isEmpty()) {
+                typeList.addView(TextView(host).apply {
+                    text = t("No resources indexed yet.")
+                    textSize = 12f
+                    setTextColor(StudioUi.color(StudioUi.Muted))
+                    setPadding(0, 0, 0, dp(6))
+                })
+                return
+            }
+            entries.forEach { (type, list) ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(8), dp(6), dp(8), dp(6))
+                    background = StudioUi.rounded(
+                        host, fill = StudioUi.Surface, stroke = StudioUi.Border, radiusDp = 6
+                    )
+                }
+                row.addView(TextView(host).apply {
+                    text = type.name
+                    textSize = 12f
+                    typeface = Typeface.MONOSPACE
+                    setTextColor(StudioUi.color(StudioUi.Blue))
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                row.addView(TextView(host).apply {
+                    text = list.size.toString()
+                    textSize = 12f
+                    setTextColor(StudioUi.color(StudioUi.TextSoft))
+                })
+                row.setOnClickListener { showResourceList(type, list) }
+                typeList.addView(row)
+                typeList.addView(spacer(dp(4)))
+            }
+        }
+        refreshTypes()
+
+        // Search ------------------------------------------------------------
+        card.addView(spacer(dp(8)))
+        val query = EditText(this).apply {
+            hint = t("Search resources (e.g. ic_launcher)")
+            setTextColor(StudioUi.color(StudioUi.Text))
+            setHintTextColor(StudioUi.color(StudioUi.Muted))
+            background = StudioUi.inputBg(host)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            textSize = 13f
+        }
+        card.addView(query)
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        card.addView(spacer(dp(6)))
+        card.addView(results)
+
+        fun showResults(list: List<ResourceIndex.ResourceEntry>) {
+            results.removeAllViews()
+            if (list.isEmpty()) {
+                results.addView(TextView(host).apply {
+                    text = t("No matching resources.")
+                    textSize = 12f
+                    setTextColor(StudioUi.color(StudioUi.Muted))
+                })
+                return
+            }
+            list.take(50).forEach { entry ->
+                results.addView(TextView(host).apply {
+                    text = "${entry.type.name.lowercase()}/${entry.name}\n${shortPath(entry.filePath)}"
+                    textSize = 12f
+                    typeface = Typeface.MONOSPACE
+                    setTextColor(StudioUi.color(StudioUi.Text))
+                    background = StudioUi.rounded(
+                        host, fill = StudioUi.Surface, stroke = StudioUi.Border, radiusDp = 6
+                    )
+                    setPadding(dp(8), dp(6), dp(8), dp(6))
+                    setOnClickListener { openProjectFile(File(entry.filePath)) }
+                })
+                results.addView(spacer(dp(4)))
+            }
+        }
+
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Search") {
+                val q = query.text.toString().trim()
+                if (q.isEmpty()) {
+                    toast("Type a resource name first")
+                    return@primaryButton
+                }
+                showResults(ResourceIndex.searchResources(q, null, 50))
+            })
+            addView(secondaryButton("Index Project") {
+                toast("Indexing resources...")
+                ResourceIndex.indexProject(projectDir) {
+                    host.runOnUiThread {
+                        refreshStatus()
+                        refreshTypes()
+                        results.removeAllViews()
+                    }
+                }
+            })
+            addView(secondaryButton("Refresh") {
+                refreshStatus()
+                refreshTypes()
+            })
+        })
+        return card
+    }
+
+    /** Dialog listing every entry of one resource type; tap to open the file. */
+    private fun showResourceList(
+        type: ResourceIndex.ResourceType,
+        entries: List<ResourceIndex.ResourceEntry>
+    ) {
+        val labels = entries.map { "${it.name}  ·  ${shortPath(it.filePath)}" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("${type.name} (${entries.size})")
+            .setItems(labels) { _, which -> openProjectFile(File(entries[which].filePath)) }
+            .setNegativeButton(t("Close"), null)
+            .show()
+    }
+
+    private fun shortPath(path: String): String {
+        val root = currentProjectDirOrNull()?.absolutePath
+        return if (root != null && path.startsWith(root)) path.removePrefix(root).removePrefix("/")
+        else path
+    }
+
+    // ------------------------------------------------------------
+    // AGP Upgrade Assistant
+    // ------------------------------------------------------------
+
+    /** Current Android Gradle Plugin version declared by the open project. */
+    private fun projectAgpVersion(root: File): String {
+        val toml = File(root, "gradle/libs.versions.toml")
+        if (toml.isFile) {
+            Regex("""(?m)^\s*agp\s*=\s*"([^"]+)"""")
+                .find(toml.readText())?.let { return it.groupValues[1] }
+        }
+        for (name in listOf("settings.gradle.kts", "settings.gradle", "build.gradle.kts", "build.gradle")) {
+            val file = File(root, name)
+            if (!file.isFile) continue
+            val text = file.readText()
+            Regex("""id\(\s*"com\.android\.(?:application|library)"\s*\)\s*version\s*"([^"]+)"""")
+                .find(text)?.let { return it.groupValues[1] }
+            Regex("""classpath\s*\(?\s*["']com\.android\.tools\.build:gradle:([^"']+)["']""")
+                .find(text)?.let { return it.groupValues[1] }
+        }
+        return ""
+    }
+
+    /** Gradle wrapper version of the open project (`gradle-9.7.0` -> "9.7.0"). */
+    private fun projectGradleVersion(root: File): String {
+        val props = File(root, "gradle/wrapper/gradle-wrapper.properties")
+        if (!props.isFile) return ""
+        return Regex("""gradle-([0-9][0-9A-Za-z.\-_]*)-(?:bin|all)\.zip""")
+            .find(props.readText())?.groupValues?.get(1) ?: ""
+    }
+
+    /**
+     * Tools > AGP Upgrade Assistant. Reads the project's real AGP / Gradle /
+     * Kotlin versions, compares them against the recommended stack, and rewrites
+     * the build files through [ToolchainSyncManager] when the upgrade is applied.
+     */
+    private fun buildAgpUpgradeCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("AGP Upgrade Assistant"))
+
+        val root = currentProjectDirOrNull()
+        if (root == null) {
+            card.addView(TextView(host).apply {
+                text = t("Open a project to inspect its Android Gradle Plugin version.")
+                textSize = 12f
+                setTextColor(StudioUi.color(StudioUi.TextSoft))
+                setPadding(0, 0, 0, dp(8))
+            })
+            card.addView(primaryButton("Open Project") {
+                FileManagerActivity.start(host, projectMode = true)
+            })
+            return card
+        }
+
+        val currentAgp = projectAgpVersion(root)
+        val currentGradle = projectGradleVersion(root)
+        val defaultGradle = ToolchainManager.DEFAULT_GRADLE.removePrefix("gradle-")
+        val targetGradle = defaultGradle
+        val targetAgp = ToolchainSyncManager.agpVersionForGradle(ToolchainManager.DEFAULT_GRADLE)
+        val targetKotlin = ToolchainSyncManager.kotlinVersionForGradle(ToolchainManager.DEFAULT_GRADLE)
+
+        fun info(label: String, value: String, ok: Boolean? = null): TextView =
+            TextView(host).apply {
+                text = t("$label: ${value.ifBlank { "not declared" }}")
+                textSize = 12f
+                setTextColor(
+                    StudioUi.color(
+                        when (ok) {
+                            true -> StudioUi.Green
+                            false -> StudioUi.Amber
+                            null -> StudioUi.TextSoft
+                        }
+                    )
+                )
+                setPadding(0, 0, 0, dp(4))
+            }
+
+        card.addView(info("AGP", currentAgp, currentAgp == targetAgp))
+        card.addView(info("Gradle wrapper", currentGradle, currentGradle == targetGradle))
+        card.addView(info("Recommended AGP", targetAgp))
+        card.addView(info("Recommended Gradle", targetGradle))
+        card.addView(info("Recommended Kotlin", targetKotlin))
+
+        val warnings = if (currentGradle.isBlank()) emptyList()
+        else CompatibilityChecker.check(
+            ToolchainManager.Kind.GRADLE,
+            currentGradle,
+            targetGradle
+        )
+        if (warnings.isNotEmpty()) {
+            card.addView(spacer(dp(6)))
+            warnings.forEach { w ->
+                card.addView(TextView(host).apply {
+                    text = "• ${t(w)}"
+                    textSize = 12f
+                    setTextColor(StudioUi.color(StudioUi.Amber))
+                    setPadding(0, 0, 0, dp(4))
+                })
+            }
+        }
+
+        val upToDate = currentAgp == targetAgp && currentGradle == targetGradle
+        card.addView(TextView(host).apply {
+            text = t(
+                if (upToDate) "This project already uses the recommended build stack."
+                else "Upgrading rewrites gradle-wrapper.properties, AGP and Kotlin versions in place."
+            )
+            textSize = 12f
+            setTextColor(StudioUi.color(if (upToDate) StudioUi.Green else StudioUi.TextSoft))
+            setPadding(0, dp(6), 0, dp(8))
+        })
+
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton(if (upToDate) "Reapply Stack" else "Upgrade") {
+                confirmDialog(
+                    "Upgrade this project to AGP $targetAgp, Gradle $targetGradle and Kotlin $targetKotlin?"
+                ) {
+                    scope.launch(Dispatchers.IO) {
+                        ToolchainSyncManager.syncGradleWrapperVersion(root, ToolchainManager.DEFAULT_GRADLE)
+                        ToolchainSyncManager.syncAgpVersion(root, targetAgp)
+                        ToolchainSyncManager.syncKotlinVersion(root, targetKotlin)
+                        withContext(Dispatchers.Main) {
+                            toast("Build files updated to AGP $targetAgp / Gradle $targetGradle")
+                            renderCategory(currentCategory)
+                        }
+                    }
+                }
+            })
+            addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
+            addView(secondaryButton("Open Build Files") {
+                val buildFile = listOf(
+                    File(root, "app/build.gradle.kts"),
+                    File(root, "app/build.gradle"),
+                    File(root, "build.gradle.kts"),
+                    File(root, "build.gradle")
+                ).firstOrNull { it.isFile }
+                if (buildFile == null) toast("No build script found")
+                else if (!openProjectFile(buildFile)) showTextDialog(buildFile.name, buildFile.readText())
+            })
+        })
+        return card
+    }
+
+    // ------------------------------------------------------------
+    // Firebase
+    // ------------------------------------------------------------
+
+    private fun projectUsesPlugin(root: File, pluginId: String): Boolean =
+        listOf("settings.gradle.kts", "settings.gradle", "build.gradle.kts", "build.gradle")
+            .map { File(root, it) }
+            .filter { it.isFile }
+            .any { it.readText().contains(pluginId) }
+
+    private fun firebaseDependencyCount(root: File): Int =
+        root.walkTopDown()
+            .onEnter { it.name !in setOf(".gradle", ".idea", "build", ".git", "node_modules", ".cxx", "out") }
+            .filter { it.name == "build.gradle" || it.name == "build.gradle.kts" }
+            .sumOf { file -> Regex("""com\.google\.firebase:[a-z0-9\-]+""").findAll(file.readText()).count() }
+
+    /**
+     * Tools > Firebase. Reports what the open project actually contains
+     * (google-services plugin, google-services.json, Firebase dependencies)
+     * and can apply the missing Gradle wiring.
+     */
+    private fun buildFirebaseCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        card.addView(sectionTitle("Firebase"))
+
+        val root = currentProjectDirOrNull()
+        if (root == null) {
+            card.addView(TextView(host).apply {
+                text = t("Open a project to check its Firebase setup.")
+                textSize = 12f
+                setTextColor(StudioUi.color(StudioUi.TextSoft))
+                setPadding(0, 0, 0, dp(8))
+            })
+            card.addView(primaryButton("Open Project") {
+                FileManagerActivity.start(host, projectMode = true)
+            })
+            return card
+        }
+
+        val hasPlugin = projectUsesPlugin(root, "com.google.gms:google-services")
+        val json = listOf(File(root, "app/google-services.json"), File(root, "google-services.json"))
+            .firstOrNull { it.isFile }
+        val depCount = firebaseDependencyCount(root)
+
+        fun row(label: String, present: Boolean, detail: String): TextView =
+            TextView(host).apply {
+                text = "${if (present) "\u2713" else "\u2717"}  $label — $detail"
+                textSize = 12f
+                setTextColor(StudioUi.color(if (present) StudioUi.Green else StudioUi.Amber))
+                setPadding(0, 0, 0, dp(4))
+            }
+
+        card.addView(row("google-services plugin", hasPlugin,
+            if (hasPlugin) "applied" else "not applied"))
+        card.addView(row("google-services.json", json != null,
+            json?.let { shortPath(it.absolutePath) } ?: "missing in app/"))
+        card.addView(row("Firebase dependencies", depCount > 0,
+            if (depCount > 0) "$depCount declared" else "none declared"))
+
+        card.addView(spacer(dp(8)))
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(primaryButton("Apply Firebase Setup") {
+                confirmDialog(
+                    "Add the google-services plugin and Firebase BoM to this project's Gradle files?"
+                ) {
+                    scope.launch(Dispatchers.IO) {
+                        val result = applyFirebaseSetup(root)
+                        withContext(Dispatchers.Main) {
+                            toast(result)
+                            renderCategory(currentCategory)
+                        }
+                    }
+                }
+            })
+            addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
+            addView(secondaryButton("Console") {
+                runCatching {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.firebase.google.com/")))
+                }.onFailure { toast("No browser available") }
+            })
+        })
+
+        if (json == null) {
+            card.addView(spacer(dp(6)))
+            card.addView(TextView(host).apply {
+                text = t("Download google-services.json from the Firebase console and place it in app/.")
+                textSize = 11f
+                setTextColor(StudioUi.color(StudioUi.Muted))
+            })
+        }
+        return card
+    }
+
+    /**
+     * Adds the missing google-services classpath/plugin and the Firebase BoM.
+     * Returns a human-readable summary of exactly what changed.
+     */
+    private fun applyFirebaseSetup(root: File): String {
+        val changed = mutableListOf<String>()
+
+        val rootBuild = listOf(File(root, "build.gradle.kts"), File(root, "build.gradle"))
+            .firstOrNull { it.isFile }
+        val appBuild = listOf(File(root, "app/build.gradle.kts"), File(root, "app/build.gradle"))
+            .firstOrNull { it.isFile }
+
+        if (rootBuild != null && !rootBuild.readText().contains("com.google.gms:google-services")) {
+            val kts = rootBuild.name.endsWith(".kts")
+            val text = rootBuild.readText()
+            val snippet = if (kts) {
+                if (text.contains("plugins {")) {
+                    Regex("""plugins\s*\{""").replace(text) { it.value + "\n    id(\"com.google.gms:google-services\") version \"4.4.2\" apply false" }
+                } else {
+                    "plugins {\n    id(\"com.google.gms:google-services\") version \"4.4.2\" apply false\n}\n" + text
+                }
+            } else {
+                if (text.contains("buildscript") || text.contains("dependencies")) {
+                    Regex("""(buildscript\s*\{|dependencies\s*\{)""").replace(text) { it.value + "\n        classpath 'com.google.gms:google-services:4.4.2'" }
+                } else {
+                    "buildscript {\n    dependencies {\n        classpath 'com.google.gms:google-services:4.4.2'\n    }\n}\n" + text
+                }
+            }
+            rootBuild.writeText(snippet)
+            changed += "google-services classpath in ${rootBuild.name}"
+        }
+
+        if (appBuild != null) {
+            val kts = appBuild.name.endsWith(".kts")
+            val text = appBuild.readText()
+            var updated = text
+            if (!text.contains("com.google.gms:google-services")) {
+                updated = if (kts) {
+                    Regex("""plugins\s*\{""").replace(updated) { it.value + "\n    id(\"com.google.gms:google-services\")" }
+                } else {
+                    Regex("""apply plugin:\s*['"]com\.android\.application['"]""")
+                        .replace(updated) { it.value + "\napply plugin: 'com.google.gms:google-services'" }
+                }
+                if (updated == text && !kts) {
+                    updated = "apply plugin: 'com.google.gms:google-services'\n" + updated
+                }
+                if (updated != text) changed += "plugin in ${appBuild.name}"
+                appBuild.writeText(updated)
+            }
+            val after = appBuild.readText()
+            if (!after.contains("com.google.firebase:firebase-bom")) {
+                val dep = if (kts) {
+                    "    implementation(platform(\"com.google.firebase:firebase-bom:33.7.0\"))"
+                } else {
+                    "    implementation platform('com.google.firebase:firebase-bom:33.7.0')"
+                }
+                val withDep = if (after.contains("dependencies {")) {
+                    Regex("""dependencies\s*\{""").replace(after) { it.value + "\n$dep" }
+                } else {
+                    after + "\ndependencies {\n$dep\n}\n"
+                }
+                appBuild.writeText(withDep)
+                changed += "Firebase BoM in ${appBuild.name}"
+            }
+        }
+
+        return if (changed.isEmpty()) "Firebase setup already present"
+        else "Updated: " + changed.joinToString(", ")
+    }
+
     private fun buildLogcatCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -760,8 +1313,7 @@ internal class ToolsPanel(
             setPadding(0, 0, 0, dp(8))
         })
         card.addView(primaryButton("Open Icon Editor") {
-            val projectDir = getSharedPreferences("ide", MODE_PRIVATE).getString("last_project_dir", null)
-            if (projectDir == null) {
+            val projectDir = currentProjectDirOrNull()?.absolutePath ?: run {
                 toast("Open a project first")
                 return@primaryButton
             }
@@ -792,8 +1344,7 @@ internal class ToolsPanel(
             orientation = LinearLayout.HORIZONTAL
         }
         btnRow.addView(primaryButton("Sign APK") {
-            val projectDir = getSharedPreferences("ide", MODE_PRIVATE).getString("last_project_dir", null)
-            if (projectDir == null) {
+            val projectDir = currentProjectDirOrNull()?.absolutePath ?: run {
                 toast("Open a project first")
                 return@primaryButton
             }
@@ -802,8 +1353,7 @@ internal class ToolsPanel(
             startActivity(intent)
         })
         btnRow.addView(secondaryButton("APK Info") {
-            val projectDir = getSharedPreferences("ide", MODE_PRIVATE).getString("last_project_dir", null)
-            if (projectDir == null) {
+            val projectDir = currentProjectDirOrNull()?.absolutePath ?: run {
                 toast("Open a project first")
                 return@secondaryButton
             }
@@ -845,12 +1395,11 @@ internal class ToolsPanel(
             setPadding(0, 0, 0, dp(8))
         })
         card.addView(primaryButton("Open Dependency Search") {
-            val projectDir = getSharedPreferences("ide", MODE_PRIVATE).getString("last_project_dir", null)
-            if (projectDir == null) {
+            val projectDir = currentProjectDirOrNull() ?: run {
                 toast("Open a project first")
                 return@primaryButton
             }
-            DependencySearchDialog(host).show(File(projectDir))
+            DependencySearchDialog(host).show(projectDir)
         })
         return card
     }
@@ -869,10 +1418,7 @@ internal class ToolsPanel(
             setPadding(0, 0, 0, dp(8))
         })
         card.addView(primaryButton("Open Cache Manager") {
-            val projectDir = getSharedPreferences("ide", MODE_PRIVATE).getString("last_project_dir", null)
-            BuildCacheManager(host).show(
-                if (projectDir != null) File(projectDir) else null
-            )
+            BuildCacheManager(host).show(currentProjectDirOrNull())
         })
         return card
     }
