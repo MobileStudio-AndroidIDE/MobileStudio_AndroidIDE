@@ -204,6 +204,10 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private var phoneScreenWidth = 0f
     private var phoneScreenHeight = 0f
 
+    // --- 고급 프리뷰 상태 ---
+    private var isDarkTheme = true
+    private var deviceSize = "phone" // phone, tablet, foldable
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val filePath = intent.getStringExtra(EXTRA_FILE)
@@ -284,6 +288,50 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 setTextColor(Color.WHITE)
                 setBackgroundColor("#1A5C3A".toColorInt())
                 setOnClickListener { saveXml() }
+            })
+
+            // 테마 토글 (라이트/다크)
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = if (isDarkTheme) "🌙 Dark" else "☀️ Light"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener {
+                    isDarkTheme = !isDarkTheme
+                    text = if (isDarkTheme) "🌙 Dark" else "☀️ Light"
+                    renderDesign()
+                    refreshWidgetPreview()
+                }
+            })
+
+            // 디바이스 크기 선택
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = when (deviceSize) {
+                    "phone" -> "📱 Phone"
+                    "tablet" -> "📟 Tablet"
+                    "foldable" -> "📱📱 Foldable"
+                    else -> "📱 Phone"
+                }
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener {
+                    deviceSize = when (deviceSize) {
+                        "phone" -> "tablet"
+                        "tablet" -> "foldable"
+                        else -> "phone"
+                    }
+                    text = when (deviceSize) {
+                        "phone" -> "📱 Phone"
+                        "tablet" -> "📟 Tablet"
+                        "foldable" -> "📱📱 Foldable"
+                        else -> "📱 Phone"
+                    }
+                    renderDesign()
+                    refreshWidgetPreview()
+                }
             })
         }
         root.addView(topBar)
@@ -566,7 +614,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
-            setBackgroundColor(Color.WHITE)
+            setBackgroundColor(if (isDarkTheme) "#0F1218".toColorInt() else Color.WHITE)
         }
         try {
             val rootView = parseAndBuildView(file.readText())
@@ -1320,9 +1368,15 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private fun renderDesign() {
         val root = rootNode ?: return
         val d = resources.displayMetrics.density
-        // Content area inside smartphone.png frame
-        val designW = if (phoneScreenWidth > 0) phoneScreenWidth.toInt() else (360 * d).toInt()
-        val designH = if (phoneScreenHeight > 0) phoneScreenHeight.toInt() else (694 * d).toInt()
+        // Device-specific content area
+        val (designW, designH) = when (deviceSize) {
+            "tablet" -> Pair((800 * d).toInt(), (1200 * d).toInt())
+            "foldable" -> Pair((1200 * d).toInt(), (800 * d).toInt())
+            else -> Pair(
+                if (phoneScreenWidth > 0) phoneScreenWidth.toInt() else (360 * d).toInt(),
+                if (phoneScreenHeight > 0) phoneScreenHeight.toInt() else (694 * d).toInt()
+            )
+        }
         
         computeBounds(root, Rect(0, 0, designW, designH))
         designCanvas.setNodes(root)
@@ -2317,6 +2371,8 @@ class LayoutPreviewActivity : AppCompatActivity() {
 
     private fun buildPreviewFromNodes(node: XmlNode): View {
         val host = FrameLayout(this)
+        // Theme background for the preview canvas
+        host.setBackgroundColor(if (isDarkTheme) "#0F1218".toColorInt() else Color.WHITE)
         buildViewTreeRecursive(node, host)
         return host
     }
