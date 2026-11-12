@@ -2677,7 +2677,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
 
     private fun showNodeMenu(node: XmlNode) {
         val isKo = AppLanguage.isKorean(this)
-        val options = arrayOf("Duplicate", "Delete", "Properties", "Convert to...")
+        val options = arrayOf("Duplicate", "Delete", "Properties", "Convert to...", "Extract to Resource...")
         AlertDialog.Builder(this)
             .setTitle("<${node.tagName}> ${node.id ?: ""}")
             .setItems(options) { _, which ->
@@ -2694,8 +2694,195 @@ class LayoutPreviewActivity : AppCompatActivity() {
                     }
                     2 -> showNodePropertyEditor(node)
                     3 -> showConvertNodeDialog(node)
+                    4 -> showExtractToResourceDialog(node)
                 }
             }.show()
+    }
+
+    /**
+     * Extract to Resource (Android Studio 리팰토링).
+     * 선택된 노드의 하드코딩된 속성값(text, color, dimen 등)을 res/values/strings.xml
+     * 또는 colors.xml에 추출하고, 속성을 @string/name 또는 @color/name 참조로 바꾼다.
+     */
+    private fun showExtractToResourceDialog(node: XmlNode) {
+        val isKo = AppLanguage.isKorean(this)
+
+        // 추출 대상 속성 후보 (문자열, 색상, 디멘 값)
+        val extractable = mutableListOf<Pair<String, String>>()
+        val resourceKeys = listOf(
+            "android:text" to "string",
+            "android:hint" to "string",
+            "android:contentDescription" to "string",
+            "android:textColor" to "color",
+            "android:background" to "color",
+            "android:backgroundTint" to "color",
+            "android:tint" to "color",
+            "android:layout_width" to "dimen",
+            "android:layout_height" to "dimen",
+            "android:layout_margin" to "dimen",
+            "android:layout_marginLeft" to "dimen",
+            "android:layout_marginTop" to "dimen",
+            "android:layout_marginRight" to "dimen",
+            "android:layout_marginBottom" to "dimen",
+            "android:padding" to "dimen",
+            "android:paddingLeft" to "dimen",
+            "android:paddingTop" to "dimen",
+            "android:paddingRight" to "dimen",
+            "android:paddingBottom" to "dimen",
+            "android:textSize" to "dimen"
+        )
+        for ((attr, resType) in resourceKeys) {
+            node.attrs[attr]?.let { value ->
+                if (value.isNotEmpty() && !value.startsWith("@")) {
+                    extractable.add(attr to value)
+                }
+            }
+        }
+
+        if (extractable.isEmpty()) {
+            Toast.makeText(this, if (isKo) "추출 가능한 속성이 없습니다." else "No extractable attributes.",
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            setBackgroundColor(StudioUi.color(StudioUi.Surface2))
+        }
+
+        body.addView(TextView(this).apply {
+            text = if (isKo) "추출할 속성 선택" else "Select Attribute to Extract"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(12))
+        })
+
+        val selectedAttr = mutableListOf<String>(extractable.first().first)
+
+        val scroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, -2)
+        }
+        scroll.addView(body)
+
+        for ((attr, value) in extractable) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, dp(8))
+            }
+            val rb = android.widget.RadioButton(this).apply {
+                text = "$attr = \"$value\""
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                if (attr == selectedAttr.first()) isChecked = true
+                setOnClickListener { selectedAttr[0] = attr }
+            }
+            row.addView(rb)
+            body.addView(row)
+        }
+
+        val nameInput = EditText(this).apply {
+            hint = if (isKo) "리소스 이름 (예: app_name)" else "Resource name (e.g. app_name)"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            setHintTextColor("#8B949E".toColorInt())
+            setBackgroundColor("#232936".toColorInt())
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
+        body.addView(nameInput)
+
+        AlertDialog.Builder(this)
+            .setView(scroll)
+            .setTitle(if (isKo) "리소스로 추출" else "Extract to Resource")
+            .setPositiveButton(if (isKo) "추출" else "Extract") { _, _ ->
+                val attrName = selectedAttr.first()
+                val resName = nameInput.text.toString().trim()
+                if (resName.isEmpty()) {
+                    Toast.makeText(this, if (isKo) "이름을 입력하세요." else "Enter a name.",
+                        Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                pushUndo()
+                val oldValue = node.attrs[attrName] ?: ""
+                val resType = resourceKeys.firstOrNull { it.first == attrName }?.second ?: "string"
+                val resFile = when (resType) {
+                    "color" -> "values/colors.xml"
+                    "dimen" -> "values/dimens.xml"
+                    else -> "values/strings.xml"
+                }
+                // 프로젝트의 res 디렉터리 찾기
+                val resDir = findResDir(targetFile)
+                if (resDir == null) {
+                    Toast.makeText(this, if (isKo) "res 디렉터리를 찾을 수 없습니다." else "res directory not found.",
+                        Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val targetResFile = File(resDir, resFile)
+                try {
+                    // 기존 리소스 파일 읽기
+                    var existingXml = ""
+                    if (targetResFile.exists()) existingXml = targetResFile.readText()
+
+                    // 새 리소스 항목 추가 (중복 방지)
+                    val resourceEntry = when (resType) {
+                        "string" -> """    <string name="$resName">$oldValue</string>"""
+                        "color" -> """    <color name="$resName">$oldValue</color>"""
+                        else -> """    <dimen name="$resName">$oldValue</dimen>"""
+                    }
+
+                    val newXml = if (existingXml.isBlank() || !existingXml.contains("<resources>")) {
+                        """<?xml version="1.0" encoding="utf-8"?>
+<resources>
+$resourceEntry
+</resources>"""
+                    } else {
+                        // </resources> 닫는 태그 앞에 삽입
+                        existingXml.replace("</resources>", "$resourceEntry\n</resources>")
+                    }
+
+                    targetResFile.parentFile.mkdirs()
+                    targetResFile.writeText(newXml)
+
+                    // 노드 속성을 @type/name 참조로 변경
+                    node.setAttr(attrName, "@$resType/$resName")
+                    commitChange()
+
+                    val isKo2 = AppLanguage.isKorean(this)
+                    Toast.makeText(this,
+                        if (isKo2) "추출됨: @$resType/$resName" else "Extracted: @$resType/$resName",
+                        Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Extract to resource error", e)
+                    Toast.makeText(this, if (isKo) "추출 실패: ${e.message}" else "Extract failed: ${e.message}",
+                        Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(if (isKo) "취소" else "Cancel", null)
+            .show()
+            .window?.setBackgroundDrawable(
+                GradientDrawable().apply {
+                    setColor(StudioUi.color(StudioUi.Surface2))
+                    cornerRadius = 16f
+                }
+            )
+    }
+
+    /**
+     * 대상 파일의 프로젝트 res 디렉터리를 탐색.
+     */
+    private fun findResDir(file: File?): File? {
+        file ?: return null
+        var dir: File? = file.parentFile
+        var up = 0
+        while (dir != null && up < 6) {
+            val res = File(dir, "src/main/res")
+            if (res.isDirectory) return res
+            dir = dir.parentFile
+            up++
+        }
+        return null
     }
 
     /**
