@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.constraintlayout.widget.ConstraintLayout
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.*
 import java.io.File
@@ -188,6 +189,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private lateinit var designCanvas: DesignCanvas
     private lateinit var editToggleBtn: ImageButton
     private lateinit var outputText: TextView
+    private lateinit var sourceText: TextView
     private lateinit var phoneFrame: android.graphics.Bitmap
     private var widgetHost: FrameLayout? = null
 
@@ -207,6 +209,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
     // --- 고급 프리뷰 상태 ---
     private var isDarkTheme = true
     private var deviceSize = "phone" // phone, tablet, foldable
+    private var liveSyncEnabled = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -343,6 +346,35 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 setPadding(dp(8), dp(4), dp(8), dp(4))
                 setOnClickListener { showTemplateGallery() }
             })
+
+            // 라이브 싱크 토글 (소스 ↔ 디자인 실시간 동기화)
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = if (liveSyncEnabled) "🔄 Sync On" else "🔄 Sync Off"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor(if (liveSyncEnabled) 0xFF1A5C3A.toInt() else 0xFF2B3140.toInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener {
+                    liveSyncEnabled = !liveSyncEnabled
+                    text = if (liveSyncEnabled) "🔄 Sync On" else "🔄 Sync Off"
+                    setBackgroundColor(if (liveSyncEnabled) 0xFF1A5C3A.toInt() else 0xFF2B3140.toInt())
+                    val isKo = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                    Toast.makeText(this@LayoutPreviewActivity,
+                        if (isKo) "라이브 싱크 ${if (liveSyncEnabled) "켜짐" else "꺼짐"}"
+                        else "Live Sync ${if (liveSyncEnabled) "On" else "Off"}",
+                        Toast.LENGTH_SHORT).show()
+                }
+            })
+
+            // 수동 싱크 버튼 (소스 → 디자인)
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = "↻ Sync → Design"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener { syncSourceToDesign() }
+            })
         }
         root.addView(topBar)
 
@@ -393,6 +425,9 @@ class LayoutPreviewActivity : AppCompatActivity() {
             })
 
             addView(makeToolButton("Fit") { designCanvas?.resetView() }, LinearLayout.LayoutParams(-2, -2))
+
+            // 디자인 → 소스 싱크 버튼
+            addView(makeToolButton("↻ → Source") { syncDesignToSource() }, LinearLayout.LayoutParams(-2, -2))
         }
         root.addView(editToolbar)
 
@@ -409,13 +444,26 @@ class LayoutPreviewActivity : AppCompatActivity() {
         val sourceView = ScrollView(this).apply {
             tag = "source_scroll"
             visibility = View.GONE
-            addView(TextView(this@LayoutPreviewActivity).apply {
+            sourceText = TextView(this@LayoutPreviewActivity).apply {
                 tag = "source_text"
                 typeface = Typeface.MONOSPACE
                 textSize = 11f
                 setTextColor("#C9D1D9".toColorInt())
                 setPadding(dp(16), dp(12), dp(16), dp(12))
+                setTextIsSelectable(true)
+            }
+            // 라이브 싱크: 소스 편집 시 디자인에 실시간 반영
+            sourceText.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    if (liveSyncEnabled) {
+                        // 디바운싱 없이 즉시 반영 (작은 파일에 적합)
+                        sourceText.postDelayed({ syncSourceToDesign() }, 500)
+                    }
+                }
+                override fun afterTextChanged(s: android.text.Editable?) {}
             })
+            addView(sourceText)
         }
         mainContainer.addView(sourceView)
 
@@ -590,14 +638,16 @@ class LayoutPreviewActivity : AppCompatActivity() {
         outputScroll?.visibility = if (index == 2) View.VISIBLE else View.GONE
 
         if (index == 0) {
-            // Design 탭으로 돌아올 때 소스 수정사항 반영
+            // Design 탭으로 돌아올 때 소스 수정사항 반영 (Source → Design)
             loadXmlToNodes()
             renderDesign()
             refreshWidgetPreview()
         } else if (index == 1) {
-            // Source 탭으로 갈 때 현재 디자인 상태 반영
-            val tv = mainContainer.findViewWithTag<TextView>("source_text")
-            tv.text = targetFile?.readText()
+            // Source 탭으로 갈 때 현재 디자인 상태 반영 (Design → Source)
+            val currentRoot = rootNode
+            // rootNode가 있으면 디자인 상태에서 XML을 재구성, 없으면 파일에서 읽음
+            val currentXml = if (currentRoot != null) buildXmlFromNodes(currentRoot, 0) else targetFile?.readText() ?: ""
+            sourceText.text = currentXml
         }
 
         // 탭 버튼 스타일 업데이트
@@ -611,6 +661,55 @@ class LayoutPreviewActivity : AppCompatActivity() {
             tv.setTextColor(if (i == index) Color.WHITE else Color.LTGRAY)
             tv.setBackgroundColor(if (i == index) "#4F8EF7".toColorInt() else Color.TRANSPARENT)
         }
+    }
+
+    // =========================================================================
+    // 양방향 소스 ↔ 디자인 동기화
+    // =========================================================================
+
+    /**
+     * 소스 코드를 파싱하여 디자인 프리뷰에 반영 (Source → Design).
+     * 소스 탭에서 편집 후 수동 싱크 버튼 또는 라이브 싱크로 호출됨.
+     */
+    private fun syncSourceToDesign() {
+        val xml = sourceText.text.toString()
+        if (xml.isBlank()) {
+            val isKo = AppLanguage.isKorean(this)
+            Toast.makeText(this, if (isKo) "소스가 비어있습니다." else "Source is empty.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            // 파일을 임시로 업데이트하지 않고 메모리에서 바로 파싱
+            val newRoot = parseXmlToNodes(xml)
+            if (newRoot == null) {
+                val isKo = AppLanguage.isKorean(this)
+                Toast.makeText(this, if (isKo) "XML 파싱 실패 - 디자인 업데이트 불가" else "XML parse failed - cannot update design",
+                    Toast.LENGTH_SHORT).show()
+                return
+            }
+            rootNode = newRoot
+            renderDesign()
+            refreshWidgetPreview()
+            val isKo = AppLanguage.isKorean(this)
+            Toast.makeText(this, if (isKo) "소스 → 디자인 동기화 완료" else "Source → Design synced", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "syncSourceToDesign error", e)
+            val isKo = AppLanguage.isKorean(this)
+            Toast.makeText(this, if (isKo) "동기화 오류: ${e.message}" else "Sync error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 디자인 상태에서 소스 코드로 반영 (Design → Source).
+     * 현재 rootNode 기반으로 XML을 생성하여 소스 뷰에 표시.
+     */
+    private fun syncDesignToSource() {
+        val currentRoot = rootNode
+        if (currentRoot == null) return
+        val xml = buildXmlFromNodes(currentRoot, 0)
+        sourceText.text = xml
+        val isKo = AppLanguage.isKorean(this)
+        Toast.makeText(this, if (isKo) "디자인 → 소스 동기화 완료" else "Design → Source synced", Toast.LENGTH_SHORT).show()
     }
 
     // =========================================================================
@@ -781,6 +880,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 }
                 elevation = dp(2f)
             }
+            low.contains("constraintlayout") -> androidx.constraintlayout.widget.ConstraintLayout(this)
             else -> FrameLayout(this)
         }
     }
@@ -1831,7 +1931,8 @@ class LayoutPreviewActivity : AppCompatActivity() {
         PaletteItem("GridView", "그리드뷰"),
         PaletteItem("WebView", "웹뷰"),
         PaletteItem("SearchView", "검색"),
-        PaletteItem("Chronometer", "스톱워치")
+        PaletteItem("Chronometer", "스톱워치"),
+        PaletteItem("androidx.constraintlayout.widget.ConstraintLayout", "제약배치")
     )
 
     private fun buildWidgetPalette(): View {
@@ -1899,6 +2000,9 @@ class LayoutPreviewActivity : AppCompatActivity() {
             "CardView" -> FrameLayout(this).apply {
                 setBackgroundColor(Color.WHITE)
                 elevation = dp(1f)
+            }
+            "androidx.constraintlayout.widget.ConstraintLayout" -> ConstraintLayout(this).apply {
+                setBackgroundColor("#3E4451".toColorInt())
             }
             "RadioGroup" -> RadioGroup(this)
             "TableLayout" -> LinearLayout(this).apply { setBackgroundColor("#3E4451".toColorInt()) }
