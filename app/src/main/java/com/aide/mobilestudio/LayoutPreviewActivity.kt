@@ -210,6 +210,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private var isDarkTheme = true
     private var deviceSize = "phone" // phone, tablet, foldable
     private var liveSyncEnabled = true
+    private var isLandscape = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -374,6 +375,26 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 setBackgroundColor("#2B3140".toColorInt())
                 setPadding(dp(8), dp(4), dp(8), dp(4))
                 setOnClickListener { syncSourceToDesign() }
+            })
+
+            // 화면 회전 토글
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = if (isLandscape) "🔁 Landscape" else "🔁 Portrait"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener {
+                    isLandscape = !isLandscape
+                    text = if (isLandscape) "🔁 Landscape" else "🔁 Portrait"
+                    renderDesign()
+                    refreshWidgetPreview()
+                    val isKo = AppLanguage.isKorean(this@LayoutPreviewActivity)
+                    Toast.makeText(this@LayoutPreviewActivity,
+                        if (isKo) "회전: ${if (isLandscape) "가로" else "세로"}"
+                        else "Rotation: ${if (isLandscape) "Landscape" else "Portrait"}",
+                        Toast.LENGTH_SHORT).show()
+                }
             })
         }
         root.addView(topBar)
@@ -645,9 +666,8 @@ class LayoutPreviewActivity : AppCompatActivity() {
         } else if (index == 1) {
             // Source 탭으로 갈 때 현재 디자인 상태 반영 (Design → Source)
             val currentRoot = rootNode
-            // rootNode가 있으면 디자인 상태에서 XML을 재구성, 없으면 파일에서 읽음
             val currentXml = if (currentRoot != null) buildXmlFromNodes(currentRoot, 0) else targetFile?.readText() ?: ""
-            sourceText.text = currentXml
+            applyXmlSyntaxHighlighting(sourceText, currentXml)
         }
 
         // 탭 버튼 스타일 업데이트
@@ -707,9 +727,57 @@ class LayoutPreviewActivity : AppCompatActivity() {
         val currentRoot = rootNode
         if (currentRoot == null) return
         val xml = buildXmlFromNodes(currentRoot, 0)
-        sourceText.text = xml
+        applyXmlSyntaxHighlighting(sourceText, xml)
         val isKo = AppLanguage.isKorean(this)
         Toast.makeText(this, if (isKo) "디자인 → 소스 동기화 완료" else "Design → Source synced", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * XML 소스에 간단한 구문 하이라이팅 적용 (태그, 속성, 값, 주석).
+     * 소스 뷰에 표시될 때 호출됨.
+     */
+    private fun applyXmlSyntaxHighlighting(textView: TextView, xml: String) {
+        val spannable = SpannableString(xml)
+        val tagColor = 0xFF4F8EF7.toInt()      // 파란색 - 태그
+        val attrColor = 0xFF9B5DE5.toInt()     // 보라색 - 속성명
+        val valColor = 0xFF00C853.toInt()      // 초록색 - 속성값
+        val commentColor = 0xFF8B949E.toInt()  // 회색 - 주석
+
+        // 태그 하이라이팅: <tagname>
+        val tagRegex = Regex("<(/)?(\\w+[\\w.-]*)")
+        for (match in tagRegex.findAll(xml)) {
+            spannable.setSpan(android.text.style.ForegroundColorSpan(tagColor),
+                match.range.first, match.range.last + 1,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+
+        // 속성명: name="
+        val attrRegex = Regex("(\\w+):?(\\w+)=\"")
+        for (match in attrRegex.findAll(xml)) {
+            val attrName = match.groupValues[0].removeSuffix("=\"")
+            val nameEnd = match.range.first + attrName.length
+            spannable.setSpan(android.text.style.ForegroundColorSpan(attrColor),
+                match.range.first, nameEnd,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+
+        // 속성값: "value"
+        val valRegex = Regex("\"([^\"]*)\"")
+        for (match in valRegex.findAll(xml)) {
+            spannable.setSpan(android.text.style.ForegroundColorSpan(valColor),
+                match.range.first, match.range.last + 1,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+
+        // 주석: <!-- ... -->
+        val commentRegex = Regex("<!--.*?-->")
+        for (match in commentRegex.findAll(xml)) {
+            spannable.setSpan(android.text.style.ForegroundColorSpan(commentColor),
+                match.range.first, match.range.last + 1,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+
+        textView.setText(spannable, android.widget.TextView.BufferType.SPANNABLE)
     }
 
     // =========================================================================
@@ -1488,7 +1556,11 @@ class LayoutPreviewActivity : AppCompatActivity() {
             )
         }
         
-        computeBounds(root, Rect(0, 0, designW, designH))
+        // Landscape: swap width/height
+        val finalW = if (isLandscape) designH else designW
+        val finalH = if (isLandscape) designW else designH
+        
+        computeBounds(root, Rect(0, 0, finalW, finalH))
         designCanvas.setNodes(root)
         refreshWidgetPreview()
         updateZoomLabel()
