@@ -249,7 +249,24 @@ class X11Extensions(
         output: java.io.DataOutputStream
     ): Boolean {
         Log.d(TAG, "XFixes minorOpcode=$minorOpcode")
-        sendExtensionReply(output, opcode, true)
+        when (minorOpcode) {
+            XFixes_CURSOR_IMAGE -> {
+                // Return cursor image for Wine cursor rendering
+                val reply = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(8) // length in 4-byte units
+                reply.putInt(XFixes_CURSOR_IMAGE_SIZE) // width
+                reply.putInt(XFixes_CURSOR_IMAGE_SIZE) // height
+                reply.putInt(0) // xhot
+                reply.putInt(0) // yhot
+                reply.putInt(0) // cursor serial
+                reply.putInt(0) // cursor image data (empty)
+                output.write(reply.array())
+                output.flush()
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
         return true
     }
 
