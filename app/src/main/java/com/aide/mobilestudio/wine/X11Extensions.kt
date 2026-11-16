@@ -495,9 +495,7 @@ class X11Extensions(
             2 -> {
                 // glXCreateContext - create GLX context backed by EGL
                 val ready = server.eglContextManager.init()
-                val contextId = buf.getInt(4) // context ID from client
                 if (ready && server.eglContextManager.isReady()) {
-                    server.eglSurfaceToDrawable[contextId] = buf.getInt(8) // drawable ID
                     sendExtensionReply(output, opcode, true)
                 } else {
                     sendExtensionError(output, opcode, minorOpcode)
