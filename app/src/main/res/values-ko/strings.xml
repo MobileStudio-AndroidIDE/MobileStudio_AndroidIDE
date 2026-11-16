@@ -98,7 +98,7 @@
 
     <!-- Dialogs -->
     <string name="dialog_confirm_delete">삭제 확인</string>
-    <string name="dialog_confirm_delete_title">\"%s\"을(를) 삭제할까요?</string>
+    <string name="dialog_confirm_delete_title">"%s"을(를) 삭제할까요?</string>
     <string name="dialog_cannot_be_undone">이 작업은 되돌릴 수 없습니다.</string>
     <string name="dialog_confirm_replace_title">프로젝트 교체</string>
     <string name="dialog_confirm_replace_message">MobileStudio/%s이(가) 이미 존재합니다. 선택한 /sdcard 프로젝트로 교체할까요?</string>
@@ -167,9 +167,46 @@
     <string name="projects_app_name_empty">앱 이름을 입력하세요.</string>
     <string name="projects_app_name_invalid">앱 이름에 잘못된 문자가 포함되어 있습니다.</string>
     <string name="projects_package_invalid">올바르지 않은 패키지 이름입니다.</string>
-    <string name="projects_already_exists">이미 \"%s\" 프로젝트가 존재합니다.</string>
+    <string name="projects_already_exists">이미 "%s" 프로젝트가 존재합니다.</string>
     <string name="projects_created">프로젝트 생성됨: %s</string>
     <string name="projects_create_failed">프로젝트 생성 실패: %s</string>
+
+    <!-- New Project dialog -->
+    <string name="newproject_title">새 프로젝트</string>
+    <string name="newproject_subtitle">새 프로젝트를 빠르게 설정합니다</string>
+    <string name="newproject_app_name_hint">예시: MyApp</string>
+    <string name="newproject_package_name_hint">com.example.</string>
+    <string name="newproject_project_folder_hint">예: /sdcard/MobileStudio</string>
+    <string name="newproject_save_path_format">%1$s/&lt;ProjectName&gt;</string>
+    <string name="newproject_build_script">빌드 스크립트</string>
+    <string name="newproject_build_dsl_kts">build.gradle.kts</string>
+    <string name="newproject_build_dsl_groovy">build.gradle (Groovy)</string>
+    <string name="newproject_minimum_sdk">최소 SDK</string>
+    <string name="newproject_options">옵션</string>
+    <string name="newproject_enable_view_binding">View Binding 활성화</string>
+    <string name="newproject_python_template">Python 스크립트 (터미널 + pip)</string>
+    <string name="newproject_windows_template">Windows .exe (C - mingw-w64)</string>
+    <string name="newproject_windows_note">Tools &gt; Wine &amp; Box64 &gt; Build .exe 로 컴파일, Run .exe 로 실행</string>
+    <string name="newproject_godot_template">Godot 4.7.2 (project.godot + main.tscn)</string>
+    <string name="newproject_godot_note">실행 버튼을 누르면 내장 Godot 에디터가 열립니다.</string>
+    <string name="newproject_type_android">안드로이드 앱</string>
+    <string name="newproject_type_android_desc">Gradle 기반 Android 앱</string>
+    <string name="newproject_type_java">독립 Java 실행 파일</string>
+    <string name="newproject_type_java_desc">독립 Java 실행 파일</string>
+    <string name="newproject_type_kotlin">독립 Kotlin 실행 파일</string>
+    <string name="newproject_type_kotlin_desc">독립 Kotlin 실행 파일</string>
+    <string name="newproject_type_exe">C++ 네이티브 프로젝트</string>
+    <string name="newproject_type_exe_desc">C++ 네이티브 프로젝트</string>
+    <string name="newproject_type_godot">Godot</string>
+    <string name="newproject_project_type_label">프로젝트 유형</string>
+    <string name="newproject_enter_location">프로젝트 위치를 입력하세요.</string>
+    <string name="newproject_created_toast">프로젝트가 생성되었습니다: %s</string>
+    <string name="newproject_type_python">Python (Shell)</string>
+    <string name="newproject_type_windows">Windows .exe</string>
+    <string name="newproject_creation_failed_title">프로젝트 생성이 실패하였습니다.</string>
+    <string name="newproject_path_label">위치</string>
+    <string name="newproject_placeholder_app">MyApplication</string>
+    <string name="newproject_placeholder_folder">프로젝트 폴더</string>
 
     <!-- Toolchain file explorer -->
     <string name="explorer_empty">비어 있음 또는 권한 없음</string>

@@ -59,7 +59,6 @@ class BuildBootActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        NotificationPermission.ensure(this)
 
         // adb (BuildBootActivity is the exported launcher entry point):
         //   adb shell am start -n com.aide.mobilestudio/.BuildBootActivity --ez terminal_self_test true
@@ -70,7 +69,6 @@ class BuildBootActivity : AppCompatActivity() {
             // applets) — install first, then run the tests.
             Thread {
                 runCatching { installRuntimeTools() }
-                TerminalPtySelfTest.runAsync(this)
             }.start()
         }
 

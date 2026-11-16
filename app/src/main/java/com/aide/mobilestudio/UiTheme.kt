@@ -107,6 +107,7 @@ object UiTheme {
             ThemeManager.AppTheme.DRACULA -> if (dark) draculaDarkPalette() else draculaLightPalette()
             ThemeManager.AppTheme.MONOKAI -> if (dark) monokaiDarkPalette() else monokaiLightPalette()
             ThemeManager.AppTheme.NORD -> if (dark) nordDarkPalette() else nordLightPalette()
+            ThemeManager.AppTheme.ONE_DARK_PRO -> if (dark) oneDarkProDarkPalette() else oneDarkProLightPalette()
         }
         StudioUi.applyTheme(p)
         return p
@@ -407,6 +408,77 @@ object UiTheme {
         )
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // ONE DARK PRO — VS Code 스타일 다크/라이트 테마
+    // ═══════════════════════════════════════════════════════════════
+    private fun oneDarkProDarkPalette(): UiPalette {
+        val accent = C("#61AFEF")
+        return UiPalette(
+            isDark = true,
+            bg = C("#282C34"), surface = C("#21252B"), surface2 = C("#2C313A"),
+            card = C("#21252B"), border = C("#3E4451"), borderStrong = C("#525866"),
+            divider = C("#3E4451"), text = C("#ABB2BF"), textSoft = C("#5C6370"),
+            muted = C("#5C6370"),
+            accent = accent, onAccent = C("#282C34"),
+            success = C("#98C379"), warning = C("#E5C07B"), error = C("#E06C75"),
+            info = C("#56B6C2"), selection = C("#3E4451"), selectedBg = C("#3E4451"),
+            disabled = C("#545862"),
+            editorBg = C("#282C34"), editorText = C("#ABB2BF"),
+            gutterBg = C("#282C34"), gutterText = C("#5C6370"), gutterTextActive = C("#ABB2BF"),
+            currentLine = C("#2C313A"), caret = C("#61AFEF"),
+            editorIndentGuide = C("#3E4451"), editorSelection = C("#3E4451"),
+            synKw = C("#C678DD"), synType = C("#E5C07B"), synFunc = C("#61AFEF"),
+            synStr = C("#98C379"), synNum = C("#D19A66"), synComment = C("#5C6370"),
+            synAnnotation = C("#D19A66"), synIdent = C("#ABB2BF"), synOperator = C("#56B6C2"),
+            synTag = C("#E06C75"), synAttr = C("#E06C75"),
+            synParam = C("#D19A66"), synField = C("#56B6C2"), synConst = C("#D19A66"),
+            synEnum = C("#E5C07B"), synLabel = C("#C678DD"), synDoc = C("#5C6370"),
+            synBracket = C("#56B6C2"), synGeneric = C("#61AFEF"), synImport = C("#C678DD"),
+            synBoolean = C("#C678DD"),
+            indicatorError = C("#E06C75"), indicatorWarning = C("#E5C07B"),
+            indicatorModified = C("#61AFEF"), indicatorReadonly = C("#5C6370"),
+            indicatorFavorite = C("#E5C07B"),
+            termCommand = C("#61AFEF"), termGradleTask = C("#56B6C2"),
+            termUrl = C("#56B6C2"), termExitCode = C("#98C379"),
+            termComment = C("#5C6370"), termPath = C("#61AFEF"),
+            errBg = C("#3B2628"), warnBg = C("#3B3226"), okBg = C("#28342B")
+        )
+    }
+
+    private fun oneDarkProLightPalette(): UiPalette {
+        val accent = C("#4078F2")
+        return UiPalette(
+            isDark = false,
+            bg = C("#FAFAFA"), surface = C("#FFFFFF"), surface2 = C("#F0F0F0"),
+            card = C("#FFFFFF"), border = C("#D6D6D6"), borderStrong = C("#999999"),
+            divider = C("#E0E0E0"), text = C("#2D2D2D"), textSoft = C("#757575"),
+            muted = C("#999999"),
+            accent = accent, onAccent = Color.WHITE,
+            success = C("#669A39"), warning = C("#D5840F"), error = C("#E0234E"),
+            info = C("#0F7FD5"), selection = C("#D6E8FF"), selectedBg = C("#D6E8FF"),
+            disabled = C("#CCCCCC"),
+            editorBg = C("#FFFFFF"), editorText = C("#2D2D2D"),
+            gutterBg = C("#FAFAFA"), gutterText = C("#CCCCCC"), gutterTextActive = C("#757575"),
+            currentLine = C("#F4F4F4"), caret = C("#4078F2"),
+            editorIndentGuide = C("#E8E8E8"), editorSelection = C("#D6E8FF"),
+            synKw = C("#C586C0"), synType = C("#6A9955"), synFunc = C("#61AFEF"),
+            synStr = C("#CE9178"), synNum = C("#B5CEA8"), synComment = C("#6A9955"),
+            synAnnotation = C("#DCDCAA"), synIdent = C("#2D2D2D"), synOperator = C("#D4D4D4"),
+            synTag = C("#D16969"), synAttr = C("#9CDCFE"),
+            synParam = C("#DCDCAA"), synField = C("#9CDCFE"), synConst = C("#4EC9B0"),
+            synEnum = C("#4EC9B0"), synLabel = C("#C586C0"), synDoc = C("#6A9955"),
+            synBracket = C("#D4D4D4"), synGeneric = C("#61AFEF"), synImport = C("#C586C0"),
+            synBoolean = C("#C586C0"),
+            indicatorError = C("#E0234E"), indicatorWarning = C("#D5840F"),
+            indicatorModified = C("#61AFEF"), indicatorReadonly = C("#757575"),
+            indicatorFavorite = C("#D5840F"),
+            termCommand = C("#61AFEF"), termGradleTask = C("#56B6C2"),
+            termUrl = C("#56B6C2"), termExitCode = C("#98C379"),
+            termComment = C("#757575"), termPath = C("#61AFEF"),
+            errBg = C("#FDE7E9"), warnBg = C("#FFF4E0"), okBg = C("#E8F5E9")
+        )
+    }
+
     private fun C(hex: String): Int = Color.parseColor(hex)
 
     private fun blend(fg: Int, bg: Int, ratio: Float): Int {
@@ -416,3 +488,4 @@ object UiTheme {
         return Color.rgb(r.toInt(), g.toInt(), b.toInt())
     }
 }
+

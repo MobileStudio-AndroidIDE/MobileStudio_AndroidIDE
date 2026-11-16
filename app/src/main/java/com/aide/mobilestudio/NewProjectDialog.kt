@@ -1,5 +1,6 @@
 ﻿package com.aide.mobilestudio
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -17,6 +18,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
 
 object NewProjectDialog {
+
+    /** Activity에서 호출: 스토리지 퍼미션이 있으면 true, 없으면 요청 후 false */
+    fun checkAndRequestStoragePermissions(activity: Activity): Boolean {
+        return true
+    }
 
     fun show(
         context: Context,
@@ -54,26 +60,25 @@ object NewProjectDialog {
             ).apply { bottomMargin = 4 }
         }
 
-        val isKorean = AppLanguage.isKorean(context)
-
-        root.addView(label(if (isKorean) "앱 이름" else "App name"))
-        val etAppName = field(if (isKorean) "예시: MyApp" else "e.g. MyApp")
+        root.addView(label(AppLanguage.string(context, R.string.projects_app_name)))
+        val etAppName = field(AppLanguage.string(context, R.string.newproject_app_name_hint))
         root.addView(etAppName)
 
-        val pkgLabel = label(if (isKorean) "패키지 이름" else "Package name")
-        root.addView(pkgLabel)
+        root.addView(label(AppLanguage.string(context, R.string.projects_package_name)))
         val etPackage = field("com.example.myapp", "com.example.")
         root.addView(etPackage)
 
-        root.addView(label(if (isKorean) "프로젝트 폴더" else "Project folder"))
+        root.addView(label(AppLanguage.string(context, R.string.projects_project_folder)))
         val etProjectRoot = field(
-                if (isKorean) "예: /sdcard/MobileStudio" else "e.g. /sdcard/MobileStudio",
+            AppLanguage.string(context, R.string.newproject_project_folder_hint),
             generator.projectsRoot.absolutePath
         )
         root.addView(etProjectRoot)
 
         val tvSavePath = TextView(context).apply {
-            text = "${generator.projectsRoot.absolutePath}/<ProjectName>"
+            text = AppLanguage.string(context, R.string.newproject_save_path_format)
+                .replace("%1\$s", generator.projectsRoot.absolutePath)
+                .replace("<ProjectName>", "&lt;ProjectName&gt;")
             textSize = 11f
             setTextColor(StudioUi.palette.muted)
             typeface = Typeface.MONOSPACE
@@ -87,24 +92,28 @@ object NewProjectDialog {
             override fun afterTextChanged(s: Editable?) {
                 val derived = ProjectTemplateGenerator.ProjectConfig.derivePackage(etAppName.text.toString())
                 etPackage.setText(derived)
-                tvSavePath.text = "${etProjectRoot.text.toString().trim().ifEmpty { generator.projectsRoot.absolutePath }}/${etAppName.text.toString().trim().ifEmpty { "<ProjectName>" }}"
+                tvSavePath.text = AppLanguage.string(context, R.string.newproject_save_path_format)
+                    .replace("%1\$s", etProjectRoot.text.toString().trim().ifEmpty { generator.projectsRoot.absolutePath })
+                    .replace("<ProjectName>", etAppName.text.toString().trim().ifEmpty { "<ProjectName>" })
             }
         })
         etProjectRoot.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
             override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                tvSavePath.text = "${s.toString().trim().ifEmpty { generator.projectsRoot.absolutePath }}/${etAppName.text.toString().trim().ifEmpty { "<ProjectName>" }}"
+                tvSavePath.text = AppLanguage.string(context, R.string.newproject_save_path_format)
+                    .replace("%1\$s", s.toString().trim().ifEmpty { generator.projectsRoot.absolutePath })
+                    .replace("<ProjectName>", etAppName.text.toString().trim().ifEmpty { "<ProjectName>" })
             }
         })
 
-        root.addView(label(if (isKorean) "프로젝트 타입" else "Project type"))
+        root.addView(label(AppLanguage.string(context, R.string.projects_project_type)))
 
         // Android section (shown by default)
         val androidSection = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        androidSection.addView(label(if (isKorean) "템플릿" else "Template"))
+        androidSection.addView(label(AppLanguage.string(context, R.string.projects_template)))
         val androidTemplates = listOf(
-            "Empty Activity (Kotlin + XML)",
+            AppLanguage.string(context, R.string.newproject_type_android),
             "Empty Compose Activity",
             "Empty Activity (Java + XML)",
             "Basic Activity (Material + FAB)",
@@ -136,7 +145,7 @@ object NewProjectDialog {
         androidSection.addView(spinnerTemplate)
 
         // Build Script Format (KTS vs Groovy)
-        androidSection.addView(label(if (isKorean) "빌드 스크립트" else "Build Script"))
+        androidSection.addView(label(AppLanguage.string(context, R.string.newproject_build_script)))
         val radioGroupBuildDsl = RadioGroup(context).apply {
             orientation = RadioGroup.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
@@ -145,13 +154,13 @@ object NewProjectDialog {
             ).apply { bottomMargin = 8 }
         }
         val rbKts = RadioButton(context).apply {
-            text = "build.gradle.kts"
+            text = AppLanguage.string(context, R.string.newproject_build_dsl_kts)
             id = View.generateViewId()
             isChecked = true
             setTextColor(StudioUi.palette.textSoft)
         }
         val rbGroovy = RadioButton(context).apply {
-            text = "build.gradle (Groovy)"
+            text = AppLanguage.string(context, R.string.newproject_build_dsl_groovy)
             id = View.generateViewId()
             setTextColor(StudioUi.palette.textSoft)
         }
@@ -159,7 +168,7 @@ object NewProjectDialog {
         radioGroupBuildDsl.addView(rbGroovy)
         androidSection.addView(radioGroupBuildDsl)
 
-        androidSection.addView(label(if (isKorean) "최소 SDK" else "Minimum SDK"))
+        androidSection.addView(label(AppLanguage.string(context, R.string.newproject_minimum_sdk)))
         val minSdkLabels = listOf(
             "21 (Android 5.0)", "24 (Android 7.0)", "26 (Android 8.0)",
             "28 (Android 9.0)", "29 (Android 10)", "31 (Android 12)", "33 (Android 13)"
@@ -171,9 +180,9 @@ object NewProjectDialog {
             setSelection(1)
         }
         androidSection.addView(spinnerMinSdk)
-        androidSection.addView(label(if (isKorean) "옵션" else "Options"))
+        androidSection.addView(label(AppLanguage.string(context, R.string.newproject_options)))
         val cbViewBinding = CheckBox(context).apply {
-            text = if (isKorean) "View Binding 활성화" else "Enable View Binding"
+            text = AppLanguage.string(context, R.string.newproject_enable_view_binding)
             isChecked = true
             setTextColor(StudioUi.palette.textSoft)
         }
@@ -185,9 +194,9 @@ object NewProjectDialog {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
         }
-        pythonSection.addView(label(if (isKorean) "템플릿" else "Template"))
+        pythonSection.addView(label(AppLanguage.string(context, R.string.projects_template)))
         val tvPythonOnly = TextView(context).apply {
-            text = if (isKorean) "Python 스크립트 (터미널 + pip)" else "Python Script (terminal + pip)"
+            text = AppLanguage.string(context, R.string.newproject_python_template)
             textSize = 14f
             setTextColor(StudioUi.palette.success)
             setPadding(24, 14, 24, 14)
@@ -205,9 +214,9 @@ object NewProjectDialog {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
         }
-        windowsSection.addView(label(if (isKorean) "템플릿" else "Template"))
+        windowsSection.addView(label(AppLanguage.string(context, R.string.projects_template)))
         val tvWindowsOnly = TextView(context).apply {
-            text = "Windows .exe (C - mingw-w64)"
+            text = AppLanguage.string(context, R.string.newproject_windows_template)
             textSize = 14f
             setTextColor(StudioUi.palette.warning)
             setPadding(24, 14, 24, 14)
@@ -219,9 +228,7 @@ object NewProjectDialog {
         }
         windowsSection.addView(tvWindowsOnly)
         val tvWindowsNote = TextView(context).apply {
-            text = if (isKorean)
-                "Tools > Wine & Box64 > Build .exe 로 컴파일, Run .exe 로 실행"
-            else "Compile with Tools > Wine & Box64 > Build .exe, run with Run .exe"
+            text = AppLanguage.string(context, R.string.newproject_windows_note)
             textSize = 11f
             setTextColor(StudioUi.palette.muted)
             setPadding(24, 4, 24, 8)
@@ -233,9 +240,9 @@ object NewProjectDialog {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
         }
-        godotSection.addView(label(if (isKorean) "템플릿" else "Template"))
+        godotSection.addView(label(AppLanguage.string(context, R.string.projects_template)))
         val tvGodotOnly = TextView(context).apply {
-            text = "Godot 4.7.2 (project.godot + main.tscn)"
+            text = AppLanguage.string(context, R.string.newproject_godot_template)
             textSize = 14f
             setTextColor(StudioUi.palette.success)
             setPadding(24, 14, 24, 14)
@@ -247,9 +254,7 @@ object NewProjectDialog {
         }
         godotSection.addView(tvGodotOnly)
         val tvGodotNote = TextView(context).apply {
-            text = if (isKorean)
-                "실행 버튼을 누르면 내장 Godot 에디터가 열립니다."
-            else "Press Run to open the built-in Godot editor."
+            text = AppLanguage.string(context, R.string.newproject_godot_note)
             textSize = 11f
             setTextColor(StudioUi.palette.muted)
             setPadding(24, 4, 24, 8)
@@ -262,6 +267,7 @@ object NewProjectDialog {
             gravity = Gravity.CENTER_VERTICAL
         }
         var selectedType = 0
+        val pkgLabel = label(AppLanguage.string(context, R.string.projects_package_name))
         fun applyType(t: Int) {
             selectedType = t
             androidSection.visibility = if (t == 0) View.VISIBLE else View.GONE
@@ -277,14 +283,14 @@ object NewProjectDialog {
             }
         }
         val rbAndroid = RadioButton(context).apply {
-            text = if (isKorean) "안드로이드 앱" else "Android App"
+            text = AppLanguage.string(context, R.string.newproject_type_android)
             isChecked = true
             setTextColor(StudioUi.palette.text)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { applyType(0) }
         }
         val rbPython = RadioButton(context).apply {
-            text = if (isKorean) "Python (Shell)" else "Python (Shell)"
+            text = AppLanguage.string(context, R.string.newproject_type_python)
             setTextColor(StudioUi.palette.text)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { applyType(1) }
@@ -292,14 +298,14 @@ object NewProjectDialog {
         radioGroup.addView(rbAndroid)
         radioGroup.addView(rbPython)
         val rbWindows = RadioButton(context).apply {
-            text = "Windows .exe"
+            text = AppLanguage.string(context, R.string.newproject_type_windows)
             setTextColor(StudioUi.palette.text)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { applyType(2) }
         }
         radioGroup.addView(rbWindows)
         val rbGodot = RadioButton(context).apply {
-            text = "Godot"
+            text = AppLanguage.string(context, R.string.newproject_type_godot)
             setTextColor(StudioUi.palette.text)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { applyType(3) }
@@ -316,13 +322,13 @@ object NewProjectDialog {
         root.addView(tvError)
 
         val dialog = AlertDialog.Builder(context)
-            .setTitle(if (isKorean) "새 프로젝트" else "New Project")
+            .setTitle(AppLanguage.string(context, R.string.newproject_title))
             .setView(ScrollView(context).apply {
                 addView(root)
                 setBackgroundColor(StudioUi.palette.card)
             })
-            .setPositiveButton(if (isKorean) "만들기" else "Create", null)
-            .setNegativeButton(if (isKorean) "취소" else "Cancel", null)
+            .setPositiveButton(AppLanguage.string(context, R.string.action_create), null)
+            .setNegativeButton(AppLanguage.string(context, R.string.action_cancel), null)
             .create()
 
         dialog.setOnShowListener {
@@ -342,22 +348,22 @@ object NewProjectDialog {
 
                 when {
                     appName.isEmpty() -> {
-                        tvError.text = if (isKorean) "앱 이름은 비워둘 수 없습니다." else "App name cannot be empty."
+                        tvError.text = AppLanguage.string(context, R.string.projects_app_name_empty)
                         tvError.visibility = View.VISIBLE
                         return@setOnClickListener
                     }
                     appName.contains(Regex("[^a-zA-Z0-9_ ]")) -> {
-                        tvError.text = if (isKorean) "앱 이름에 잘못된 문자가 포함되어 있습니다." else "App name contains invalid characters."
+                        tvError.text = AppLanguage.string(context, R.string.projects_app_name_invalid)
                         tvError.visibility = View.VISIBLE
                         return@setOnClickListener
                     }
                     selectedType == 0 && !pkgName.matches(Regex("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+")) -> {
-                        tvError.text = if (isKorean) "유효하지 않은 패키지 이름." else "Invalid package name."
+                        tvError.text = AppLanguage.string(context, R.string.projects_package_invalid)
                         tvError.visibility = View.VISIBLE
                         return@setOnClickListener
                     }
                     File(projectRoot, appName).exists() -> {
-                        tvError.text = if (isKorean) "\"$appName\" 은(는) 이미 있습니다. 다른 프로젝트 이름으로 시도해주세요." else "A project named \"$appName\" already exists."
+                        tvError.text = AppLanguage.string(context, R.string.projects_already_exists).replace("%s", appName)
                         tvError.visibility = View.VISIBLE
                         return@setOnClickListener
                     }
@@ -421,11 +427,6 @@ object NewProjectDialog {
                     ndkVersion     = ndkVersion
                 )
 
-                // NATIVE_CPP used to block creation behind an NDK/CMake/Ninja/
-                // LLVM download dialog (installNdkAndCreate). Project creation
-                // is now ALWAYS instant; those tools are provisioned lazily by
-                // BuildProvisioner the first time the project is built.
-
                 dialog.dismiss()
 
                 Thread {
@@ -435,8 +436,7 @@ object NewProjectDialog {
                             onCreated(dir, cfg)
                             Toast.makeText(
                                 context,
-                                if (isKorean) "프로젝트가 생성되었습니다: ${StorageHelper.displayPath(context, cfg.appName)}"
-                                else "Project created: ${StorageHelper.displayPath(context, cfg.appName)}",
+                                AppLanguage.string(context, R.string.projects_created).replace("%s", StorageHelper.displayPath(context, cfg.appName)),
                                 Toast.LENGTH_LONG
                             ).show()
                         }
@@ -455,9 +455,9 @@ object NewProjectDialog {
                             }
                             scrollView.addView(errorText)
                             MaterialAlertDialogBuilder(context)
-                                .setTitle(if (isKorean) "프로젝트 생성이 실패하였습니다." else "Project Creation Failed")
+                                .setTitle(AppLanguage.string(context, R.string.newproject_creation_failed_title))
                                 .setView(scrollView)
-                                .setPositiveButton(if (isKorean) "확인" else "OK", null)
+                                .setPositiveButton(AppLanguage.string(context, R.string.action_ok), null)
                                 .show()
                         }
                     }

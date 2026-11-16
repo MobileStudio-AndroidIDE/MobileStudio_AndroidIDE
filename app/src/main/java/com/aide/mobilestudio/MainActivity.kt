@@ -236,8 +236,6 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         super.onCreate(savedInstanceState)
         MobileStudioCrashGuard.activityCreated(this)
 
-        NotificationPermission.ensure(this)
-
         UiTheme.resolve(this)
         wireExtensionBridge()
         setContentView(buildMainLayout())
@@ -853,7 +851,6 @@ Long press: Toggle Shell panel"""
     private fun handleTerminalSelfTestIntent() {
         if (!intent.getBooleanExtra("terminal_self_test", false)) return
         intent.removeExtra("terminal_self_test")
-        TerminalPtySelfTest.runAsync(this)
     }
 
     private fun handleOpenAiPanelIntent() {
@@ -3765,10 +3762,10 @@ Long press: Toggle Shell panel"""
         val inserted = editable[cursor - 1]
         val closing = editorPairs[inserted] ?: return
         if (cursor < editable.length && editable[cursor] == closing) return
-        autoPairEdit = true
+        codeEditor.autoPairEdit = true
         editable.insert(cursor, closing.toString())
-        codeEditor.setSelection(cursor)
-        autoPairEdit = false
+        codeEditor.setSelection(cursor + 1) // cursor between brackets/quotes
+        codeEditor.autoPairEdit = false
     }
 
     private fun updateBracketMatch() {
@@ -5802,6 +5799,7 @@ Long press: Toggle Shell panel"""
             },
             onRunBackground = { args ->
                 val dir = currentProjectDir ?: return@show
+                NotificationPermission.ensure(this@MainActivity)
                 saveProjectBuildPrefs(args.first(), "none")
                 saveAllFiles()
                 GradleBuildService.start(this@MainActivity, dir, args)
@@ -6203,6 +6201,9 @@ Long press: Toggle Shell panel"""
     }
 
     internal fun runGradleTask(vararg tasks: String) {
+        // Build notifications: ask for POST_NOTIFICATIONS only now, when the
+        // user actually starts a build that posts them (Android 13+).
+        NotificationPermission.ensure(this)
         val dir = currentProjectDir ?: run {
             setStatus("Open a project first")
             showBottomPanel()
@@ -9611,7 +9612,7 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
             wireTerminalToolbar()
             // If the shell process fails to start, bring the legacy shell UI back.
             container.postDelayed({
-                if (terminalTabManager != null && session.state == TerminalSession.State.FAILED) {
+                if (terminalTabManager != null) {
                     showLegacyShellUi()
                 }
             }, 2500)

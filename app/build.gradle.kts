@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.25"
 }
 
 android {
@@ -12,13 +13,14 @@ android {
         applicationId = "com.aide.mobilestudio"
         minSdk = 26
         targetSdk = 34
-        versionCode = 26817
-        versionName = "26.10.15 Rose 🌹"
+        versionCode = 261112
+        versionName = "26.11.12 Magnolia 🌸"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         multiDexEnabled = true
         missingDimensionStrategy("products", "editor")
         manifestPlaceholders["godotLibraryVersion"] = "4.7.2.stable"
+        resConfigs("en", "ko", "ja", "b+zh+Hans", "b+zh+Hant", "ar", "fr")
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -106,7 +108,7 @@ android {
                 "module-info.class"
             )
 
-            // 불필??/ 충돌 리소???�거
+            // 불필요한 충돌 리소스 제거
             excludes += setOf(
                 "META-INF/AL2.0",
                 "META-INF/LGPL2.1",
@@ -146,6 +148,7 @@ dependencies {
     implementation("androidx.multidex:multidex:2.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:1.9.25")
     implementation("com.google.code.gson:gson:2.11.0")
 

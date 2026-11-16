@@ -6,14 +6,17 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -43,6 +46,7 @@ import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.lifecycleScope
 import java.io.File
 
 const val PREFS_NAME = "mobilestudio_settings"
@@ -66,6 +70,16 @@ const val PREFS_NAME = "mobilestudio_settings"
  * for launcher/deep-link compatibility only.
  */
 class SettingsActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        val langCode = AppLanguage.current(newBase).code
+        val locale = Locale(langCode)
+        val res = newBase.resources
+        val config = Configuration(res.configuration)
+        config.setLocale(locale)
+        val newContext = newBase.createConfigurationContext(config)
+        super.attachBaseContext(newContext)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val controller = SettingsController(this, onClose = { finish() })
@@ -158,6 +172,7 @@ internal class SettingsController(
 
     private fun commitDraft() {
         if (draft.isEmpty()) return
+        // 1. Write to main prefs file
         val editor = prefs.edit()
         for ((k, v) in draft) {
             when {
@@ -170,6 +185,43 @@ internal class SettingsController(
             }
         }
         editor.apply()
+
+        // 2. Sync to ide_options (editor behavior: auto_pair, bracket_match, etc.)
+        val ideOpts = host.getSharedPreferences("ide_options", Context.MODE_PRIVATE).edit()
+        for ((k, v) in draft) {
+            when (k) {
+                "auto_pair", "bracket_match" -> {
+                    if (v is Boolean) ideOpts.putBoolean(k, v)
+                }
+                "font_size" -> {
+                    if (v is String) {
+                        ideOpts.putFloat(k, v.removeSuffix("sp").toFloatOrNull() ?: 14f)
+                    }
+                }
+            }
+        }
+        ideOpts.apply()
+
+        // 3. Sync to ide (build-related settings)
+        val idePrefs = host.getSharedPreferences("ide", Context.MODE_PRIVATE).edit()
+        for ((k, v) in draft) {
+            when (k) {
+                "verbose_build_logs" -> {
+                    if (v is Boolean) idePrefs.putBoolean(k, v)
+                }
+            }
+        }
+        idePrefs.apply()
+
+        // 4. Sync to terminal_options (terminal font size)
+        val termOpts = host.getSharedPreferences("terminal_options", Context.MODE_PRIVATE).edit()
+        for ((k, v) in draft) {
+            if (k == "font_size" && v is String) {
+                termOpts.putFloat(k, v.removeSuffix("sp").toFloatOrNull() ?: 14f)
+            }
+        }
+        termOpts.apply()
+
         draft.clear()
     }
 
@@ -618,8 +670,6 @@ internal class SettingsController(
                 Modifier.align(Alignment.CenterEnd).padding(end = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                WindowGlyph("—") { }
-                WindowGlyph("▢") { }
                 WindowGlyph("✕", onClick = onClose)
             }
         }
@@ -1193,10 +1243,10 @@ internal class SettingsController(
     }
 
     @Composable
-    private fun NoteRow(text: String) {
+    private fun NoteRow(text: String, color: Color = Palette.dimText) {
         Text(
             text,
-            color = Palette.dimText,
+            color = color,
             fontSize = 13.sp,
             lineHeight = 18.sp,
             modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
@@ -1269,7 +1319,7 @@ internal class SettingsController(
             SectionRow("Theme")
             ComboRow(
                 label = "Theme:",
-                options = listOf("Dark", "Light", "Darcula"),
+                options = listOf("Dark", "Light", "Dracula", "Monokai", "Nord", "One Dark Pro"),
                 value = get("theme", "Dark"),
                 desc = "Takes effect after restarting the app.",
             ) { put("theme", it) }
@@ -1285,6 +1335,21 @@ internal class SettingsController(
             SectionRow("System")
             LinkRow("System Settings") { go("system_settings") }
             LinkRow("Notifications") { go("notifications") }
+            SectionRow("Language")
+            val languages = AppLanguage.supported
+            val currentCode = AppLanguage.current(host).code
+            ComboRow(
+                label = "Language:",
+                options = languages.map { it.nativeName },
+                value = languages.first { it.code == currentCode }.nativeName,
+                desc = "Changes take effect immediately.",
+            ) { selectedName ->
+                val selected = languages.first { it.nativeName == selectedName }
+                if (selected.code != currentCode) {
+                    AppLanguage.set(host, selected.code)
+                    (host as SettingsActivity).recreate()
+                }
+            }
         }
     }
 
@@ -1759,6 +1824,26 @@ internal class SettingsController(
                 }
             }
 
+            SectionRow("JDK Auto-Install Preference")
+            val prefJdk = get("preferred_jdk_major", "0")
+            ComboRow(
+                label = "Preferred JDK:",
+                options = listOf("Auto", "JDK 17 (LTS)", "JDK 21 (Latest)"),
+                value = when (prefJdk) {
+                    "17" -> "JDK 17 (LTS)"
+                    "21" -> "JDK 21 (Latest)"
+                    else -> "Auto"
+                },
+                desc = "Which JDK to download when neither 17 nor 21 is installed.",
+            ) { selected ->
+                val major = when (selected) {
+                    "JDK 17 (LTS)" -> "17"
+                    "JDK 21 (Latest)" -> "21"
+                    else -> "0"
+                }
+                put("preferred_jdk_major", major)
+            }
+
             SectionRow("Memory")
             NumberRow(
                 label = "Gradle heap (MB):",
@@ -1849,27 +1934,97 @@ internal class SettingsController(
     // ------------------------------------------------------------
     @Composable
     private fun NativeToolPage(title: String, binary: String) {
+        // Map binary name to ClangToolsDownloader tool name
+        val toolName = when (binary) {
+            "clangd" -> "clangd"
+            "clang-tidy" -> "clang-tidy"
+            "cling" -> "cling"
+            else -> null
+        }
         var tick by remember { mutableStateOf(0) }
         var loading by remember { mutableStateOf(true) }
         var path by remember { mutableStateOf<String?>(null) }
+        var ndkHint by remember { mutableStateOf<String?>(null) }
+        var releases by remember { mutableStateOf<List<ClangToolsDownloader.ReleaseInfo>>(emptyList()) }
+        var releasesLoading by remember { mutableStateOf(false) }
+        var selectedRelease by remember { mutableStateOf<ClangToolsDownloader.ReleaseInfo?>(null) }
+        var downloadActive by remember { mutableStateOf(false) }
+        var downloadResult by remember { mutableStateOf<String?>(null) }
 
         LaunchedEffect(tick) {
             loading = true
             withContext(Dispatchers.IO) {
+                // 1. Search in filesDir/toolchain (user-installed tools)
                 val root = File(filesDir, "toolchain")
                 var found: File? = null
+                var hint: String? = null
                 if (root.isDirectory) {
                     runCatching {
                         root.walkTopDown().maxDepth(6).forEach { f ->
                             if (found == null && f.isFile && f.name == binary && f.canExecute()) {
                                 found = f
+                                hint = "User-installed"
                             }
                         }
                     }
                 }
+                // 2. Also check clang-tools downloader dir
+                if (found == null && toolName != null) {
+                    val toolFile = ClangToolsDownloader.toolPath(host, toolName)
+                    if (toolFile != null) {
+                        found = toolFile
+                        hint = "GitHub download"
+                    }
+                }
+                // 3. Search in NDK llvm/bin (clang, clang++, clangd, clang-tidy from NDK)
+                if (found == null) {
+                    val ndkDirs = NdkToolchain.discoverInstalled(host)
+                    for (ndkDir in ndkDirs) {
+                        val llvmBin = NdkToolchain.llvmBinDir(ndkDir)
+                        val candidate = File(llvmBin, binary)
+                        if (candidate.isFile && candidate.canExecute()) {
+                            found = candidate
+                            hint = "NDK: ${ndkDir.name}"
+                            break
+                        }
+                        // Also try versioned clang binaries (clang-24, clang-18, etc.)
+                        if (binary == "clang") {
+                            for (v in listOf("clang-24", "clang-18", "clang-17", "clang-16")) {
+                                val c = File(llvmBin, v)
+                                if (c.isFile && c.canExecute()) {
+                                    found = c
+                                    hint = "NDK: ${ndkDir.name}"
+                                    break
+                                }
+                            }
+                            if (found != null) break
+                        }
+                    }
+                }
                 path = found?.absolutePath
+                ndkHint = hint
             }
             loading = false
+        }
+
+        // Fetch releases from GitHub API when tool is not found
+        if (toolName != null && path == null) {
+            LaunchedEffect(toolName) {
+                releasesLoading = true
+                withContext(Dispatchers.IO) {
+                    val token = host.getSharedPreferences("github_settings", Context.MODE_PRIVATE)
+                        .getString("github_token", null)
+                    releases = ClangToolsDownloader.fetchReleases(token)
+                        .filter { r ->
+                            r.assets.any { a ->
+                                ClangToolsDownloader.TOOLS.any { t ->
+                                    t.name == toolName && a.name == t.assetName
+                                }
+                            }
+                        }
+                }
+                releasesLoading = false
+            }
         }
 
         Column(Modifier.fillMaxWidth()) {
@@ -1882,19 +2037,109 @@ internal class SettingsController(
             )
             SectionRow("Executable")
             when {
-                loading -> NoteRow("Searching the toolchain…")
-                path == null -> NoteRow(
+                loading -> NoteRow("Searching toolchain and NDK…")
+                path == null && toolName == null -> NoteRow(
                     "$title was not found. Install the LLVM or NDK toolchain to use it.",
                 )
-                else -> InfoRow("Path", path ?: "")
+                path == null && toolName != null -> Column {
+                    if (releasesLoading) {
+                        NoteRow("Fetching versions from GitHub…")
+                    } else if (releases.isEmpty()) {
+                        NoteRow(
+                            "$title was not found. No GitHub releases available for $toolName. " +
+                            "Add your GitHub token in Settings > Advanced to access private releases.",
+                        )
+                        ActionRow("Enter GitHub Token") {
+                            val input = android.widget.EditText(host)
+                            input.setHint("ghp_...")
+                            android.app.AlertDialog.Builder(host)
+                                .setTitle("GitHub Personal Access Token")
+                                .setView(input)
+                                .setPositiveButton("Save") { _, _ ->
+                                    host.getSharedPreferences("github_settings", Context.MODE_PRIVATE)
+                                        .edit().putString("github_token", input.text.toString().trim()).apply()
+                                    toast("Token saved. Refresh to see versions.")
+                                    tick++
+                                }
+                                .setNegativeButton("Cancel", null)
+                                .show()
+                        }
+                    } else {
+                        Text(
+                            "Available versions for $toolName:",
+                            color = Palette.desc,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                        )
+                        releases.forEach { rel ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    selectedRelease = rel
+                                }.padding(vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    rel.tagName,
+                                    color = if (selectedRelease == rel) Palette.link else Palette.text,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selectedRelease == rel) FontWeight.Bold else FontWeight.Normal,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "${rel.assets.size} assets",
+                                    color = Palette.dimText,
+                                    fontSize = 11.sp,
+                                )
+                            }
+                        }
+                        if (selectedRelease != null) {
+                            val url = ClangToolsDownloader.findToolUrl(selectedRelease!!, toolName)
+                            if (url != null) {
+                                ActionRow("Download $toolName ${selectedRelease!!.tagName}") {
+                                    downloadActive = true
+                                    downloadResult = null
+                                    host.lifecycleScope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            val result = ClangToolsDownloader.downloadTool(
+                                                url, toolName, host,
+                                                onLog = { msg -> Log.d("ClangDownload", msg) }
+                                            )
+                                            downloadResult = if (result != null) "success" else "failed"
+                                            downloadActive = false
+                                            tick++ // refresh path detection
+                                        }
+                                    }
+                                }
+                                if (downloadActive) {
+                                    NoteRow("Downloading $toolName…")
+                                } else if (downloadResult == "success") {
+                                    NoteRow("$toolName downloaded successfully!", color = Palette.success)
+                                } else if (downloadResult == "failed") {
+                                    NoteRow("$toolName download failed.", color = Palette.error)
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    val p = path ?: ""
+                    InfoRow("Path", p)
+                    val h = ndkHint
+                    if (h != null) InfoRow("Source", h)
+                }
+            }
+            if (toolName != null && path == null) {
+                ActionRow("Refresh versions") { tick++ }
             }
             ActionRow("Refresh") { tick++ }
             SectionRow("Options")
-            CheckRow(
-                checked = getBool("${binary}_enabled", true),
-                label = "Enable $title",
-                desc = "Runs $title during code analysis.",
-            ) { putBool("${binary}_enabled", it) }
+            if (toolName != null) {
+                CheckRow(
+                    checked = getBool("${binary}_enabled", true),
+                    label = "Enable $title",
+                    desc = "Runs $title during code analysis.",
+                ) { putBool("${binary}_enabled", it) }
+            }
             FieldRow(
                 label = "Extra arguments:",
                 value = get("${binary}_args", ""),
@@ -3362,6 +3607,8 @@ internal object Palette {
     val dimText = Color(0xFF9A9A9A)
     val desc = Color(0xFFB0B0B0)
     val disabledText = Color(0xFF777777)
+    val success = Color(0xFF57965C)
+    val error = Color(0xFFF75464)
 }
 
 /** Preference key holding the last visited settings page. */

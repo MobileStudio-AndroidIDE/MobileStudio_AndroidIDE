@@ -1,7 +1,11 @@
 package com.aide.mobilestudio
 
 import android.content.Context
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.os.LocaleList
 import java.io.File
+import java.util.Locale
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -217,6 +221,21 @@ object AppLanguage {
         return packs[code]?.keys?.get(key)
             ?: packs["en"]?.keys?.get(key)
             ?: key
+    }
+
+    /**
+     * Looks up an Android string resource ([resId]) localized for the current app language.
+     * This enables runtime language switching with Android's string resource files
+     * (values-ko/, values-ja/, etc.) without requiring an Activity recreation.
+     */
+    fun string(context: Context, resId: Int): String {
+        val code = current(context).code
+        val locale = Locale(code)
+        val configuration = context.resources.configuration
+        val newConfig = Configuration(configuration)
+        newConfig.setLocale(locale)
+        val localizedContext = context.createConfigurationContext(newConfig)
+        return localizedContext.getString(resId)
     }
 
     fun literal(context: Context, value: String): String {

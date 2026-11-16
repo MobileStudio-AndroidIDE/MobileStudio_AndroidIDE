@@ -62,6 +62,22 @@ class IdeColors(val p: UiPalette) {
     val synStr: Color get() = Color(p.synStr)
     val synNum: Color get() = Color(p.synNum)
     val synComment: Color get() = Color(p.synComment)
+    val synAnnotation: Color get() = Color(p.synAnnotation)
+    val synIdent: Color get() = Color(p.synIdent)
+    val synOperator: Color get() = Color(p.synOperator)
+    val synTag: Color get() = Color(p.synTag)
+    val synAttr: Color get() = Color(p.synAttr)
+    // extended syntax highlighting
+    val synParam: Color get() = Color(p.synParam)
+    val synField: Color get() = Color(p.synField)
+    val synConst: Color get() = Color(p.synConst)
+    val synEnum: Color get() = Color(p.synEnum)
+    val synLabel: Color get() = Color(p.synLabel)
+    val synDoc: Color get() = Color(p.synDoc)
+    val synBracket: Color get() = Color(p.synBracket)
+    val synGeneric: Color get() = Color(p.synGeneric)
+    val synImport: Color get() = Color(p.synImport)
+    val synBoolean: Color get() = Color(p.synBoolean)
 }
 
 val LocalIdeColors = staticCompositionLocalOf { IdeColors(UiTheme.defaultDarkPalette()) }

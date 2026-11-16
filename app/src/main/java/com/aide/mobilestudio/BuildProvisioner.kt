@@ -186,11 +186,28 @@ object BuildProvisioner {
     private fun ensureJdk(context: Context, projectDir: File, emit: (String, LineLevel) -> Unit): Boolean {
         val toolchain = ToolchainManager(context)
         val required = requiredJavaMajor(projectDir)
-        val order = if (required != null) {
-            listOf(required, if (required == 21) 17 else 21)
-        } else {
-            listOf(21, 17)
+
+        // Read user preference: "0"=auto, "17"=JDK 17, "21"=JDK 21
+        val pref = context.getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+            .getString("preferred_jdk_major", "0") ?: "0"
+
+        val order = buildList {
+            if (pref == "17" || pref == "21") {
+                // User explicitly chose a version — try only that one first
+                add(pref.toInt())
+                // Fall back to the other if the chosen one fails
+                add(if (pref == "17") 21 else 17)
+            } else if (required != null) {
+                // Project requires a specific version
+                add(required)
+                add(if (required == 21) 17 else 21)
+            } else {
+                // Auto: prefer JDK 21, then 17
+                add(21)
+                add(17)
+            }
         }
+
         for (major in order) {
             BuildCancellation.throwIfCancelled()
             val version = "jdk-$major"

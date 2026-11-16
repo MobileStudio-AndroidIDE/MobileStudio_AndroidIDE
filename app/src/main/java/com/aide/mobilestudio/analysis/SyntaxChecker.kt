@@ -1,5 +1,6 @@
 package com.aide.mobilestudio.analysis
 
+import android.util.Log
 import java.io.File
 import java.util.Locale
 
@@ -234,17 +235,20 @@ private class CommonPatternRegistry {
                 result += Diagnostic(path, index + 1, 1, trimmed.length,
                     "Invalid package declaration", DiagnosticSeverity.ERROR, DiagnosticKind.SYNTAX_ERROR)
             }
+        }
 
-            val duplicateImport = Regex("""import\s+(\S+)""").findAll(source)
-                .groupBy { it.groupValues[1] }
-                .filter { it.value.size > 1 }
-            if (duplicateImport.isNotEmpty()) {
-                duplicateImport.forEach { (pkg, matches) ->
-                    matches.drop(1).forEach { match ->
-                        val lineIdx = source.substring(0, match.range.first).count { it == '\n' }
-                        result += Diagnostic(path, lineIdx + 1, match.range.first + 1, match.value.length,
-                            "Duplicate import: '$pkg'", DiagnosticSeverity.WARNING, DiagnosticKind.IMPORT_ERROR)
-                    }
+        // Duplicate import detection - run once on the entire source
+        val importRegex = Regex("""import[ \t]+(\S+)""")
+        val allMatches = importRegex.findAll(source).toList()
+        val duplicateImport = allMatches
+            .groupBy { it.groupValues[1] }
+            .filter { it.value.size > 1 }
+        if (duplicateImport.isNotEmpty()) {
+            duplicateImport.forEach { (pkg, matches) ->
+                matches.drop(1).forEach { match ->
+                    val lineIdx = source.substring(0, match.range.first).count { it == '\n' }
+                    result += Diagnostic(path, lineIdx + 1, match.range.first + 1, match.value.length,
+                        "Duplicate import: '$pkg'", DiagnosticSeverity.WARNING, DiagnosticKind.IMPORT_ERROR)
                 }
             }
         }

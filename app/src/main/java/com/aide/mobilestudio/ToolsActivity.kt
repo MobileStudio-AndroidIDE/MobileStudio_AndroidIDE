@@ -1045,9 +1045,8 @@ printf("x = %d\\n", x);"""
     }
 
     /**
-     * Tools > AGP Upgrade Assistant. Reads the project's real AGP / Gradle /
-     * Kotlin versions, compares them against the recommended stack, and rewrites
-     * the build files through [ToolchainSyncManager] when the upgrade is applied.
+     * Tools > AGP Upgrade Assistant. Launches the full wizard for step-by-step
+     * AGP/Gradle/Kotlin upgrades with preview, backup, and rollback.
      */
     private fun buildAgpUpgradeCard(): View {
         val card = LinearLayout(this).apply {
@@ -1131,20 +1130,8 @@ printf("x = %d\\n", x);"""
 
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(primaryButton(if (upToDate) "Reapply Stack" else "Upgrade") {
-                confirmDialog(
-                    "Upgrade this project to AGP $targetAgp, Gradle $targetGradle and Kotlin $targetKotlin?"
-                ) {
-                    scope.launch(Dispatchers.IO) {
-                        ToolchainSyncManager.syncGradleWrapperVersion(root, ToolchainManager.DEFAULT_GRADLE)
-                        ToolchainSyncManager.syncAgpVersion(root, targetAgp)
-                        ToolchainSyncManager.syncKotlinVersion(root, targetKotlin)
-                        withContext(Dispatchers.Main) {
-                            toast("Build files updated to AGP $targetAgp / Gradle $targetGradle")
-                            renderCategory(currentCategory)
-                        }
-                    }
-                }
+            addView(primaryButton(if (upToDate) "Reapply Stack" else "Launch Upgrade Wizard") {
+                com.aide.mobilestudio.agpupgrade.AgpUpgradeToolWindow.show(host, root, { })
             })
             addView(secondaryButton("Refresh") { renderCategory(currentCategory) })
             addView(secondaryButton("Open Build Files") {
@@ -1675,9 +1662,9 @@ fi
         return out.toString().trimEnd() + "\n"
     }
 
-    private fun currentXmlFile(): File? {
+    private fun currentXmlFile(): java.io.File? {
         val file = (host as? StudioMainActivity)?.currentFile ?: return null
-        return file.takeIf { it.isFile && it.extension.equals("xml", ignoreCase = true) }
+        return file.takeIf { f -> f.isFile && f.extension.equals("xml", ignoreCase = true) }
     }
 
     private fun buildXmlActionsCard(): View {
@@ -1717,12 +1704,12 @@ fi
                 }
                 val formatted = prettyPrintXml(text)
                 runCatching { file.writeText(formatted) }
-                    .onSuccess {
-                        (host as? StudioMainActivity)?.let { ide ->
-                            ide.openFileInEditor(file)
-                            EditorPaneState.content = formatted
-                            EditorPaneState.unsaved = false
-                        }
+                        .onSuccess {
+                            (host as? StudioMainActivity)?.let { ide ->
+                                ide.openFileInEditor(file)
+                                EditorPaneState.content = formatted
+                                EditorPaneState.unsaved = false
+                            }
                         toast("Formatted ${file.name}")
                         renderCategory(currentCategory)
                     }
@@ -2151,8 +2138,8 @@ try {
 
         val layouts = projectLayoutFiles(root)
         val current = (host as? StudioMainActivity)?.currentFile
-            ?.takeIf { it.isFile && it.parentFile?.name?.startsWith("layout") == true }
-        val selected = layoutInspectorPath?.let { File(it) }?.takeIf { it.isFile }
+            ?.takeIf { f -> f.isFile && f.parentFile?.name?.startsWith("layout") == true }
+        val selected = layoutInspectorPath?.let { java.io.File(it) }?.takeIf { f: java.io.File -> f.isFile }
             ?: current
             ?: layouts.firstOrNull()
 
@@ -2214,10 +2201,14 @@ try {
         card.addView(spacer(dp(8)))
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(primaryButton("Choose Layout") {
+            addView(primaryButton("Launch Layout Inspector") {
+                val projectDir = currentProjectDirOrNull() ?: File(".")
+                com.aide.mobilestudio.layoutinspector.LayoutInspectorToolWindow.show(host, projectDir, { })
+            })
+            addView(secondaryButton("Choose Layout") {
                 if (layouts.isEmpty()) {
                     toast("No layout XML found")
-                    return@primaryButton
+                    return@secondaryButton
                 }
                 val labels = layouts.map { shortPath(it.absolutePath) }.toTypedArray()
                 AlertDialog.Builder(this@ToolsPanel)
@@ -2545,7 +2536,12 @@ try {
         card.addView(spacer(dp(8)))
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(primaryButton("Open Logcat") {
+            addView(primaryButton("Launch Logcat Tool Window") {
+                val logcatWindow = com.aide.mobilestudio.logcat.LogcatToolWindow(host)
+                val view = logcatWindow.createView()
+                // Could add to a dialog or layout here
+            })
+            addView(secondaryButton("Open Logcat (Legacy)") {
                 val pkg = input.text.toString().trim().ifBlank { host.packageName }
                 LogcatActivity.start(host, pkg)
             })

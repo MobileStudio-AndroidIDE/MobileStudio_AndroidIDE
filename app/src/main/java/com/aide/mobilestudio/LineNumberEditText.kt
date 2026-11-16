@@ -120,6 +120,7 @@ class LineNumberEditText @JvmOverloads constructor(
     private var bracketStart = -1
     private var bracketEnd = -1
     private var highlightedLine = -1
+    var autoPairEdit = false
 
     data class InlayHint(val offset: Int, val text: String)
     data class CodeLens(val line: Int, val text: String)
@@ -504,6 +505,59 @@ class LineNumberEditText @JvmOverloads constructor(
         setHorizontallyScrolling(true)
         isHorizontalScrollBarEnabled = true
 
+        // Smart bracket/quote skip-over: when user types a closing bracket that was
+        // auto-inserted, move cursor past it instead of inserting duplicate.
+        setOnKeyListener { _, keyCode, event ->
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                val sel = selectionStart
+                val editable = this.text
+                val text = editable?.toString() ?: ""
+                if (sel < text.length) {
+                    val nextChar = text[sel]
+                    when (keyCode) {
+                        android.view.KeyEvent.KEYCODE_DEL -> {
+                            // Smart delete: if cursor is between matching brackets, delete both
+                            if (sel > 0 && sel < text.length) {
+                                val prevChar = text[sel - 1]
+                                val closeChar = bracketPairs[prevChar]
+                                if (closeChar == nextChar) {
+                                    editable?.delete(sel - 1, sel + 1)
+                                    setSelection(sel - 1)
+                                    return@setOnKeyListener true
+                                }
+                            }
+                        }
+                        android.view.KeyEvent.KEYCODE_FORWARD_DEL -> {
+                            // Delete forward: if cursor is between matching brackets, delete both
+                            if (sel > 0 && sel < text.length) {
+                                val prevChar = text[sel - 1]
+                                val closeChar = bracketPairs[prevChar]
+                                if (closeChar == nextChar) {
+                                    editable?.delete(sel - 1, sel + 1)
+                                    setSelection(sel - 1)
+                                    return@setOnKeyListener true
+                                }
+                            }
+                        }
+                        else -> {
+                            // Skip over auto-inserted closing brackets/quotes
+                            val closeChars = bracketPairs.values.toSet()
+                            if (nextChar in closeChars) {
+                                // Check if this is a matching pair (user typed the closing char that was auto-inserted)
+                                val prevChar = if (sel > 0) text[sel - 1] else '\u0000'
+                                val expectedClose = bracketPairs[prevChar]
+                                if (expectedClose == nextChar) {
+                                    setSelection(sel + 1)
+                                    return@setOnKeyListener true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        }
+
         addTextChangedListener(object : TextWatcher {
             private var before = ""
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {
@@ -511,37 +565,33 @@ class LineNumberEditText @JvmOverloads constructor(
             }
             override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                if (isUndoRedoAction) return
+                if (isUndoRedoAction || autoPairEdit) return
                 val current = s?.toString() ?: return
                 if (current == lastSnapshotText) return
                 if (before.length > MAX_UNDO_TEXT_BYTES || current.length > MAX_UNDO_TEXT_BYTES) {
                     undoStack.clear()
                     redoStack.clear()
                     lastSnapshotText = current
-                // Auto-complete and bracket matching
+                    return
+                }
+                // Smart bracket/quote pairing — skip if MainActivity's handleAutoPair already did it
                 val selStart = selectionStart.coerceAtLeast(0)
                 if (current.length > before.length && selStart > 0) {
                     val lastChar = current[selStart - 1]
                     val closeChar = bracketPairs[lastChar]
                     if (closeChar != null && (selStart >= current.length || current[selStart] != closeChar)) {
                         s?.insert(selStart, closeChar.toString())
-                        setSelection(selStart + 1)
+                        setSelection(selStart + 1) // cursor between brackets
                     }
                 }
-                // Simple autocomplete
-                val delimiters = charArrayOf(' ', '(', ')', '{', '}', '[', ']', '.', ',', ':')
-                val wordStart = current.lastIndexOfAny(delimiters)
-                val wordEnd = selStart
-                if (wordEnd > wordStart + 1) {
-                    val word = current.substring(wordStart + 1, wordEnd)
-                    val matches = autocompleteCandidates.filter { it.startsWith(word, ignoreCase = true) }
-                    if (matches.size == 1 && matches[0].length > word.length && !current.substring(selStart).startsWith(matches[0].substring(word.length))) {
-                        val rest = matches[0].substring(word.length)
-                        s?.insert(selStart, rest)
-                        setSelection(selStart + rest.length)
+                // Smart bracket/quote deletion - if user deletes an opening bracket, also delete matching closing bracket
+                if (before.length > current.length && selStart < current.length) {
+                    val deletedChar = before[selStart]
+                    val openChar = bracketPairs.entries.firstOrNull { it.value == deletedChar }?.key
+                    if (openChar != null && current.getOrNull(selStart) == deletedChar) {
+                        // User deleted the closing bracket that was auto-inserted, remove it
+                        s?.delete(selStart, selStart + 1)
                     }
-                }
-                    return
                 }
                 // Push snapshot
                 if (undoStack.size >= MAX_UNDO) undoStack.pollFirst()

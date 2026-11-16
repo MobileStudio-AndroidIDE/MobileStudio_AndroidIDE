@@ -32,6 +32,7 @@ import android.widget.ProgressBar
 import android.widget.RadioButton
 import android.widget.Spinner
 import com.aide.mobilestudio.AppLanguage
+import com.aide.mobilestudio.R
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
@@ -774,7 +775,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
         }
         val names = agents.map { it.name }.toTypedArray()
         val current = engine.currentAgentName()
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Agent", "에이전트"))
             .setSingleChoiceItems(names, names.indexOf(current)) { dialog, which ->
                 engine.setAgent(names[which])
@@ -1457,13 +1458,13 @@ class AiWorkspaceActivity : AppCompatActivity() {
             val finalModels = models
             runOnUiThread {
                 if (finalModels.isEmpty()) {
-                    AlertDialog.Builder(this@AiWorkspaceActivity)
+                    themedDialog()
                         .setTitle(t("Models", "모델"))
                         .setMessage(t("No models returned (check the key and endpoint).", "모델을 가져오지 못했습니다 (키/엔드포인트 확인)."))
                         .setPositiveButton("OK", null)
                         .show()
                 } else {
-                    AlertDialog.Builder(this@AiWorkspaceActivity)
+                    themedDialog()
                         .setTitle(t("Available models (${finalModels.size})", "사용 가능한 모델 (${finalModels.size})"))
                         .setMessage(finalModels.joinToString("\n"))
                         .setPositiveButton("OK", null)
@@ -1487,7 +1488,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
     }
 
     private fun confirmClearConversation() {
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Clear conversation?", "대화를 지울까요?"))
             .setMessage(
                 t(
@@ -1516,7 +1517,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
                 val created = if (d.existedBefore) "" else t(" (created)", " (새 파일)")
                 "${relativePath(d.path)}  ($sign${d.lineDelta} lines)$created"
             }
-            AlertDialog.Builder(this@AiWorkspaceActivity)
+            themedDialog()
                 .setTitle(t("Undo the agent's last change?", "에이전트의 마지막 변경을 되돌릴까요?"))
                 .setMessage(listing)
                 .setPositiveButton(t("Undo", "되돌리기")) { _, _ -> performUndo() }
@@ -1992,7 +1993,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
             scroll,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height),
         )
-        val dialog = AlertDialog.Builder(this)
+        val dialog = themedDialog()
             .setTitle(if (holder.isError) t("${holder.name} · error", "${holder.name} · 오류") else holder.name)
             .setView(column)
             .setPositiveButton(t("Close", "닫기"), null)
@@ -2169,7 +2170,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
             textSize = 10f
             setPadding(0, dp(6), 0, 0)
         })
-        val dialog = AlertDialog.Builder(this)
+        val dialog = themedDialog()
             .setTitle(t("Review change", "변경 검토") + " · " + preview.tool)
             .setView(column)
             .setPositiveButton(t("Apply", "적용"), null)
@@ -2330,7 +2331,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
 
     private fun showToolHelp(name: String) {
         val detail = engine.toolDetail(name) ?: return
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(name)
             .setMessage(detail)
             .setPositiveButton(t("Close", "닫기"), null)
@@ -2686,12 +2687,17 @@ class AiWorkspaceActivity : AppCompatActivity() {
         }
     }
 
+    /** Returns an AlertDialog.Builder using the app's dark dialog theme so text is always visible. */
+    private fun themedDialog(): AlertDialog.Builder {
+        return AlertDialog.Builder(this, R.style.Theme_MobileStudio_Dialog)
+    }
+
     private fun showApprovalDialog(
         name: String, args: JSONObject, risk: OcEngine.RiskLevel,
         onApproval: (Boolean, Boolean) -> Unit,
     ) {
         val detail = args.toString(2).take(1500)
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Approval required", "승인 필요") + " · $name")
             .setMessage("${t("Risk", "위험도")}: ${risk.name}\n\n$detail")
             .setPositiveButton(t("Allow once", "1회 허용")) { _, _ -> onApproval(true, false) }
@@ -2768,7 +2774,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
                 }
             }
         }
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Agent question", "에이전트 질문"))
             .setView(scroll)
             .setPositiveButton(t("Answer", "답변")) { _, _ ->
@@ -2790,7 +2796,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
         val fileNameStr = fileName ?: url.substringAfterLast('/').takeIf { it.isNotBlank() } ?: "download"
         val message = "Download: $fileNameStr\n$description"
         
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle("Download File")
             .setMessage(message)
             .setPositiveButton("Download") { _, _ ->
@@ -3075,7 +3081,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
         column.addView(calls)
         column.addView(tokens)
         column.addView(cost)
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Orchestrator budgets", "오케스트레이터 예산"))
             .setView(ScrollView(this).apply { addView(column) })
             .setPositiveButton(t("Save", "저장")) { _, _ ->
@@ -3299,7 +3305,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
 
     private fun promptAddTodo() {
         val field = EditText(this).apply { hint = t("Step description", "단계 설명") }
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Add step", "단계 추가"))
             .setView(field)
             .setPositiveButton(t("Add", "추가")) { _, _ ->
@@ -3326,7 +3332,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
             t("Toggle done", "완료 토글"),
             t("Delete", "삭제"),
         )
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(content.take(60))
             .setItems(actions) { _, which ->
                 when (which) {
@@ -3404,7 +3410,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
                 text = t("Revert all changes", "모든 변경 되돌리기")
                 isAllCaps = false
                 setOnClickListener {
-                    AlertDialog.Builder(this@AiWorkspaceActivity)
+                    themedDialog()
                         .setMessage(t("Revert all files changed in this session?", "이 세션에서 변경한 모든 파일을 되돌릴까요?"))
                         .setPositiveButton(t("Revert", "되돌리기")) { _, _ ->
                             val restored = engine.revert()
@@ -3429,7 +3435,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
         val after = runCatching { file.readText() }.getOrDefault("")
         val before = engine.latestBackupForCurrentSession(path)?.let { runCatching { it.readText() }.getOrNull() }
         if (before == null) {
-            AlertDialog.Builder(this)
+            themedDialog()
                 .setTitle(relativePath(path))
                 .setMessage(t("No pre-edit snapshot available for this file.", "이 파일의 변경 전 스냅샷이 없습니다."))
                 .setPositiveButton("OK", null)
@@ -3632,7 +3638,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
     }
 
     private fun showDiagnostic(d: com.aide.mobilestudio.ai.validation.LiveDiagnostic) {
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Diagnostic", "진단"))
             .setMessage(
                 "${d.file}:${d.line}:${d.column}\n${d.severity}\n\n${d.message}" +
@@ -3792,7 +3798,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
             t("Ask AI to change", "AI에게 수정 요청"),
             t("Open in editor", "편집기에서 열기"),
         )
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(file.name)
             .setItems(actions) { _, which ->
                 when (which) {
@@ -3832,7 +3838,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
         }
         val lines = content.lineSequence().take(200).toList()
         val body = lines.joinToString("\n") + if (content.lines().size > 200) "\n… (+more)" else ""
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(file.name)
             .setMessage(body)
             .setPositiveButton("OK", null)
@@ -4466,14 +4472,14 @@ class AiWorkspaceActivity : AppCompatActivity() {
             if (s.archived) t("Unarchive", "보관 해제") else t("Archive", "보관"),
             t("Delete", "삭제"),
         )
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(s.title)
             .setItems(actions) { _, which ->
                 when (which) {
                     0 -> promptRename(s)
                     1 -> { engine.forkSession(s.id)?.let { engine.loadSession(it) }; renderSessionHistory(); showTab(Tab.CHAT) }
                     2 -> { engine.archiveSession(s.id, !s.archived); showTab(Tab.SESSIONS) }
-                    3 -> AlertDialog.Builder(this)
+                    3 -> themedDialog()
                         .setMessage(t("Delete this session?", "이 세션을 삭제할까요?"))
                         .setPositiveButton(t("Delete", "삭제")) { _, _ -> engine.deleteSession(s.id); showTab(Tab.SESSIONS) }
                         .setNegativeButton(t("Cancel", "취소"), null)
@@ -4485,7 +4491,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
 
     private fun promptRename(s: OcSessionStore.Session) {
         val et = EditText(this).apply { setText(s.title) }
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Rename session", "세션 이름 변경"))
             .setView(et)
             .setPositiveButton("OK") { _, _ ->
@@ -5163,7 +5169,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
             setPadding(dp(16), dp(4), dp(16), 0)
             addView(field)
         }
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Download from Hugging Face", "Hugging Face에서 다운로드"))
             .setMessage(
                 t(
@@ -5249,7 +5255,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
             val parts = if (f.parts.size > 1) " · ${f.parts.size} parts" else ""
             "$name · $size$parts · $checksum"
         }.toTypedArray()
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Choose quantisation", "양자화 선택") + " · $repo")
             .setItems(labels) { _, which -> beginDownload(files[which]) }
             .setNegativeButton(t("Cancel", "취소"), null)
@@ -5328,7 +5334,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
                         t("Models from the API", "API에서 받은 모델 목록")
                     }
                     val models = result.models
-                    AlertDialog.Builder(this@AiWorkspaceActivity)
+                    themedDialog()
                         .setTitle("$title · $providerId")
                         .setItems(models.toTypedArray()) { _, which ->
                             applyModelRef("$providerId/${models[which]}")
@@ -5385,7 +5391,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
         }
         entry.localPath?.let { lines.add(t("Path", "경로") + ": $it") }
         entry.note?.let { lines.add(t("Note", "참고") + ": $it") }
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Model details", "모델 상세 정보"))
             .setMessage(lines.joinToString("\n"))
             .setPositiveButton("OK", null)
@@ -5393,7 +5399,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
     }
 
     private fun confirmDeleteModel(entry: ModelEntry) {
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Delete model", "모델 삭제"))
             .setMessage(
                 t("Delete the GGUF file and remove it from the list?", "GGUF 파일을 삭제하고 목록에서 제거할까요?") +
@@ -5538,7 +5544,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
             } else {
                 models.joinToString("\n")
             }
-            AlertDialog.Builder(this@AiWorkspaceActivity)
+            themedDialog()
                 .setTitle(t("Available models", "사용 가능한 모델"))
                 .setMessage(message)
                 .setPositiveButton("OK", null)
@@ -5563,7 +5569,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
         Toast.makeText(this, t("Testing ${endpoint.displayName}…", "${endpoint.displayName} 테스트 중…"), Toast.LENGTH_SHORT).show()
         scope.launch {
             val result = withContext(Dispatchers.IO) { ConnectionTester.test(endpoint, AndroidHttpTransport()) }
-            AlertDialog.Builder(this@AiWorkspaceActivity)
+            themedDialog()
                 .setTitle(t("Connection test", "연결 테스트"))
                 .setMessage("${endpoint.displayName} (${ConnectionTester.mask(endpoint.apiKey)})\n\n${result.message}")
                 .setPositiveButton("OK", null)
@@ -5745,7 +5751,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
                 row.addView(AiUiKit.actionChip(this, t("Test", "테스트")) { _ ->
                     scope.launch {
                         val status = engine.testMcpServer(name)
-                        AlertDialog.Builder(this@AiWorkspaceActivity)
+                        themedDialog()
                             .setTitle(name)
                             .setMessage(status)
                             .setPositiveButton("OK", null)
@@ -5804,7 +5810,7 @@ class AiWorkspaceActivity : AppCompatActivity() {
         column.addView(nameField)
         column.addView(label(t("Command", "명령")))
         column.addView(commandField)
-        AlertDialog.Builder(this)
+        themedDialog()
             .setTitle(t("Add MCP server", "MCP 서버 추가"))
             .setView(column)
             .setPositiveButton(t("Add", "추가")) { _, _ ->

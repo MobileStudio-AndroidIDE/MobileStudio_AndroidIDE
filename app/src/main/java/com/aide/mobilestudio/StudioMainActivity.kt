@@ -10,9 +10,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -48,11 +45,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,7 +63,18 @@ import com.aide.mobilestudio.LineLevel
 import com.aide.mobilestudio.GradleRunner
 import com.aide.mobilestudio.JreGradleInstaller
 import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
+import com.aide.mobilestudio.analysis.AnalysisEngine
+import com.aide.mobilestudio.analysis.Diagnostic
+import com.aide.mobilestudio.analysis.DiagnosticSeverity
+import com.aide.mobilestudio.analysis.EditorDiagnostics
+import com.aide.mobilestudio.KotlinAutoComplete
 import com.aide.mobilestudio.LayoutPreviewActivity
+import com.aide.mobilestudio.ui.ide.IdeAction
+import com.aide.mobilestudio.ui.ide.IdeDivider
+import com.aide.mobilestudio.ui.ide.IdeFilterField
+import com.aide.mobilestudio.ui.ide.IdeIcon
+import com.aide.mobilestudio.ui.ide.IdeMono
+import com.aide.mobilestudio.ui.ide.LocalIdeColors
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -101,26 +112,15 @@ private val SampleHelperCode = """
         return a + b
     }
 """.trimIndent()
-private val MenuBarBg = Color(0xFF2B2D30)
-private val StripLavender = Color(0xFFD7C8F0)
-private val TabBarBg = Color.White
-private val PathBarBorder = Color(0xFF616161)
-private val EditorBg = Color.Black
-private val LineNoGray = Color(0xFF9E9E9E)
-private val CodeKeywordHex = "#6C7BFF"
-private val CodeFuncHex = "#FFB388FF"
-private val CodeStringHex = "#FF76FF03"
-private val CodePlain = Color.White
-private val ErrorRed = 0xFFFF5252.toInt()
-private val PlayGreen = Color(0xFF43A047)
-private val StripIconDark = Color(0xFF3C3F41)
-private val TerminalBg = Color(0xFF0E1116)
 
 object EditorPaneState {
     var content = EditorDefaultContent
     var unsaved = false
     var editor: LineNumberEditText? = null
 }
+
+/** Extensions backed by a real compiler inside AnalysisEngine. */
+private val CompilerCheckedExtensions = setOf("kt", "kts", "java", "c", "cc", "cpp", "h", "hpp")
 
 class StudioMainActivity : AppCompatActivity() {
     private lateinit var gradleRunner: GradleRunner
@@ -145,10 +145,18 @@ class StudioMainActivity : AppCompatActivity() {
     val treeItems = mutableStateListOf<FileItem>()
     var selectedTab by mutableStateOf(0)
     var tabs: MutableList<String> = mutableListOf()
-    var editorProblems: MutableList<EditorProblem> = mutableListOf()
+    var editorProblems: MutableList<EditorProblem> = mutableStateListOf()
+
+    /** Real-time compiler diagnostics for the open project. Null until a project is opened. */
+    internal var analysisEngine: AnalysisEngine? = null
+    
+    /** Kotlin code completion engine. */
+    internal var autoComplete: KotlinAutoComplete? = null
 
     /** The in-window Tools panel currently hosting a file picker, if any. */
     internal var toolsPanelForResult: ToolsPanel? = null
+
+    internal var isNewProjectDialogVisible by mutableStateOf(false)
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -163,15 +171,16 @@ class StudioMainActivity : AppCompatActivity() {
         val intentProject = intent?.getStringExtra("project_dir")
             ?.let { path -> File(path).takeIf { it.isDirectory } }
         val lastProject = intentProject?.absolutePath ?: getLastProject()
+        val hasExistingProjects = StorageHelper.listProjects(this).isNotEmpty()
         if (lastProject != null && File(lastProject).isDirectory) {
             openProject(File(lastProject))
-        } else {
-            // 프로젝트가 없으면 New Project 다이얼로그 표시
+        } else if (!hasExistingProjects) {
+            // 기존 프로젝트가 하나도 없으면 New Project 다이얼로그 표시
             showNewProjectDialog(this@StudioMainActivity)
         }
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = MenuBarBg)) {
+            ThemeManager.ProvideTheme {
                 StudioApp(this)
             }
         }
@@ -251,15 +260,15 @@ class StudioMainActivity : AppCompatActivity() {
         var drawerOpen by remember { mutableStateOf(false) }
         var drawerMode by remember { mutableStateOf("projects") } // "projects" or "files"
         var showDownloadManager by remember { mutableStateOf(false) }
-        var bottomPanelOpen by remember { mutableStateOf(true) }
-        var bottomPanelHeight by remember { mutableStateOf(240.dp) }
-        var editorProblems by remember { mutableStateOf<MutableList<EditorProblem>>(mutableListOf()) }
+        var bottomPanelOpen by remember { mutableStateOf(false) }
+        var bottomPanelHeight by remember { mutableStateOf(220.dp) }
         var showSettingsOverlay by remember { mutableStateOf(false) }
         var showToolsOverlay by remember { mutableStateOf(false) }
         var toolsInitialTab by remember { mutableStateOf("sdk_manager") }
         var settingsInitialPage by remember { mutableStateOf<String?>(null) }
         val logLines = remember { mutableStateListOf<LogLine>() }
         val context: Context = LocalContext.current
+        val ide = LocalIdeColors.current
 
         // Attach/detach DownloadCenter to this UI
         DisposableEffect(Unit) {
@@ -289,15 +298,21 @@ class StudioMainActivity : AppCompatActivity() {
 
         fun startBuild() {
             centerPane = "buildlog"
-            logLines.add(LogLine("> Running :app:assembleDebug ...", 0xFF1A1A1A.toInt()))
+            bottomPanelOpen = true
+            logLines.add(LogLine("> Running :app:assembleDebug ...", ide.p.text))
             runner.run(
                 projectDir = activity.currentProjectDir ?: activity.filesDir,
                 tasks = listOf("assembleDebug"),
                 onLine = { line, level ->
-                    logLines.add(LogLine(line, if (level == LineLevel.ERROR) ErrorRed else 0xFF1A1A1A.toInt()))
+                    logLines.add(LogLine(line, if (level == LineLevel.ERROR) ide.p.error else ide.p.text))
                 },
                 onDone = { result ->
-                    logLines.add(LogLine("BUILD ${if (result.success) "OK" else "FAILED"} (${result.durationMs}ms)", 0xFFB388FF.toInt()))
+                    logLines.add(
+                        LogLine(
+                            "BUILD ${if (result.success) "OK" else "FAILED"} (${result.durationMs}ms)",
+                            if (result.success) ide.p.success else ide.p.error,
+                        )
+                    )
                 }
             )
         }
@@ -426,9 +441,18 @@ class StudioMainActivity : AppCompatActivity() {
                     val activity = context as? StudioMainActivity
                     if (activity != null) showFindInFilesDialog(activity)
                 }
-                "pane_editor" -> centerPane = "editor"
-                "pane_buildlog" -> centerPane = "buildlog"
-                "pane_terminal" -> centerPane = "terminal"
+                "pane_editor" -> {
+                    centerPane = "editor"
+                    bottomPanelOpen = false
+                }
+                "pane_buildlog" -> {
+                    centerPane = "buildlog"
+                    bottomPanelOpen = true
+                }
+                "pane_terminal" -> {
+                    centerPane = "terminal"
+                    bottomPanelOpen = true
+                }
                 "drawer" -> drawerOpen = true
                 "next_tab" -> {
                     if (activity.tabs.isNotEmpty()) {
@@ -555,7 +579,10 @@ class StudioMainActivity : AppCompatActivity() {
                     if (activity != null) showRecentFilesDialog(activity)
                     else Toast.makeText(context, "Unable to open recent files", Toast.LENGTH_SHORT).show()
                 }
-                "terminal" -> centerPane = "terminal"
+                "terminal" -> {
+                    centerPane = "terminal"
+                    bottomPanelOpen = true
+                }
                 "assistant" -> context.startActivity(Intent(context, AiWorkspaceActivity::class.java))
                 "settings" -> showSettingsOverlay = true
                 "about" -> AlertDialog.Builder(context)
@@ -568,98 +595,102 @@ class StudioMainActivity : AppCompatActivity() {
         }
 
         BackHandler(enabled = drawerOpen) { drawerOpen = false }
+        BackHandler(enabled = activity.isNewProjectDialogVisible) {
+            activity.isNewProjectDialogVisible = false
+        }
 
-        Box(modifier = Modifier.fillMaxSize().background(MenuBarBg)) {
-            Column(modifier = Modifier.fillMaxSize().background(MenuBarBg)) {
+        Box(modifier = Modifier.fillMaxSize().background(ide.window)) {
+            Column(modifier = Modifier.fillMaxSize().background(ide.window)) {
                 TopMenuBar(
-                    activity = LocalContext.current as Activity,
+                    activity = context as Activity,
+                    projectName = activity.currentProjectDir?.name ?: "MobileStudio",
+                    onOpenDrawer = {
+                        drawerMode = if (activity.currentProjectDir != null) "files" else "projects"
+                        drawerOpen = true
+                    },
                     onRun = { startBuild() },
+                    onOpenSettings = { showSettingsOverlay = true },
                     onAction = { performAction(it) }
                 )
                 Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    if (drawerOpen) {
-                        LeftStrip(
-                            context = context,
-                            onFolder = { activity.pickDir.launch(null) },
-                            onBuildLog = { centerPane = "buildlog" },
-                            onTerminal = { centerPane = "terminal" },
-                            onIde = { context.startActivity(Intent(context, AiWorkspaceActivity::class.java)) },
-                            onProjectOpen = { activity.pickDir.launch(null) },
+                    LeftStrip(
+                        context = context,
+                        activePane = when {
+                            drawerOpen -> "project"
+                            showSettingsOverlay -> "settings"
+                            bottomPanelOpen && centerPane == "buildlog" -> "build"
+                            bottomPanelOpen && centerPane == "terminal" -> "terminal"
+                            else -> ""
+                        },
+                        onProject = {
+                            drawerMode = if (activity.currentProjectDir != null) "files" else "projects"
+                            drawerOpen = true
+                        },
+                        onBuildLog = {
+                            centerPane = "buildlog"
+                            bottomPanelOpen = true
+                        },
+                        onTerminal = {
+                            centerPane = "terminal"
+                            bottomPanelOpen = true
+                        },
+                        onIde = { context.startActivity(Intent(context, AiWorkspaceActivity::class.java)) },
+                        onSettings = { showSettingsOverlay = true },
+                    )
+                    Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        EditorPane(
+                            activity = activity,
+                            tabs = activity.tabs,
+                            selectedTab = activity.selectedTab,
+                            onTabChange = { idx -> activity.selectTab(idx) },
+                            pathText = activity.pathText,
+                            fileContent = activity.fileContent,
+                            onContentChange = {
+                                activity.fileContent = it
+                                EditorPaneState.content = it
+                                EditorPaneState.unsaved = true
+                                activity.scope.launch { activity.saveCurrentFile() }
+                                activity.requestLiveDiagnostics()
+                            },
+                            onNewTab = { name ->
+                                activity.newEditorTab(name)
+                                centerPane = "editor"
+                            },
+                            onCloseTab = { idx -> activity.closeEditorTab(idx) },
+                            onOpenProject = { activity.pickDir.launch(null) },
+                            onSaveCurrent = { saveCurrent() },
+                            modifier = Modifier.weight(1f),
                         )
-                    }
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        val showBottomPanel = bottomPanelOpen && centerPane != "editor"
-                        if (showBottomPanel) {
+                        if (bottomPanelOpen) {
+                            IdeDivider()
                             BottomPanel(
                                 activity = activity,
                                 pane = centerPane,
                                 logLines = logLines,
+                                problems = activity.editorProblems,
                                 height = bottomPanelHeight,
                                 onHeightChange = { bottomPanelHeight = it },
+                                onPaneChange = { centerPane = it },
+                                onCollapse = { bottomPanelOpen = false },
                             )
-                        } else {
-                            when (centerPane) {
-                                "buildlog" -> BuildLogPane(logLines)
-                                "terminal" -> TerminalPane(activity = activity)
-                                else -> EditorPane(
-                                    activity = activity,
-                                    tabs = activity.tabs,
-                                    selectedTab = activity.selectedTab,
-                                    onTabChange = { idx -> activity.selectTab(idx) },
-                                    pathText = activity.pathText,
-                                    fileContent = activity.fileContent,
-                                    problems = editorProblems,
-                                    onProblemFix = { idx ->
-                                        editorProblems.removeAt(idx)
-                                        activity.selectTab(idx)
-                                        centerPane = "editor"
-                                    },
-                                    onContentChange = {
-                                        activity.fileContent = it
-                                        EditorPaneState.content = it
-                                        EditorPaneState.unsaved = true
-                                        activity.scope.launch { activity.saveCurrentFile() }
-                                    },
-                                    onNewTab = { name ->
-                                        activity.newEditorTab(name)
-                                        centerPane = "editor"
-                                    },
-                                    onCloseTab = { idx -> activity.closeEditorTab(idx) },
-                                    onOpenProject = { activity.pickDir.launch(null) },
-                                    onSaveCurrent = { saveCurrent() },
-                                )
-                            }
-                        }
-                        if (!showBottomPanel) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(end = 10.dp, bottom = 10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(RoundedCornerShape(22.dp))
-                                        .background(Color(0xFF3C3F41))
-                                        .clickable {
-                                            bottomPanelOpen = true
-                                            centerPane = "terminal"
-                                        },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text("▾", color = Color.White, fontSize = 18.sp)
-                                }
-                            }
                         }
                     }
                 }
+                StudioStatusBar(
+                    activity = activity,
+                    problems = activity.editorProblems.size,
+                    onShowProblems = {
+                        centerPane = "problems"
+                        bottomPanelOpen = true
+                    },
+                )
             }
 
             if (drawerOpen) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0x99000000))
+                        .background(Color(0x66000000))
                         .clickable { drawerOpen = false }
                 )
                 FileDrawer(
@@ -676,7 +707,10 @@ class StudioMainActivity : AppCompatActivity() {
                     onRefresh = { activity.loadFileTree(activity.currentProjectDir ?: activity.filesDir) },
                     onSwitchToFiles = { drawerMode = "files" },
                     onSwitchToProjects = { drawerMode = "projects" },
-                    modifier = Modifier.align(Alignment.CenterStart),
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .width(320.dp)
+                        .fillMaxHeight(),
                 )
             }
 
@@ -704,6 +738,12 @@ class StudioMainActivity : AppCompatActivity() {
                     onClose = { showSettingsOverlay = false },
                 )
             }
+            if (activity.isNewProjectDialogVisible) {
+                NewProjectDialog(
+                    activity = activity,
+                    onDismiss = { activity.isNewProjectDialogVisible = false }
+                )
+            }
         }
     }
 
@@ -723,6 +763,54 @@ class StudioMainActivity : AppCompatActivity() {
         return null
     }
 
+    /** Starts the real-time compiler engine for [projectDir] and routes its diagnostics into the Problems panel. */
+    private fun startLiveDiagnostics(projectDir: File) {
+        analysisEngine?.stopAll()
+        val engine = AnalysisEngine(this)
+        analysisEngine = engine
+        engine.editorDiagnostics.addListener(object : EditorDiagnostics {
+            override fun onDiagnosticsUpdated(file: File, diagnostics: List<Diagnostic>, source: String, analysisTimeMs: Long) {
+                runOnUiThread {
+                    if (file != currentFile) return@runOnUiThread
+                    // Diagnostics were computed against [source]; if the editor
+                    // moved on while the compiler ran, line/column spans would
+                    // land on the wrong text - drop the stale result.
+                    if (source != EditorPaneState.content) return@runOnUiThread
+                    editorProblems.clear()
+                    editorProblems.addAll(
+                        diagnostics.filter { it.severity == DiagnosticSeverity.ERROR || it.severity == DiagnosticSeverity.WARNING }
+                            .map { EditorProblem(line = it.line, message = it.message, severity = it.severity.name) }
+                    )
+                }
+            }
+
+            override fun onAnalysisStarted(file: File) {}
+            override fun onAnalysisFinished(file: File) {}
+
+            override fun onClearDiagnostics(file: File) {
+                runOnUiThread { if (file == currentFile) editorProblems.clear() }
+            }
+
+            override fun onProjectDiagnosticsUpdate(projectDir: File, errors: Int, warnings: Int, infos: Int) {}
+        })
+        engine.startWatching(projectDir)
+    }
+
+    /** Asks the engine to (re)analyze the current editor content. */
+    fun requestLiveDiagnostics() {
+        val file = currentFile ?: return
+        val engine = analysisEngine ?: return
+        engine.requestAnalysis(file, EditorPaneState.content)
+    }
+
+    override fun onDestroy() {
+        analysisEngine?.stopAll()
+        analysisEngine = null
+        autoComplete?.dismiss()
+        autoComplete = null
+        super.onDestroy()
+    }
+
     fun openProject(dir: File) {
         saveCurrentFile()
         currentProjectDir = dir
@@ -733,6 +821,8 @@ class StudioMainActivity : AppCompatActivity() {
         if (tabs.isEmpty()) tabs.add("MainActivity.kt")
         selectedTab = 0
         pathText = tabs[0]
+        startLiveDiagnostics(dir)
+        autoComplete?.setProjectDir(dir)
         loadFileContentForTab(tabs[0])
         loadFileTree(dir)
         Toast.makeText(this, "Project opened: ${dir.name}", Toast.LENGTH_SHORT).show()
@@ -741,6 +831,7 @@ class StudioMainActivity : AppCompatActivity() {
     fun loadFileContentForTab(tabName: String) {
         val f = currentProjectDir?.let { File(it, tabName) } ?: File(filesDir, tabName)
         currentFile = f
+        editorProblems.clear()
         if (f.exists()) {
             val content = f.readText()
             fileContent = content
@@ -751,6 +842,8 @@ class StudioMainActivity : AppCompatActivity() {
             EditorPaneState.content = EditorDefaultContent
             EditorPaneState.unsaved = false
         }
+        autoComplete?.setCurrentFile(currentFile ?: File(filesDir, pathText))
+        requestLiveDiagnostics()
     }
 
     fun saveCurrentFile() {
@@ -849,6 +942,15 @@ class StudioMainActivity : AppCompatActivity() {
         loadFileContentForTab(tabs[index])
     }
 
+    fun selectEditorLine(line: Int) {
+        val editor = EditorPaneState.editor ?: return
+        val textLayout = editor.layout ?: return
+        val targetLine = line.coerceIn(0, (textLayout.lineCount - 1).coerceAtLeast(0))
+        val offset = textLayout.getLineStart(targetLine)
+        editor.setSelection(offset)
+        editor.requestFocus()
+    }
+
     data class LogLine(val text: String, val color: Int)
 }
 
@@ -865,110 +967,162 @@ private fun EditorPane(
     onCloseTab: (Int) -> Unit,
     onOpenProject: () -> Unit,
     onSaveCurrent: () -> Unit,
-    problems: List<EditorProblem>,
-    onProblemFix: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val autoCompleteRef = remember { mutableStateOf<KotlinAutoComplete?>(null) }
-    Column(modifier = Modifier.fillMaxSize().background(TabBarBg)) {
-        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).background(TabBarBg)) {
-            for (i in tabs.indices) {
-                EditorTab(title = tabs[i], active = selectedTab == i,
-                    onClick = { onTabChange(i) },
-                    onClose = { onCloseTab(i) })
+    val ide = LocalIdeColors.current
+    Column(modifier = modifier.fillMaxSize().background(ide.window)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp)
+                .background(Color(ide.p.surface))
+                .horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabs.forEachIndexed { index, title ->
+                EditorTab(
+                    title = title,
+                    active = selectedTab == index,
+                    onClick = { onTabChange(index) },
+                    onClose = { onCloseTab(index) },
+                )
             }
-            Spacer(modifier = Modifier.weight(1f))
-            Text("+", color = Color(0xFF3C3F41), fontSize = 18.sp,
-                modifier = Modifier.padding(start = 12.dp).clickable { onNewTab("Untitled.kt") })
-        }
-        Text(
-            text = pathText.takeIf { it.isNotEmpty() } ?: "",
-            color = Color.Black, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().background(Color.White).border(1.5.dp, PathBarBorder)
-                .padding(horizontal = 8.dp, vertical = 5.dp)
-        )
-        Column(modifier = Modifier.weight(1f).fillMaxWidth().background(EditorBg)) {
-            AndroidView(
-                modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 12.dp, top = 10.dp, end = 8.dp),
-                factory = { context ->
-                    LineNumberEditText(context).apply {
-                        EditorPaneState.editor = this
-                        gravity = android.view.Gravity.TOP or android.view.Gravity.START
-                        setTextColor(android.graphics.Color.WHITE)
-                        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 17f)
-                        typeface = android.graphics.Typeface.MONOSPACE
-                        tag = "loading"
-                        setText(fileContent)
-                        setSelection(0)
-                        scrollTo(0, 0)
-                        tag = "editor"
-                        text?.let { KotlinHighlighter.highlight(it, pathText) }
-                        // Real-time compile check: live syntax error pass driven by
-                        // the editor's text watcher (debounced inside the highlighter).
-                        KotlinHighlighter.attachTo(this, pathText, suppressCheck = { tag == "loading" }) { errors ->
-                            // Real-time compile errors from KotlinHighlighter
-                            val newProblems = errors.map { e ->
-                                EditorProblem(line = e.line, message = e.message, severity = "ERROR")
-                            }
-                            val ep: MutableList<EditorProblem> = activity.editorProblems
-                            ep.clear()
-                            ep.addAll(newProblems)
-                        }
-                        addTextChangedListener(object : android.text.TextWatcher {
-                            override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
-                            override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
-                            override fun afterTextChanged(s: android.text.Editable) {
-                                if (tag == "loading") return
-                                val text = s.toString()
-                                EditorPaneState.content = text
-                                onContentChange(text)
-                            }
-                        })
-                    }
-                },
-                update = { view: android.widget.EditText ->
-                    if (view.text.toString() != fileContent) {
-                        view.tag = "loading"
-                        view.setText(fileContent)
-                        view.setSelection(0)
-                        view.scrollTo(0, 0)
-                        view.tag = "editor"
-                        view.text?.let { KotlinHighlighter.highlight(it, pathText) }
-                    }
-                    val tabName = tabs.getOrElse(selectedTab) { "Untitled.kt" }
-                    autoCompleteRef.value?.setCurrentFile(
-                        activity.currentProjectDir?.let { File(it, tabName) } ?: File(activity.filesDir, tabName)
-                    )
-                }
-            )
-            if (problems.isNotEmpty()) {
-                ProblemsPane(
-                    problems = problems,
-                    onProblemFix = onProblemFix,
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable { onNewTab("Untitled.kt") }
+                    .semantics { contentDescription = "New file" },
+                contentAlignment = Alignment.Center,
+            ) {
+                IdeIcon(
+                    iconRes = R.drawable.ic_ide_add,
+                    color = ide.textSoft,
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }
+        IdeDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+                .background(Color(ide.p.bg))
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = pathText.ifBlank { "No file selected" },
+                style = IdeMono.path,
+                color = ide.textSoft,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IdeDivider()
+        AndroidView(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(Color(ide.p.editorBg)),
+            factory = { context ->
+                LineNumberEditText(context).apply {
+                    EditorPaneState.editor = this
+                    // Initialize KotlinAutoComplete for this editor
+                    activity.autoComplete = KotlinAutoComplete(activity, this).apply {
+                        activity.currentProjectDir?.let { setProjectDir(it) }
+                        setCurrentFile(activity.currentFile ?: File(activity.filesDir, pathText))
+                    }
+                    gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                    tag = "loading"
+                    setText(fileContent)
+                    setSelection(0)
+                    scrollTo(0, 0)
+                    tag = "editor"
+                    text?.let { KotlinHighlighter.highlight(it, pathText) }
+                    // Real-time compile check: live syntax error pass driven by
+                    // the editor's text watcher (debounced inside the highlighter).
+                    KotlinHighlighter.attachTo(this, pathText, suppressCheck = { tag == "loading" }) { errors ->
+                        val ext = pathText.substringAfterLast('.', "").lowercase()
+                        if (activity.analysisEngine != null && ext in CompilerCheckedExtensions) {
+                            // AnalysisEngine owns diagnostics for compiler-checked
+                            // files; the weaker highlighter must not clobber them.
+                            return@attachTo
+                        }
+                        val newProblems = errors.map { e ->
+                            EditorProblem(line = e.line, message = e.message, severity = "ERROR")
+                        }
+                        val ep: MutableList<EditorProblem> = activity.editorProblems
+                        ep.clear()
+                        ep.addAll(newProblems)
+                    }
+                    addTextChangedListener(object : android.text.TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
+                        override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
+                        override fun afterTextChanged(s: android.text.Editable) {
+                            if (tag == "loading") return
+                            val text = s.toString()
+                            EditorPaneState.content = text
+                            onContentChange(text)
+                        }
+                    })
+                }
+            },
+            update = { view: android.widget.EditText ->
+                if (view.text.toString() != fileContent) {
+                    view.tag = "loading"
+                    view.setText(fileContent)
+                    view.setSelection(0)
+                    view.scrollTo(0, 0)
+                    view.tag = "editor"
+                    view.text?.let { KotlinHighlighter.highlight(it, pathText) }
+                }
+            },
+        )
     }
 }
 
 @Composable
-private fun LineNo(n: String) {
-    Text(text = n, color = LineNoGray, fontSize = 15.sp,
-        modifier = Modifier.padding(end = 8.dp, bottom = 18.dp))
-}
-
-@Composable
 private fun EditorTab(title: String, active: Boolean, onClick: () -> Unit, onClose: () -> Unit) {
-    Column(modifier = Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Min).clickable { onClick() }) {
-        Row(modifier = Modifier.padding(start = 14.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = title, color = if (active) Color.Black else Color(0xFF555555),
-                fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                fontWeight = if (active) FontWeight.Medium else FontWeight.Normal)
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(text = "✕", color = Color(0xFF777777), fontSize = 13.sp,
-                modifier = Modifier.clickable { onClose() }.padding(4.dp))
+    val ide = LocalIdeColors.current
+    Column(
+        modifier = Modifier
+            .widthIn(min = 104.dp, max = 220.dp)
+            .height(36.dp)
+            .background(if (active) Color(ide.p.card) else Color.Transparent)
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                color = if (active) ide.text else ide.textSoft,
+                fontSize = 12.sp,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable(onClick = onClose)
+                    .semantics { contentDescription = "Close $title" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("×", color = ide.muted, fontSize = 15.sp)
+            }
         }
-        Spacer(modifier = Modifier.height(7.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(if (active) Color(0xFF3C3F41) else Color.Transparent))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(if (active) ide.accent else Color.Transparent),
+        )
     }
 }
 
@@ -977,69 +1131,189 @@ private fun BottomPanel(
     activity: StudioMainActivity,
     pane: String,
     logLines: List<StudioMainActivity.LogLine>,
+    problems: List<EditorProblem>,
     height: Dp,
     onHeightChange: (Dp) -> Unit,
+    onPaneChange: (String) -> Unit,
+    onCollapse: () -> Unit,
 ) {
+    val ide = LocalIdeColors.current
     val density = LocalDensity.current
     val view = LocalView.current
     var dragging by remember { mutableStateOf(false) }
     var startHeightPx by remember { mutableStateOf(0f) }
+    val isKorean = AppLanguage.isKorean(activity)
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        when (pane) {
-            "buildlog" -> BuildLogPane(lines = logLines)
-            "terminal" -> TerminalPane(activity = activity)
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .background(Color(ide.p.card)),
+    ) {
         Box(
             modifier = Modifier
-                .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(18.dp)
-                .background(Color.Transparent)
-                .pointerInput(Unit) {
+                .height(12.dp)
+                .pointerInput(height) {
                     detectDragGestures(
                         onDragEnd = { dragging = false },
-                    ) { change, dragAmount ->
+                    ) { _, dragAmount ->
                         if (!dragging) {
                             dragging = true
                             startHeightPx = height.value * density.density
                             view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                         }
                         val minPx = 120f * density.density
-                        val maxPx = 520f * density.density
+                        val maxPx = 440f * density.density
                         val newPx = (startHeightPx - dragAmount.y).coerceIn(minPx, maxPx)
                         onHeightChange(Dp(newPx / density.density))
                     }
                 },
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+                .background(Color(ide.p.surface)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BottomPanelTab(
+                label = AppLanguage.string(activity, R.string.tab_build),
+                active = pane == "buildlog",
+                onClick = { onPaneChange("buildlog") },
+            )
+            BottomPanelTab(
+                label = AppLanguage.string(activity, R.string.tab_problems),
+                badge = problems.size.takeIf { it > 0 }?.toString(),
+                active = pane == "problems",
+                onClick = { onPaneChange("problems") },
+            )
+            BottomPanelTab(
+                label = AppLanguage.string(activity, R.string.tab_shell),
+                active = pane == "terminal",
+                onClick = { onPaneChange("terminal") },
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clickable(onClick = onCollapse)
+                    .semantics { contentDescription = "Close tool window" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("×", color = ide.textSoft, fontSize = 18.sp)
+            }
+        }
+        IdeDivider()
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(Color(ide.p.editorBg)),
+        ) {
+            when (pane) {
+                "terminal" -> TerminalPane(activity = activity)
+                "problems" -> ProblemsPane(
+                    problems = problems,
+                    onProblemFix = { line ->
+                        activity.selectEditorLine(line)
+                        onCollapse()
+                    },
+                )
+                else -> BuildLogPane(lines = logLines)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomPanelTab(
+    label: String,
+    active: Boolean,
+    badge: String? = null,
+    onClick: () -> Unit,
+) {
+    val ide = LocalIdeColors.current
+    Column(
+        modifier = Modifier
+            .width(88.dp)
+            .height(34.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                color = if (active) ide.text else ide.textSoft,
+                fontSize = 11.sp,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+            )
+            if (badge != null) {
+                Spacer(modifier = Modifier.width(5.dp))
+                Box(
+                    modifier = Modifier
+                        .background(Color(ide.p.errBg), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                ) {
+                    Text(badge, color = ide.error, fontSize = 9.sp)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(if (active) ide.accent else Color.Transparent),
         )
     }
 }
 
 @Composable
 private fun BuildLogPane(lines: List<StudioMainActivity.LogLine>) {
+    val ide = LocalIdeColors.current
     val scrollState = rememberScrollState()
     LaunchedEffect(lines.size) {
         scrollState.scrollTo(Int.MAX_VALUE)
     }
-    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        Box(modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 10.dp)) {
-            Box(modifier = Modifier.background(MenuBarBg, RoundedCornerShape(50)).padding(horizontal = 18.dp, vertical = 7.dp)) {
-                Text(text = "build log", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(ide.p.editorBg))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        if (lines.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "No build output yet",
+                    style = IdeMono.log,
+                    color = ide.muted,
+                )
             }
-        }
-        Column(modifier = Modifier.weight(1f).verticalScroll(scrollState).padding(horizontal = 16.dp)) {
-            lines.forEachIndexed { i, l ->
-                Text(text = l.text, color = Color(l.color), fontSize = 13.sp, lineHeight = 18.sp)
-                if (i < lines.lastIndex) Spacer(modifier = Modifier.height(2.dp))
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState),
+            ) {
+                lines.forEach { line ->
+                    Text(
+                        text = line.text,
+                        color = Color(line.color),
+                        style = IdeMono.log,
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
 private fun TerminalPane(activity: StudioMainActivity) {
-    val context: Context = LocalContext.current
+    val ide = LocalIdeColors.current
     var shellProcess by remember { mutableStateOf<java.lang.Process?>(null) }
     val outputState = remember { mutableStateOf<String>("") }
 
@@ -1067,39 +1341,37 @@ private fun TerminalPane(activity: StudioMainActivity) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(TerminalBg)
+            .background(Color(ide.p.editorBg)),
     ) {
         Text(
             text = outputState.value,
-            color = Color(0xFF22C55E),
-            fontSize = 12.sp,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            color = ide.synStr,
+            style = IdeMono.terminal,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(8.dp)
-                .background(Color(0xFF0A0C10))
-                .verticalScroll(rememberScrollState())
+                .padding(10.dp)
+                .verticalScroll(rememberScrollState()),
         )
-
+        IdeDivider()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF151A21))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .background(Color(ide.p.surface))
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "$ ", color = Color(0xFF3B82F6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(text = "$ ", color = ide.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             AndroidView(
                 modifier = Modifier.weight(1f),
                 factory = { ctx ->
                     EditText(ctx).apply {
                         hint = "Type a command..."
-                        setTextColor(android.graphics.Color.WHITE)
-                        setHintTextColor(android.graphics.Color.GRAY)
+                        setTextColor(ide.p.editorText)
+                        setHintTextColor(ide.p.muted)
                         setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f)
                         typeface = android.graphics.Typeface.MONOSPACE
-                        setBackgroundColor(android.graphics.Color.parseColor("#0E1116"))
+                        setBackgroundColor(ide.p.editorBg)
                         setSingleLine(true)
                         setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEND)
                     }
@@ -1120,7 +1392,7 @@ private fun TerminalPane(activity: StudioMainActivity) {
                             true
                         } else false
                     }
-                }
+                },
             )
         }
     }
@@ -1133,6 +1405,7 @@ private fun DownloadManagerWindow(
 ) {
     val task by remember { derivedStateOf { DownloadCenter.state.value } }
     val context: Context = LocalContext.current
+    val ide = LocalIdeColors.current
 
     if (task == null) {
         onDismiss()
@@ -1150,8 +1423,8 @@ private fun DownloadManagerWindow(
             modifier = Modifier
                 .width(420.dp)
                 .height(IntrinsicSize.Min),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2D30)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(ide.p.card)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(8.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -1163,7 +1436,7 @@ private fun DownloadManagerWindow(
                 ) {
                     Text(
                         text = "MobileStudio Downloader",
-                        color = Color.White,
+                        color = ide.text,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -1175,15 +1448,15 @@ private fun DownloadManagerWindow(
                         }
                         onDismiss()
                     }) {
-                        Text("✕", color = Color(0xFFBBBBBB), fontSize = 20.sp)
+                        Text("×", color = ide.textSoft, fontSize = 20.sp)
                     }
                 }
-                Divider(color = Color(0xFF4A4D50), modifier = Modifier.padding(vertical = 12.dp))
+                Divider(color = ide.divider, modifier = Modifier.padding(vertical = 12.dp))
 
                 // Heading: "Downloading: Jdk 17" style
                 Text(
                     text = "Downloading: ${t.label}",
-                    color = Color(0xFF82AAFF),
+                    color = ide.info,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -1192,12 +1465,12 @@ private fun DownloadManagerWindow(
                 // DownloadPATH
                 Text(
                     text = "DownloadPATH",
-                    color = Color(0xFF888888),
+                    color = ide.textSoft,
                     fontSize = 11.sp
                 )
                 Text(
                     text = t.downloadPath.ifBlank { "—" },
-                    color = Color(0xFFBBBBBB),
+                    color = ide.text,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 1,
@@ -1209,12 +1482,12 @@ private fun DownloadManagerWindow(
                 // FileName
                 Text(
                     text = "FileName",
-                    color = Color(0xFF888888),
+                    color = ide.textSoft,
                     fontSize = 11.sp
                 )
                 Text(
                     text = t.fileName.ifBlank { "—" },
-                    color = Color(0xFFBBBBBB),
+                    color = ide.text,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 1,
@@ -1233,19 +1506,19 @@ private fun DownloadManagerWindow(
                             val totalMB = if (t.totalBytes > 0) "${(t.totalBytes / (1024 * 1024)).toString()} MB" else "Unknown size"
                             Text(
                                 text = "File size: $totalMB",
-                                color = Color.White,
+                                color = ide.text,
                                 fontSize = 14.sp
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Do you want to download this file?",
-                                color = Color(0xFFE6E6E6),
+                                color = ide.textSoft,
                                 fontSize = 13.sp
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "If you select No, the ${t.label.lowercase()} will not be downloaded and the Gradle build cannot continue.",
-                                color = Color(0xFFFF9999),
+                                color = ide.error,
                                 fontSize = 11.sp,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
@@ -1258,7 +1531,7 @@ private fun DownloadManagerWindow(
                                 Button(
                                     onClick = { DownloadCenter.approve() },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF43A047))
+                                    colors = ButtonDefaults.buttonColors(containerColor = ide.success)
                                 ) {
                                     Text("Yes", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
@@ -1268,7 +1541,7 @@ private fun DownloadManagerWindow(
                                         onDismiss()
                                     },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))
+                                    colors = ButtonDefaults.buttonColors(containerColor = ide.error)
                                 ) {
                                     Text("No", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
@@ -1288,7 +1561,7 @@ private fun DownloadManagerWindow(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(14.dp)
-                                    .background(Color(0xFF1E1F22))
+                                    .background(Color(ide.p.surface2))
                                     .clip(RoundedCornerShape(7.dp))
                             ) {
                                 // Progress fill
@@ -1296,7 +1569,7 @@ private fun DownloadManagerWindow(
                                     modifier = Modifier
                                         .fillMaxWidth(percent.toFloat() / 100f)
                                         .fillMaxHeight()
-                                        .background(Color(0xFF8257E6)) // Purple
+                                        .background(ide.accent)
                                         .clip(RoundedCornerShape(7.dp))
                                 )
                             }
@@ -1309,13 +1582,13 @@ private fun DownloadManagerWindow(
                             ) {
                                 Text(
                                     text = "${downloadedMB} MB / ${if (totalMB > 0) "${totalMB} MB" else "?"} (${percent}%)",
-                                    color = Color(0xFFE6E6E6),
+                                    color = ide.text,
                                     fontSize = 12.sp
                                 )
                                 if (speedMB > 0) {
                                     Text(
                                         text = "${speedMB} MB/s",
-                                        color = Color(0xFF82AAFF),
+                                        color = ide.info,
                                         fontSize = 12.sp,
                                         fontFamily = FontFamily.Monospace
                                     )
@@ -1324,7 +1597,7 @@ private fun DownloadManagerWindow(
                             if (t.message.isNotBlank()) {
                                 Text(
                                     text = t.message,
-                                    color = Color(0xFF888888),
+                                    color = ide.textSoft,
                                     fontSize = 11.sp,
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -1333,7 +1606,7 @@ private fun DownloadManagerWindow(
                             Button(
                                 onClick = { DownloadCenter.cancel() },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))
+                                colors = ButtonDefaults.buttonColors(containerColor = ide.error)
                             ) {
                                 Text("Cancel", color = Color.White, fontWeight = FontWeight.Bold)
                             }
@@ -1415,7 +1688,10 @@ private data class StudioMenu(val label: String, val items: List<StudioMenuItem>
 @Composable
 private fun TopMenuBar(
     activity: Activity,
+    projectName: String,
+    onOpenDrawer: () -> Unit,
     onRun: () -> Unit,
+    onOpenSettings: () -> Unit,
     onAction: (String) -> Unit,
 ) {
     val menus = remember {
@@ -1520,38 +1796,116 @@ private fun TopMenuBar(
         )
     }
     var openMenu by remember { mutableStateOf<String?>(null) }
-    var gearOpen by remember { mutableStateOf(false) }
+    val ide = LocalIdeColors.current
 
-    Row(
-        modifier = Modifier.fillMaxWidth().height(46.dp).background(MenuBarBg).padding(start = 0.dp, end = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier = Modifier.fillMaxWidth().background(Color(ide.p.surface))) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable(onClick = onOpenDrawer)
+                    .semantics { contentDescription = "Open project" },
+                contentAlignment = Alignment.Center,
+            ) {
+                IdeIcon(
+                    iconRes = R.drawable.ic_ide_menu,
+                    color = ide.textSoft,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onOpenDrawer)
+                    .padding(horizontal = 4.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = projectName,
+                        color = ide.text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Text("  ▾", color = ide.muted, fontSize = 10.sp)
+                }
+                Text(
+                    text = "MobileStudio",
+                    color = ide.textSoft,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(ide.success.copy(alpha = 0.14f), RoundedCornerShape(4.dp))
+                    .clickable(onClick = onRun)
+                    .semantics { contentDescription = "Run build" },
+                contentAlignment = Alignment.Center,
+            ) {
+                IdeIcon(
+                    iconRes = R.drawable.ic_ide_run,
+                    color = ide.success,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable(onClick = onOpenSettings)
+                    .semantics { contentDescription = "Settings" },
+                contentAlignment = Alignment.Center,
+            ) {
+                GearIcon(Modifier.size(19.dp), tint = ide.textSoft)
+            }
+        }
+        IdeDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(32.dp)
+                .background(Color(ide.p.surface))
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             menus.forEach { menu ->
                 Box {
                     Text(
                         text = menu.label,
-                        color = if (openMenu == menu.label) Color(0xFF3574F0) else Color(0xFFDFE1E5),
-                        fontSize = 13.sp,
+                        color = if (openMenu == menu.label) ide.accent else ide.textSoft,
+                        fontSize = 12.sp,
+                        fontWeight = if (openMenu == menu.label) FontWeight.SemiBold else FontWeight.Normal,
                         modifier = Modifier
                             .clickable { openMenu = if (openMenu == menu.label) null else menu.label }
-                            .padding(horizontal = 7.dp, vertical = 10.dp)
+                            .padding(horizontal = 9.dp, vertical = 8.dp),
                     )
                     DropdownMenu(
                         expanded = openMenu == menu.label,
                         onDismissRequest = { openMenu = null },
-                        modifier = Modifier.width(250.dp).background(Color(0xFF2B2D30))
+                        modifier = Modifier
+                            .width(260.dp)
+                            .background(Color(ide.p.card)),
                     ) {
                         menu.items.forEach { item ->
                             if (item.divider) {
-                                Divider(color = Color(0xFF4A4D50), modifier = Modifier.padding(vertical = 4.dp))
+                                Divider(color = ide.divider, modifier = Modifier.padding(vertical = 4.dp))
                             } else if (item.subItems.isNotEmpty()) {
                                 DropdownMenuItem(
                                     text = {
                                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                            Text(item.label, color = Color(0xFFE6E6E6), fontSize = 13.sp)
+                                            Text(item.label, color = ide.text, fontSize = 12.sp)
                                             Spacer(modifier = Modifier.weight(1f))
-                                            Text("›", color = Color(0xFF888888), fontSize = 13.sp)
+                                            Text("›", color = ide.muted, fontSize = 13.sp)
                                         }
                                     },
                                     onClick = {
@@ -1559,16 +1913,16 @@ private fun TopMenuBar(
                                         showSubMenuDialog(activity, item.label, item.subItems, onAction)
                                     },
                                     modifier = Modifier.height(36.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                    contentPadding = PaddingValues(horizontal = 12.dp),
                                 )
                             } else {
                                 DropdownMenuItem(
                                     text = {
                                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                            Text(item.label, color = Color(0xFFE6E6E6), fontSize = 13.sp)
+                                            Text(item.label, color = ide.text, fontSize = 12.sp)
                                             Spacer(modifier = Modifier.weight(1f))
                                             if (item.shortcut.isNotEmpty()) {
-                                                Text(item.shortcut, color = Color(0xFF888888), fontSize = 11.sp)
+                                                Text(item.shortcut, color = ide.muted, fontSize = 10.sp)
                                             }
                                         }
                                     },
@@ -1577,7 +1931,7 @@ private fun TopMenuBar(
                                         onAction(item.action)
                                     },
                                     modifier = Modifier.height(36.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                    contentPadding = PaddingValues(horizontal = 12.dp),
                                 )
                             }
                         }
@@ -1585,35 +1939,7 @@ private fun TopMenuBar(
                 }
             }
         }
-        Canvas(modifier = Modifier.size(32.dp).clickable { onRun() }.padding(3.dp)) {
-            val w = size.width; val h = size.height
-            val p = Path().apply { moveTo(w * 0.22f, h * 0.14f); lineTo(w * 0.88f, h * 0.5f); lineTo(w * 0.22f, h * 0.86f); close() }
-            drawPath(p, PlayGreen)
-        }
-        Box {
-            Box(modifier = Modifier.size(32.dp).clickable { gearOpen = true }, contentAlignment = Alignment.Center) {
-                GearIcon(Modifier.size(20.dp))
-            }
-            DropdownMenu(
-                expanded = gearOpen,
-                onDismissRequest = { gearOpen = false },
-                modifier = Modifier.width(210.dp).background(Color(0xFF2B2D30))
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Settings...", color = Color(0xFFE6E6E6), fontSize = 13.sp) },
-                    onClick = { gearOpen = false; onAction("settings") },
-                    modifier = Modifier.height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
-                )
-                DropdownMenuItem(
-                    text = { Text("About MobileStudio", color = Color(0xFFE6E6E6), fontSize = 13.sp) },
-                    onClick = { gearOpen = false; onAction("about") },
-                    modifier = Modifier.height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(4.dp))
+        IdeDivider()
     }
 }
 
@@ -1629,22 +1955,31 @@ private fun FileDrawer(
     onSwitchToProjects: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    when (mode) {
-        "projects" -> ProjectsView(
-            activity = activity,
-            onOpenProject = onOpenProject,
-            onSwitchToFiles = onSwitchToFiles,
-            currentProjectDir = activity.currentProjectDir,
-            onClose = onClose,
-        )
-        "files" -> FilesView(
-            activity = activity,
-            onPickFile = onPickFile,
-            onRefresh = onRefresh,
-            onSwitchToProjects = onSwitchToProjects,
-            onOpenProject = onOpenProject,
-            onClose = onClose,
-        )
+    val ide = LocalIdeColors.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .fillMaxHeight()
+            .background(Color(ide.p.surface))
+            .border(1.dp, Color(ide.p.border)),
+    ) {
+        when (mode) {
+            "projects" -> ProjectsView(
+                activity = activity,
+                onOpenProject = onOpenProject,
+                onSwitchToFiles = onSwitchToFiles,
+                currentProjectDir = activity.currentProjectDir,
+                onClose = onClose,
+            )
+            "files" -> FilesView(
+                activity = activity,
+                onPickFile = onPickFile,
+                onRefresh = onRefresh,
+                onSwitchToProjects = onSwitchToProjects,
+                onOpenProject = onOpenProject,
+                onClose = onClose,
+            )
+        }
     }
 }
 
@@ -1656,45 +1991,58 @@ private fun ProjectsView(
     currentProjectDir: File?,
     onClose: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
+    val ide = LocalIdeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight()
+            .background(Color(ide.p.surface)),
+    ) {
+        Text(
+            text = AppLanguage.string(activity, R.string.tab_project),
+            color = ide.muted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+        )
         // Current project header - clickable to switch to files view
         if (currentProjectDir != null) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MenuBarBg)
+                    .background(Color(ide.p.surface2))
                     .clickable { onSwitchToFiles() }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FolderIcon(modifier = Modifier.size(15.dp))
                 Spacer(modifier = Modifier.width(7.dp))
                 Text(
                     text = currentProjectDir.name,
-                    color = Color(0xFFDDDDDD),
+                    color = ide.text,
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                Text("▸", color = Color(0xFF999999), fontSize = 14.sp)
+                Text("▸", color = ide.muted, fontSize = 14.sp)
             }
-            Divider(color = Color(0xFF44474A))
+            Divider(color = ide.divider)
         } else {
             // No project selected
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MenuBarBg)
+                    .background(Color(ide.p.surface2))
                     .padding(horizontal = 14.dp, vertical = 14.dp)
             ) {
                 Text(
-                    text = "[no projects]",
-                    color = Color(0xFF888888),
+                    text = "No project open",
+                    color = ide.textSoft,
                     fontSize = 13.sp
                 )
             }
-            Divider(color = Color(0xFF44474A))
+            Divider(color = ide.divider)
         }
 
         // Known projects list
@@ -1703,7 +2051,7 @@ private fun ProjectsView(
             if (knownProjects.isEmpty()) {
                 Text(
                     text = "No projects yet.\nTap 'Open Project' to add one.",
-                    color = Color(0xFF888888),
+                    color = ide.muted,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(16.dp)
                 )
@@ -1713,7 +2061,7 @@ private fun ProjectsView(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(if (isCurrent) Color(0xFF3C3F41) else Color.Transparent)
+                            .background(if (isCurrent) Color(ide.p.selectedBg) else Color.Transparent)
                             .clickable { activity.openProject(projectDir); onSwitchToFiles() }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1722,17 +2070,17 @@ private fun ProjectsView(
                         Spacer(modifier = Modifier.width(7.dp))
                         Text(
                             text = projectDir.name,
-                            color = if (isCurrent) Color(0xFF82AAFF) else Color(0xFFDDDDDD),
+                            color = if (isCurrent) ide.accent else ide.text,
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
                         if (isCurrent) {
-                            Text("✓", color = Color(0xFF43A047), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("✓", color = ide.success, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    Divider(color = Color(0xFF44474A), modifier = Modifier.padding(start = 36.dp))
+                    Divider(color = ide.divider, modifier = Modifier.padding(start = 36.dp))
                 }
             }
         }
@@ -1742,7 +2090,7 @@ private fun ProjectsView(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            DrawerButton("Open Project", onOpenProject)
+            DrawerButton("Open Project", onOpenProject, primary = true)
             DrawerButton("Close", onClose)
         }
     }
@@ -1757,20 +2105,29 @@ private fun FilesView(
     onOpenProject: () -> Unit,
     onClose: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
+    val ide = LocalIdeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight()
+            .background(Color(ide.p.surface)),
+    ) {
         // Header with back button
         Row(
-            modifier = Modifier.fillMaxWidth().background(MenuBarBg).padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(ide.p.surface2))
+                .padding(horizontal = 14.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("◂", color = Color(0xFFBBBBBB), fontSize = 16.sp, modifier = Modifier
+            Text("‹", color = ide.textSoft, fontSize = 19.sp, modifier = Modifier
                 .clickable { onSwitchToProjects() }
                 .padding(end = 8.dp))
-            Text("files", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Files", color = ide.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                "✕",
-                color = Color(0xFFBBBBBB),
+                "×",
+                color = ide.textSoft,
                 fontSize = 16.sp,
                 modifier = Modifier.clickable { onClose() }.padding(4.dp)
             )
@@ -1782,21 +2139,21 @@ private fun FilesView(
             FolderIcon(modifier = Modifier.size(15.dp))
             Spacer(modifier = Modifier.width(7.dp))
             Text(
-                text = activity.currentProjectDir?.name ?: "no project",
-                color = Color(0xFFDDDDDD),
+                text = activity.currentProjectDir?.name ?: "No project",
+                color = ide.text,
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            Text("⟳", color = Color(0xFF999999), fontSize = 14.sp)
+            Text("↻", color = ide.muted, fontSize = 15.sp)
         }
-        Divider(color = Color(0xFF44474A))
+        Divider(color = ide.divider)
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             if (activity.treeItems.isEmpty()) {
                 Text(
                     text = "No files in this project.\nUse Open Project to pick a folder.",
-                    color = Color(0xFF888888),
+                    color = ide.muted,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(16.dp)
                 )
@@ -1810,31 +2167,101 @@ private fun FilesView(
                 }
             }
         }
-        Divider(color = Color(0xFF44474A))
+        Divider(color = ide.divider)
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            DrawerButton("Open Project", onOpenProject)
+            DrawerButton("Open Project", onOpenProject, primary = true)
             DrawerButton("Close", onClose)
         }
     }
 }
 
 @Composable
-private fun DrawerButton(label: String, onClick: () -> Unit) {
+private fun DrawerButton(label: String, onClick: () -> Unit, primary: Boolean = false) {
+    val ide = LocalIdeColors.current
     Box(
         modifier = Modifier
-            .background(Color(0xFF3C3F41), RoundedCornerShape(4.dp))
+            .height(36.dp)
+            .background(
+                if (primary) ide.accent else Color(ide.p.surface2),
+                RoundedCornerShape(4.dp),
+            )
+            .border(
+                0.5.dp,
+                if (primary) ide.accent else Color(ide.p.border),
+                RoundedCornerShape(4.dp),
+            )
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = Color.White, fontSize = 12.sp)
+        Text(
+            label,
+            color = if (primary) ide.onAccent else ide.text,
+            fontSize = 12.sp,
+        )
+    }
+}
+
+@Composable
+private fun StudioStatusBar(
+    activity: StudioMainActivity,
+    problems: Int,
+    onShowProblems: () -> Unit,
+) {
+    val ide = LocalIdeColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(24.dp)
+            .background(Color(ide.p.surface)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = activity.currentProjectDir?.name ?: "MobileStudio",
+            color = ide.textSoft,
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 10.dp),
+        )
+        if (problems > 0) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(ide.error.copy(alpha = 0.16f))
+                    .clickable(onClick = onShowProblems)
+                    .semantics { contentDescription = "$problems problems" }
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("!", color = ide.error, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = problems.toString(),
+                    color = ide.error,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+        }
+        Text(
+            text = "UTF-8",
+            color = ide.textSoft,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(end = 10.dp),
+        )
     }
 }
 
 @Composable
 private fun FileTreeRow(item: FileItem, onClick: () -> Unit) {
+    val ide = LocalIdeColors.current
     val isDir = item.file.isDirectory
     Row(
         modifier = Modifier
@@ -1844,7 +2271,7 @@ private fun FileTreeRow(item: FileItem, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isDir) {
-            Text(if (item.isExpanded) "▾" else "▸", color = Color(0xFFBBBBBB), fontSize = 11.sp)
+            Text(if (item.isExpanded) "▾" else "▸", color = ide.textSoft, fontSize = 11.sp)
             Spacer(modifier = Modifier.width(4.dp))
             FolderIcon(modifier = Modifier.size(14.dp))
         } else {
@@ -1855,14 +2282,14 @@ private fun FileTreeRow(item: FileItem, onClick: () -> Unit) {
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
-                    .background(Color(0xFF1E1F22), RoundedCornerShape(2.dp))
+                    .background(Color(ide.p.surface2), RoundedCornerShape(2.dp))
                     .padding(horizontal = 3.dp, vertical = 1.dp)
             )
         }
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = item.file.name,
-            color = if (isDir) Color(0xFFE0E0E0) else Color(0xFFBDBDBD),
+            color = if (isDir) ide.text else ide.textSoft,
             fontSize = 13.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -1888,121 +2315,144 @@ private fun fileBadgeColor(file: File): Color = when (file.extension.lowercase()
     else -> Color(0xFF999999)
 }
 
-@Composable
 private fun getKnownProjects(activity: StudioMainActivity): List<File> {
-    val projects = mutableListOf<File>()
-    val workspaceDir = File(activity.filesDir, "workspace")
-    if (workspaceDir.exists() && workspaceDir.isDirectory) {
-        workspaceDir.listFiles()?.filter { it.isDirectory }?.forEach { projects.add(it) }
-    }
-    // Also check filesDir for any other project directories
-    activity.filesDir.listFiles()?.filter { it.isDirectory && it.name != "toolchain" && it.name != "workspace" && it.name != "AI" && it.name != "code_cache" }?.forEach { projects.add(it) }
-    return projects.distinctBy { it.absolutePath }
+    val projects = linkedSetOf<File>()
+    activity.getRecentProjects()
+        .asSequence()
+        .map(::File)
+        .filter { it.isDirectory }
+        .forEach(projects::add)
+    File(activity.filesDir, "workspace")
+        .listFiles()
+        ?.asSequence()
+        ?.filter { it.isDirectory }
+        ?.forEach(projects::add)
+    return projects.toList()
 }
 
 @Composable
-private fun GearIcon(modifier: Modifier = Modifier) {
+private fun GearIcon(modifier: Modifier = Modifier, tint: Color = Color.White) {
     Canvas(modifier = modifier) {
         val w = size.width; val c = Offset(w / 2f, w / 2f)
         val strokeW = w * 0.16f
         repeat(8) { i ->
             val ang = Math.toRadians((i * 45).toDouble())
             val r1 = w * 0.26f; val r2 = w * 0.46f
-            drawLine(color = Color.White,
+            drawLine(color = tint,
                 start = Offset(c.x + (r1 * kotlin.math.cos(ang)).toFloat(), c.y + (r1 * kotlin.math.sin(ang)).toFloat()),
                 end = Offset(c.x + (r2 * kotlin.math.cos(ang)).toFloat(), c.y + (r2 * kotlin.math.sin(ang)).toFloat()),
                 strokeWidth = strokeW)
         }
-        drawCircle(color = Color.White, radius = w * 0.30f, center = c, style = Stroke(width = strokeW))
+        drawCircle(color = tint, radius = w * 0.30f, center = c, style = Stroke(width = strokeW))
     }
 }
 
 @Composable
 private fun LeftStrip(
     context: Context,
-    onFolder: () -> Unit,
+    activePane: String,
+    onProject: () -> Unit,
     onBuildLog: () -> Unit,
     onTerminal: () -> Unit,
     onIde: () -> Unit,
-    onProjectOpen: () -> Unit,
+    onSettings: () -> Unit,
 ) {
-    Column(modifier = Modifier.width(42.dp).fillMaxHeight().background(StripLavender), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.size(42.dp).clickable { onProjectOpen() }, contentAlignment = Alignment.Center) {
-            FolderIcon(Modifier.size(22.dp))
-        }
-        Spacer(modifier = Modifier.weight(1f))
-        Box(modifier = Modifier.size(38.dp).clickable { onBuildLog() }, contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(18.dp)) {
-                val w = size.width; val h = size.height
-                val p = Path().apply { moveTo(w * 0.15f, h * 0.1f); lineTo(w * 0.92f, h * 0.5f); lineTo(w * 0.15f, h * 0.9f); close() }
-                drawPath(p, StripIconDark)
+    val ide = LocalIdeColors.current
+    val items = listOf(
+        StudioRailItem("project", "▤", AppLanguage.string(context, R.string.tab_project), onProject),
+        StudioRailItem("build", "▶", AppLanguage.string(context, R.string.tab_build), onBuildLog),
+        StudioRailItem("terminal", ">_", AppLanguage.string(context, R.string.tab_shell), onTerminal),
+        StudioRailItem("ai", "✦", "AI", onIde),
+        StudioRailItem("settings", "⚙", AppLanguage.string(context, R.string.action_settings), onSettings),
+    )
+    Row(modifier = Modifier.fillMaxHeight()) {
+        Column(
+            modifier = Modifier
+                .width(54.dp)
+                .fillMaxHeight()
+                .background(Color(ide.p.surface)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(modifier = Modifier.height(6.dp))
+            items.forEach { item ->
+                StudioRailButton(
+                    item = item,
+                    active = activePane == item.id,
+                    onClick = item.onClick,
+                )
             }
         }
-        Box(modifier = Modifier.size(38.dp).clickable { onIde() }, contentAlignment = Alignment.Center) { CatIcon(Modifier.size(24.dp)) }
-        Box(modifier = Modifier.size(38.dp).clickable {}, contentAlignment = Alignment.Center) { AlertIcon(Modifier.size(22.dp)) }
-        Box(modifier = Modifier.size(38.dp).clickable { onTerminal() }, contentAlignment = Alignment.Center) { Text(">_", color = StripIconDark, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-        Box(modifier = Modifier.size(38.dp).clickable {}, contentAlignment = Alignment.Center) { Text("✦", color = StripIconDark, fontSize = 18.sp) }
-        Spacer(modifier = Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(Color(ide.p.divider)),
+        )
+    }
+}
+
+private data class StudioRailItem(
+    val id: String,
+    val glyph: String,
+    val label: String,
+    val onClick: () -> Unit,
+)
+
+@Composable
+private fun StudioRailButton(item: StudioRailItem, active: Boolean, onClick: () -> Unit) {
+    val ide = LocalIdeColors.current
+    Column(
+        modifier = Modifier
+            .width(54.dp)
+            .height(54.dp)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = item.label },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(22.dp)
+                .height(2.dp)
+                .background(if (active) ide.accent else Color.Transparent),
+        )
+        Text(
+            text = item.glyph,
+            color = when {
+                active -> ide.accent
+                item.id == "build" -> ide.success
+                else -> ide.textSoft
+            },
+            fontSize = 16.sp,
+            fontWeight = if (item.id == "terminal") FontWeight.Bold else FontWeight.Normal,
+        )
+        Text(
+            text = item.label,
+            color = if (active) ide.text else ide.textSoft,
+            fontSize = 9.sp,
+            maxLines = 1,
+        )
     }
 }
 
 @Composable
-private fun FolderIcon(modifier: Modifier = Modifier) {
+private fun FolderIcon(modifier: Modifier = Modifier, tint: Color? = null) {
+    val color = tint ?: LocalIdeColors.current.warning
     Canvas(modifier = modifier) {
-        val w = size.width; val h = size.height
+        val w = size.width
+        val h = size.height
         val p = Path().apply {
-            moveTo(w * 0.05f, h * 0.25f); lineTo(w * 0.38f, h * 0.25f); lineTo(w * 0.46f, h * 0.38f)
-            lineTo(w * 0.95f, h * 0.38f); lineTo(w * 0.95f, h * 0.85f); lineTo(w * 0.05f, h * 0.85f); close()
+            moveTo(w * 0.05f, h * 0.25f)
+            lineTo(w * 0.38f, h * 0.25f)
+            lineTo(w * 0.46f, h * 0.38f)
+            lineTo(w * 0.95f, h * 0.38f)
+            lineTo(w * 0.95f, h * 0.85f)
+            lineTo(w * 0.05f, h * 0.85f)
+            close()
         }
-        drawPath(p, Color(0xFFFFD54F))
-        drawPath(p, Color(0xFFF9A825), style = Stroke(width = 1.dp.toPx()))
+        drawPath(p, color.copy(alpha = 0.72f))
+        drawPath(p, color, style = Stroke(width = 1.dp.toPx()))
     }
-}
-
-@Composable
-private fun CatIcon(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val w = size.width; val h = size.height
-        val stroke = Stroke(width = 1.6.dp.toPx())
-        val c = Offset(w * 0.5f, h * 0.62f)
-        drawCircle(color = StripIconDark, radius = w * 0.30f, center = c, style = stroke)
-        val earL = Path().apply { moveTo(w * 0.24f, h * 0.46f); lineTo(w * 0.30f, h * 0.14f); lineTo(w * 0.44f, h * 0.36f); close() }
-        drawPath(earL, StripIconDark, style = stroke)
-        val earR = Path().apply { moveTo(w * 0.76f, h * 0.46f); lineTo(w * 0.70f, h * 0.14f); lineTo(w * 0.56f, h * 0.36f); close() }
-        drawPath(earR, StripIconDark, style = stroke)
-    }
-}
-
-@Composable
-private fun AlertIcon(modifier: Modifier = Modifier) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawCircle(color = StripIconDark, radius = size.minDimension / 2f, style = Stroke(width = 1.6.dp.toPx()))
-        }
-        Text("!", color = StripIconDark, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-private fun LineNumberEditText.setHighlighted(content: String) {
-    val show = if (content.isEmpty()) EditorDefaultContent else content
-    val spannable = SpannableString(show)
-    val kwRegex = Regex("\\b(fun|val|var|if|else|when|for|while|return|class|object|interface|import|package|override|suspend|try|catch|finally|throw|in|is|as)\\b")
-    kwRegex.findAll(content).forEach {
-        spannable.setSpan(
-            ForegroundColorSpan(android.graphics.Color.parseColor(CodeKeywordHex)), it.range.first, it.range.last, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-    }
-    val strRegex = Regex("\"([^\"\\\\]|\\\\.)*\"")
-    strRegex.findAll(content).forEach {
-        spannable.setSpan(
-            ForegroundColorSpan(android.graphics.Color.parseColor(CodeStringHex)), it.range.first, it.range.last, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-    }
-    setText(spannable, TextView.BufferType.SPANNABLE)
-}
-
-/** 새 프로젝트 만들기 다이얼로그 */
-/** 프로젝트 열기 다이얼로그 */
-private fun openExistingProjectDialog(activity: StudioMainActivity) {
-    activity.pickDir.launch(null)
 }
 
 /**
@@ -2101,148 +2551,397 @@ private fun showSubMenuDialog(activity: Activity, parentLabel: String, subItems:
 
 /** Shows the "New Project" dialog (Android Studio style). */
 fun showNewProjectDialog(activity: StudioMainActivity) {
-    val density = activity.resources.displayMetrics.density
-    fun dp(v: Int) = (v * density).toInt()
+    activity.isNewProjectDialogVisible = true
+}
 
-    val layout = LinearLayout(activity).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(16), dp(16), dp(16))
+private data class NewProjectType(
+    val label: String,
+    val description: String,
+)
+
+@Composable
+private fun NewProjectDialog(
+    activity: StudioMainActivity,
+    onDismiss: () -> Unit,
+) {
+    val ide = LocalIdeColors.current
+    val isKorean = AppLanguage.isKorean(activity)
+    var selectedType by remember { mutableStateOf("Android Application") }
+    var projectName by remember { mutableStateOf("") }
+    var projectLocation by remember {
+        mutableStateOf(
+            activity.getLastProject() ?: StorageHelper.projectsRoot(activity).absolutePath,
+        )
     }
-    layout.addView(TextView(activity).apply {
-        text = "Project Type"
-        setTextColor(android.graphics.Color.parseColor("#E6E6E6"))
-        textSize = 14f
-        setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-        setPadding(0, 0, 0, dp(8))
-    })
-    val typeSpinner = android.widget.Spinner(activity)
-    val types = arrayOf("Android Application", "Java Application", "Kotlin Application", "EXE / Native Binary")
-    typeSpinner.adapter = android.widget.ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, types)
-    layout.addView(typeSpinner)
-    layout.addView(TextView(activity).apply {
-        text = "Project Name"
-        setTextColor(android.graphics.Color.parseColor("#E6E6E6"))
-        textSize = 14f
-        setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-        setPadding(0, dp(12), 0, dp(8))
-    })
-    val nameInput = EditText(activity).apply {
-        hint = "MyApplication"
-        setTextColor(android.graphics.Color.parseColor("#E6E6E6"))
-        setHintTextColor(android.graphics.Color.parseColor("#888888"))
-        background = android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#3A3D42"))
-        setPadding(dp(8), dp(8), dp(8), dp(8))
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val projectTypes = remember(isKorean) {
+        listOf(
+            NewProjectType(
+                AppLanguage.string(activity, R.string.newproject_type_android),
+                AppLanguage.string(activity, R.string.newproject_type_android_desc),
+            ),
+            NewProjectType(
+                AppLanguage.string(activity, R.string.newproject_type_java),
+                AppLanguage.string(activity, R.string.newproject_type_java_desc),
+            ),
+            NewProjectType(
+                AppLanguage.string(activity, R.string.newproject_type_kotlin),
+                AppLanguage.string(activity, R.string.newproject_type_kotlin_desc),
+            ),
+            NewProjectType(
+                AppLanguage.string(activity, R.string.newproject_type_exe),
+                AppLanguage.string(activity, R.string.newproject_type_exe_desc),
+            ),
+        )
     }
-    layout.addView(nameInput)
-    layout.addView(TextView(activity).apply {
-        text = "Location"
-        setTextColor(android.graphics.Color.parseColor("#E6E6E6"))
-        textSize = 14f
-        setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-        setPadding(0, dp(12), 0, dp(8))
-    })
-    val locInput = EditText(activity).apply {
-        setText(activity.getLastProject() ?: System.getProperty("user.home"))
-        setTextColor(android.graphics.Color.parseColor("#E6E6E6"))
-        background = android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#3A3D42"))
-        setPadding(dp(8), dp(8), dp(8), dp(8))
-    }
-    layout.addView(locInput)
-    layout.addView(TextView(activity).apply {
-        text = "Language"
-        setTextColor(android.graphics.Color.parseColor("#E6E6E6"))
-        textSize = 14f
-        setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-        setPadding(0, dp(12), 0, dp(8))
-    })
-    val langSpinner = android.widget.Spinner(activity)
-    val langs = arrayOf("Kotlin", "Java")
-    langSpinner.adapter = android.widget.ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, langs)
-    layout.addView(langSpinner)
-
-    AlertDialog.Builder(activity)
-        .setTitle("New Project")
-        .setView(layout)
-        .setPositiveButton("Create") { _, _ ->
-            val projName = nameInput.text.toString().trim()
-            val projLoc = locInput.text.toString().trim()
-            val projType = types[typeSpinner.selectedItemPosition]
-            if (projName.isEmpty() || projLoc.isEmpty()) {
-                Toast.makeText(activity, "Please enter project name and location", Toast.LENGTH_SHORT).show()
-                return@setPositiveButton
-            }
-            val projDir = File(projLoc, projName)
-            projDir.mkdirs()
-            when (projType) {
-                "Android Application" -> {
-                    File(projDir, "app").mkdirs()
-                    File(projDir, "app/src/main/java").mkdirs()
-                    File(projDir, "app/src/main/res").mkdirs()
-                    File(projDir, "app/build.gradle.kts").writeText("""
-                        plugins { id('com.android.application') id('org.jetbrains.kotlin.android') }
-                        android { namespace = 'com.example.${projName.lowercase()}' compileSdk = 34 }
-                        dependencies { implementation(project(':app')) }
-                    """.trimIndent())
-                    File(projDir, "settings.gradle.kts").writeText("rootProject.name = \"$projName\"")
-                    File(projDir, "app/src/main/java/com/example/${projName.lowercase()}/MainActivity.kt").writeText("""
-                        package com.example.${projName.lowercase()}
-
-                        import android.os.Bundle
-                        import androidx.appcompat.app.AppCompatActivity
-
-                        class MainActivity : AppCompatActivity() {
-                            override fun onCreate(savedInstanceState: Bundle?) {
-                                super.onCreate(savedInstanceState)
-                            }
-                        }
-                    """.trimIndent())
-                    File(projDir, "README.md").writeText("# $projName\n\nAndroid Application created with MobileStudio")
-                }
-                "Java Application" -> {
-                    File(projDir, "src").mkdirs()
-                    File(projDir, "src/com/example").mkdirs()
-                    File(projDir, "src/com/example/Main.java").writeText("""
-                        package com.example;
-
-                        public class Main {
-                            public static void main(String[] args) {
-                                System.out.println("Hello, $projName!");
-                            }
-                        }
-                    """.trimIndent())
-                    File(projDir, "README.md").writeText("# $projName\n\nJava Application created with MobileStudio")
-                }
-                "Kotlin Application" -> {
-                    File(projDir, "src").mkdirs()
-                    File(projDir, "src/com/example").mkdirs()
-                    File(projDir, "src/com/example/Main.kt").writeText("""
-                        package com.example
-
-                        fun main() {
-                            println("Hello, $projName!")
-                        }
-                    """.trimIndent())
-                    File(projDir, "README.md").writeText("# $projName\n\nKotlin Application created with MobileStudio")
-                }
-                "EXE / Native Binary" -> {
-                    File(projDir, "src").mkdirs()
-                    File(projDir, "src/main.cpp").writeText("""
-                        #include <iostream>
-
-                        int main() {
-                            std::cout << "Hello, $projName!" << std::endl;
-                            return 0;
-                        }
-                    """.trimIndent())
-                    File(projDir, "README.md").writeText("# $projName\n\nEXE / Native Binary project created with MobileStudio")
-                }
-            }
-            activity.openProject(projDir)
-            activity.putLastProject(projDir.absolutePath)
-            Toast.makeText(activity, "Project created: $projDir", Toast.LENGTH_SHORT).show()
+    val previewPath = remember(projectLocation, projectName) {
+        val location = projectLocation.trim()
+        val name = projectName.trim()
+        when {
+            location.isEmpty() -> ""
+            name.isEmpty() -> File(location).absolutePath
+            else -> File(location, name).absolutePath
         }
-        .setNegativeButton("Cancel", null)
-        .show()
+    }
+
+    fun createProject() {
+        val name = projectName.trim()
+        val location = projectLocation.trim()
+        errorMessage = when {
+            name.isEmpty() -> AppLanguage.string(activity, R.string.projects_app_name_empty)
+            location.isEmpty() -> AppLanguage.string(activity, R.string.newproject_enter_location)
+            else -> null
+        }
+        if (errorMessage != null) return
+
+        val projectDir = File(location, name)
+        try {
+            createProjectFiles(projectDir, name, selectedType)
+            activity.openProject(projectDir)
+            activity.putLastProject(projectDir.absolutePath)
+            onDismiss()
+            Toast.makeText(
+                activity,
+                AppLanguage.string(activity, R.string.projects_created).replace("%s", projectDir.toString()),
+                Toast.LENGTH_SHORT,
+            ).show()
+        } catch (e: Exception) {
+            errorMessage = AppLanguage.string(activity, R.string.projects_create_failed).replace("%s", e.message ?: "")
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.58f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onDismiss),
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .heightIn(max = 680.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(ide.p.card))
+                .border(1.dp, Color(ide.p.border), RoundedCornerShape(6.dp)),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .background(Color(ide.p.surface)),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp),
+                ) {
+                    Text(
+                        text = AppLanguage.string(activity, R.string.newproject_title),
+                        color = ide.text,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = AppLanguage.string(activity, R.string.newproject_subtitle),
+                        color = ide.textSoft,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clickable(onClick = onDismiss)
+                        .semantics { contentDescription = "Close" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("×", color = ide.textSoft, fontSize = 20.sp)
+                }
+            }
+            IdeDivider()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+            ) {
+                Text(
+                    text = AppLanguage.string(activity, R.string.newproject_project_type_label),
+                    color = ide.muted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(8.dp))
+                projectTypes.chunked(2).forEach { rowTypes ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        rowTypes.forEach { type ->
+                            NewProjectTypeOption(
+                                type = type,
+                                selected = selectedType == type.label,
+                                onClick = {
+                                    selectedType = type.label
+                                    errorMessage = null
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (rowTypes.size == 1) {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                Text(
+                    text = AppLanguage.string(activity, R.string.projects_app_name),
+                    color = ide.textSoft,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.height(6.dp))
+                IdeFilterField(
+                    value = projectName,
+                    onValueChange = {
+                        projectName = it
+                        errorMessage = null
+                    },
+                    placeholder = AppLanguage.string(activity, R.string.newproject_placeholder_app),
+                    modifier = Modifier.fillMaxWidth(),
+                    imeAction = ImeAction.Next,
+                )
+
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = AppLanguage.string(activity, R.string.newproject_path_label),
+                    color = ide.textSoft,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.height(6.dp))
+                IdeFilterField(
+                    value = projectLocation,
+                    onValueChange = {
+                        projectLocation = it
+                        errorMessage = null
+                    },
+                    placeholder = AppLanguage.string(activity, R.string.newproject_placeholder_folder),
+                    modifier = Modifier.fillMaxWidth(),
+                    imeAction = ImeAction.Done,
+                )
+                if (previewPath.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = previewPath,
+                        color = ide.muted,
+                        style = IdeMono.path,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                if (errorMessage != null) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = errorMessage.orEmpty(),
+                        color = ide.error,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+            IdeDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(ide.p.surface))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IdeAction(
+                    text = AppLanguage.string(activity, R.string.action_cancel),
+                    onClick = onDismiss,
+                )
+                Spacer(Modifier.width(8.dp))
+                IdeAction(
+                    text = AppLanguage.string(activity, R.string.action_create),
+                    onClick = { createProject() },
+                    primary = true,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewProjectTypeOption(
+    type: NewProjectType,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val ide = LocalIdeColors.current
+    Column(
+        modifier = modifier
+            .heightIn(min = 66.dp)
+            .background(if (selected) Color(ide.p.selectedBg) else Color.Transparent)
+            .border(
+                if (selected) 1.dp else 0.5.dp,
+                if (selected) Color(ide.p.accent) else Color(ide.p.divider),
+                RoundedCornerShape(4.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .border(
+                        1.dp,
+                        if (selected) Color(ide.p.accent) else Color(ide.p.muted),
+                        RoundedCornerShape(7.dp),
+                    )
+                    .background(
+                        if (selected) Color(ide.p.accent) else Color.Transparent,
+                        RoundedCornerShape(7.dp),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(Color(ide.p.onAccent), RoundedCornerShape(3.dp)),
+                    )
+                }
+            }
+            Spacer(Modifier.width(7.dp))
+            Text(
+                text = type.label,
+                color = ide.text,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = type.description,
+            color = ide.textSoft,
+            fontSize = 10.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private fun createProjectFiles(projectDir: File, projectName: String, projectType: String) {
+    if (!projectDir.exists() && !projectDir.mkdirs()) {
+        throw IllegalStateException("Cannot create ${projectDir.absolutePath}")
+    }
+    when (projectType) {
+        "Android Application" -> {
+            File(projectDir, "app").mkdirs()
+            File(projectDir, "app/src/main/java").mkdirs()
+            File(projectDir, "app/src/main/res").mkdirs()
+            File(projectDir, "app/build.gradle.kts").writeText("""
+                plugins { id('com.android.application') id('org.jetbrains.kotlin.android') }
+                android { namespace = 'com.example.${projectName.lowercase()}' compileSdk = 34 }
+                dependencies { implementation(project(':app')) }
+            """.trimIndent())
+            File(projectDir, "settings.gradle.kts").writeText("rootProject.name = \"$projectName\"")
+            val activityFile = File(
+                projectDir,
+                "app/src/main/java/com/example/${projectName.lowercase()}/MainActivity.kt",
+            )
+            activityFile.parentFile?.mkdirs()
+            activityFile.writeText("""
+                package com.example.${projectName.lowercase()}
+
+                import android.os.Bundle
+                import androidx.appcompat.app.AppCompatActivity
+
+                class MainActivity : AppCompatActivity() {
+                    override fun onCreate(savedInstanceState: Bundle?) {
+                        super.onCreate(savedInstanceState)
+                    }
+                }
+            """.trimIndent())
+            File(projectDir, "README.md").writeText("# $projectName\n\nAndroid Application created with MobileStudio")
+        }
+        "Java Application" -> {
+            File(projectDir, "src").mkdirs()
+            File(projectDir, "src/com/example").mkdirs()
+            File(projectDir, "src/com/example/Main.java").writeText("""
+                package com.example;
+
+                public class Main {
+                    public static void main(String[] args) {
+                        System.out.println("Hello, $projectName!");
+                    }
+                }
+            """.trimIndent())
+            File(projectDir, "README.md").writeText("# $projectName\n\nJava Application created with MobileStudio")
+        }
+        "Kotlin Application" -> {
+            File(projectDir, "src").mkdirs()
+            File(projectDir, "src/com/example").mkdirs()
+            File(projectDir, "src/com/example/Main.kt").writeText("""
+                package com.example
+
+                fun main() {
+                    println("Hello, $projectName!")
+                }
+            """.trimIndent())
+            File(projectDir, "README.md").writeText("# $projectName\n\nKotlin Application created with MobileStudio")
+        }
+        "EXE / Native Binary" -> {
+            File(projectDir, "src").mkdirs()
+            File(projectDir, "src/main.cpp").writeText("""
+                #include <iostream>
+
+                int main() {
+                    std::cout << "Hello, $projectName!" << std::endl;
+                    return 0;
+                }
+            """.trimIndent())
+            File(projectDir, "README.md").writeText("# $projectName\n\nEXE / Native Binary project created with MobileStudio")
+        }
+    }
 }
 
 

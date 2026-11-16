@@ -171,6 +171,43 @@
     <string name="projects_created">Project created: %s</string>
     <string name="projects_create_failed">Project creation failed: %s</string>
 
+    <!-- New Project dialog -->
+    <string name="newproject_title">New Project</string>
+    <string name="newproject_subtitle">Set up a new project in a few steps</string>
+    <string name="newproject_app_name_hint">e.g. MyApp</string>
+    <string name="newproject_package_name_hint">com.example.</string>
+    <string name="newproject_project_folder_hint">e.g. /sdcard/MobileStudio</string>
+    <string name="newproject_save_path_format">%1$s/&lt;ProjectName&gt;</string>
+    <string name="newproject_build_script">Build Script</string>
+    <string name="newproject_build_dsl_kts">build.gradle.kts</string>
+    <string name="newproject_build_dsl_groovy">build.gradle (Groovy)</string>
+    <string name="newproject_minimum_sdk">Minimum SDK</string>
+    <string name="newproject_options">Options</string>
+    <string name="newproject_enable_view_binding">Enable View Binding</string>
+    <string name="newproject_python_template">Python Script (terminal + pip)</string>
+    <string name="newproject_windows_template">Windows .exe (C - mingw-w64)</string>
+    <string name="newproject_windows_note">Compile with Tools &gt; Wine &amp; Box64 &gt; Build .exe, run with Run .exe</string>
+    <string name="newproject_godot_template">Godot 4.7.2 (project.godot + main.tscn)</string>
+    <string name="newproject_godot_note">Press Run to open the built-in Godot editor.</string>
+    <string name="newproject_type_android">Android App</string>
+    <string name="newproject_type_android_desc">Gradle-based Android app</string>
+    <string name="newproject_type_java">Java Application</string>
+    <string name="newproject_type_java_desc">Standalone Java application</string>
+    <string name="newproject_type_kotlin">Kotlin Application</string>
+    <string name="newproject_type_kotlin_desc">Standalone Kotlin application</string>
+    <string name="newproject_type_exe">EXE / Native Binary</string>
+    <string name="newproject_type_exe_desc">C++ native project</string>
+    <string name="newproject_type_godot">Godot</string>
+    <string name="newproject_project_type_label">Project type</string>
+    <string name="newproject_enter_location">Enter a project location.</string>
+    <string name="newproject_created_toast">Project created: %s</string>
+    <string name="newproject_type_python">Python (Shell)</string>
+    <string name="newproject_type_windows">Windows .exe</string>
+    <string name="newproject_creation_failed_title">Project Creation Failed</string>
+    <string name="newproject_path_label">Location</string>
+    <string name="newproject_placeholder_app">MyApplication</string>
+    <string name="newproject_placeholder_folder">Project folder</string>
+
     <!-- Toolchain file explorer -->
     <string name="explorer_empty">Empty or permission denied</string>
     <string name="explorer_nothing_to_paste">Nothing to paste</string>

@@ -15,7 +15,8 @@ object ThemeManager {
         LIGHT("Light"),
         DRACULA("Dracula"),
         MONOKAI("Monokai"),
-        NORD("Nord")
+        NORD("Nord"),
+        ONE_DARK_PRO("One Dark Pro")
     }
 
     enum class DarkMode(val label: String) {

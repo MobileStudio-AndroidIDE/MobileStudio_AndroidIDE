@@ -1,14 +1,22 @@
 package com.aide.mobilestudio
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -16,78 +24,70 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aide.mobilestudio.ui.ide.LocalIdeColors
 
-/** 실시간 컴파일 오류 항목 */
+/** Live compiler errors shown in the Android Studio-style Problems tool window. */
 data class EditorProblem(val line: Int, val message: String, val severity: String = "ERROR")
 
-/** 에디터 하단 컴파일 오류 패널 (이미지 1 참조) */
 @Composable
 fun ProblemsPane(
     problems: List<EditorProblem>,
     onProblemFix: (Int) -> Unit,
 ) {
+    val ide = LocalIdeColors.current
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF1A1A1E))
-            .border(1.dp, Color(0xFF3A3A4A))
+            .fillMaxSize()
+            .background(Color(ide.p.editorBg)),
     ) {
-        // 헤더
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .background(Color(0xFF2A2A2E))
-        ) {
-            Text(
-                text = "⚠ ${problems.size} problem(s)",
-                color = Color(0xFFFF5555),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = "Build",
-                color = Color(0xFF888888),
-                fontSize = 11.sp,
-            )
+        if (problems.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "No problems detected",
+                    color = ide.muted,
+                    fontSize = 12.sp,
+                )
+            }
+            return
         }
-        Divider(color = Color(0xFF3A3A4A), modifier = Modifier.fillMaxWidth())
-        // 오류 목록
         LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 4.dp),
         ) {
             items(problems) { problem ->
+                val isError = !problem.severity.equals("WARNING", ignoreCase = true)
+                val accent = if (isError) ide.error else ide.warning
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
                         .clickable { onProblemFix(problem.line - 1) }
-                        .background(Color.Transparent)
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    Text(
-                        text = "🔴",
-                        color = Color(0xFFFF5555),
-                        fontSize = 12.sp,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .background(accent.copy(alpha = 0.18f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("!", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = problem.message,
-                            color = Color(0xFFE0E0E0),
-                            fontSize = 13.sp,
-                            maxLines = 1,
+                            color = ide.text,
+                            fontSize = 12.sp,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             text = "Line ${problem.line}",
-                            color = Color(0xFF888888),
-                            fontSize = 11.sp,
+                            color = ide.textSoft,
+                            fontSize = 10.sp,
                         )
                     }
                 }
-                Divider(color = Color(0xFF2A2A2E), modifier = Modifier.fillMaxWidth())
             }
         }
     }
