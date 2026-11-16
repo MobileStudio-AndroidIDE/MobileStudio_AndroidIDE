@@ -207,7 +207,23 @@ class X11Extensions(
         output: java.io.DataOutputStream
     ): Boolean {
         Log.d(TAG, "XKB minorOpcode=$minorOpcode")
-        sendExtensionReply(output, opcode, true)
+        when (minorOpcode) {
+            XKB_QUERY_EXTENSION -> {
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(1) // supported
+                reply.put(1); reply.put(0) // major, minor version
+                output.write(reply.array())
+                output.flush()
+            }
+            XKB_USE_EXTENSION -> {
+                // Use XKB extension
+                sendExtensionReply(output, opcode, true)
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
         return true
     }
 
