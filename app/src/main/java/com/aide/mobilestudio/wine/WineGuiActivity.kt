@@ -41,6 +41,7 @@ class WineGuiActivity : Activity() {
 
         val (width, height) = 800 to 600
         val server = MiniXServer(
+            context = this,
             socketPath = "",
             displayWidth = width,
             displayHeight = height,

@@ -1,13 +1,22 @@
 package com.aide.mobilestudio.wine
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.Log
+import android.net.LocalServerSocket
+import android.net.LocalSocket
+import android.view.inputmethod.InputMethodManager
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.File
+import java.io.IOException
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.ByteBuffer
@@ -26,26 +35,42 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * Supported X11 protocol:
  * - Connection handshake (success reply with screen info)
- * - Window management (Create/Map/Unmap/Configure/Destroy)
+ * - Unix domain socket (/tmp/.X11-unix/X0) + TCP (127.0.0.1:6000)
+ * - Window management (Create/Map/Unmap/Configure/Destroy/Reparent)
  * - Graphics contexts (Create/Change/Free, with clipping)
  * - Drawing: PutImage, CopyArea, PolyFillRectangle, PolyFillArc,
  *   PolyLine, PolySegment, PolyRectangle, PolyText8, PolyText16, ImageText8/16
  * - Pixmap management (off-screen drawing surfaces)
  * - Atom management (pre-defined + dynamic InternAtom with real IDs)
  * - Property management (Change/Get/Delete with in-memory storage)
- * - Selection/clipboard basics
+ * - Selection/clipboard basics (CLIPBOARD, PRIMARY atoms)
  * - Input events: ButtonPress/Release, MotionNotify, KeyPress/Release, Expose
  * - Font management (OpenFont, QueryFont stub)
  * - FreeGC, FreePixmap, FreeColormap, KillClient, NoOperation
  * - Generic reply generation for all reply-expecting opcodes (prevents hangs)
+ * - X11 Extensions: XInputExtension, XKB, XRandR, XFixes, XShape,
+ *   XComposite, XDamage, XRender, BIG-REQUESTS
+ *
+ * The server listens on DISPLAY=:0. Unix domain socket is created at
+ * /tmp/.X11-unix/X0 so native Wine binaries can connect without setting
+ * DISPLAY explicitly.
  */
 class MiniXServer(
-    @Suppress("unused") private val socketPath: String,
+    private val context: Context?,
+    socketPath: String = "/tmp/.X11-unix/X0",
     val displayWidth: Int = 800,
     val displayHeight: Int = 600,
+    val displayDpi: Int = 96,
 ) {
     companion object {
         private const val TAG = "MiniXServer"
+
+        // X11 display number (DISPLAY=:0)
+        const val DISPLAY_NUM = 0
+        const val DISPLAY_STRING = ":0"
+        // Unix domain socket path for X11
+        const val X11_UNIX_DIR = "/tmp/.X11-unix"
+        const val X11_UNIX_SOCKET = "/tmp/.X11-unix/X0"
 
         // --- X11 opcodes ---
         private const val OP_CREATE_WINDOW = 1
@@ -107,6 +132,36 @@ class MiniXServer(
         private const val OP_GET_POINTER_MAPPING = 117
         private const val OP_SET_POINTER_MAPPING = 118
 
+        // X11 extension opcodes (dynamic, assigned at connection setup)
+        // These are the standard extension base opcodes Wine may query
+        const val EXT_XINPUT = 0  // filled at runtime
+        const val EXT_XKB = 0
+        const val EXT_XRANDR = 0
+        const val EXT_XFIXES = 0
+        const val EXT_XSHAPE = 0
+        const val EXT_XCOMPOSITE = 0
+        const val EXT_XDAMAGE = 0
+        const val EXT_XRENDER = 0
+
+        // Extension names Wine commonly queries
+        val EXTENSION_NAMES = listOf(
+            "BIG-REQUESTS",
+            "XInputExtension",
+            "XKEYBOARD",
+            "XINERAMA",
+            "XFIXES",
+            "XRENDER",
+            "RANDR",
+            "XTEST",
+            "XINPUT",
+            "MIT-SHM",
+            "XC-MISC",
+            "XShape",
+            "Composite",
+            "Damage",
+            "GLX",
+        )
+
         // Pre-defined atoms (X11 standard)
         val PREDEFINED_ATOMS = mapOf(
             "WM_PROTOCOLS" to 1, "WM_DELETE_WINDOW" to 2, "WM_STATE" to 3,
@@ -125,6 +180,23 @@ class MiniXServer(
             "XdndFinished" to 37, "XdndStatus" to 38,
             "XKLAVIER_STATE" to 39, "_MOTIF_WM_HINTS" to 40,
             "RESOURCE_MANAGER" to 41, "SCREEN_NUMBER" to 42,
+            // XRandR / XFixes / XShape atoms Wine may need
+            "_NET_WM_WINDOW_TYPE" to 43, "_NET_WM_WINDOW_TYPE_NORMAL" to 44,
+            "_NET_WM_WINDOW_TYPE_DIALOG" to 45, "_NET_WM_WINDOW_TYPE_SPLASH" to 46,
+            "_NET_WM_WINDOW_TYPE_DOCK" to 47, "_NET_WM_WINDOW_TYPE_TOOLBAR" to 48,
+            "_NET_WM_WINDOW_TYPE_MENU" to 49, "_NET_WM_WINDOW_TYPE_UTILITY" to 50,
+            "_NET_WM_WINDOW_TYPE_POPUP_MENU" to 51, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU" to 52,
+            "_NET_WM_WINDOW_TYPE_TOOLTIP" to 53, "_NET_WM_WINDOW_TYPE_NOTIFICATION" to 54,
+            "_NET_WM_WINDOW_TYPE_COMBO" to 55, "_NET_WM_WINDOW_TYPE_DND" to 56,
+            "_NET_WM_STATE_STICKY" to 57, "_NET_WM_STATE_MAXIMIZED_VERT" to 58,
+            "_NET_WM_STATE_MAXIMIZED_HORZ" to 59, "_NET_WM_STATE_SHADED" to 60,
+            "_NET_WM_STATE_SKIP_TASKBAR" to 61, "_NET_WM_STATE_SKIP_PAGER" to 62,
+            "_NET_WM_STATE_HIDDEN" to 63, "_NET_WM_STATE_FULLSCREEN" to 64,
+            "_NET_WM_STATE_ABOVE" to 65, "_NET_WM_STATE_BELOW" to 66,
+            "_NET_WM_DESKTOP" to 67, "_NET_WORKAREA" to 68,
+            "_NET_CURRENT_DESKTOP" to 69, "_NET_NUMBER_OF_DESKTOPS" to 70,
+            "_NET_CLIENT_LIST" to 71, "_NET_CLIENT_LIST_STACKING" to 72,
+            "PRIMARY" to 73, "CLIPBOARD" to 74,
         )
 
         // Event types
@@ -135,6 +207,9 @@ class MiniXServer(
         const val EVENT_MOTION_NOTIFY = 6
         const val EVENT_EXPOSE = 12
         const val EVENT_CONFIGURE_NOTIFY = 22
+
+        // Extension event bases (set at runtime when extensions are registered)
+        var extEventBase = IntArray(8) { 0 }
     }
 
     // =====================================================================
@@ -152,8 +227,11 @@ class MiniXServer(
         var parentId: Int = 0,
         var eventMask: Int = 0,
         var borderWidth: Int = 0,
+        var overrideRedirect: Boolean = false,
+        var cursorId: Int = 0,
     ) {
         val children = CopyOnWriteArrayList<Int>()
+        val dirty = ConcurrentHashMap<String, Boolean>()
     }
 
     data class XGC(
@@ -182,6 +260,13 @@ class MiniXServer(
         }
     }
 
+    data class XCursor(
+        val id: Int,
+        var shape: Int = 0,
+        var hotX: Int = 0,
+        var hotY: Int = 0,
+    )
+
     // =====================================================================
     // State
     // =====================================================================
@@ -191,6 +276,11 @@ class MiniXServer(
     private val canvas = Canvas(framebuffer)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+    /** Dirty region tracking — tracks which rectangles of the framebuffer changed */
+    val dirtyRects = CopyOnWriteArrayList<DirtyRect>()
+
+    data class DirtyRect(val left: Int, val top: Int, val right: Int, val bottom: Int)
+
     private var nextResourceId = AtomicInteger(0x00400000)
     private var nextSequence = AtomicInteger(0)
 
@@ -199,14 +289,16 @@ class MiniXServer(
     val pixmaps = ConcurrentHashMap<Int, XPixmap>()
     val fonts = ConcurrentHashMap<Int, XFont>()
     val atoms = ConcurrentHashMap<String, Int>()
+    val cursors = ConcurrentHashMap<Int, XCursor>()
     val properties = ConcurrentHashMap<Int, ConcurrentHashMap<String, ByteArray>>()
 
     var rootWindowId: Int = 0
         private set
 
-    private val running = AtomicBoolean(false)
+    private var running = AtomicBoolean(false)
     private var serverThread: Thread? = null
     private var serverSocket: ServerSocket? = null
+    private var unixLocalServer: LocalServerSocket? = null
     private val lock = Any()
 
     /** The currently focused window (for keyboard input routing). */
@@ -215,6 +307,9 @@ class MiniXServer(
 
     /** Callback when the framebuffer changes. */
     var onFrameChanged: (() -> Unit)? = null
+
+    /** Clipboard manager for Android integration. */
+    private var clipboardManager: ClipboardManager? = null
 
     /** Clients waiting for events, mapped by their output stream. */
     private val clientOutputs = CopyOnWriteArrayList<DataOutputStream>()
@@ -232,6 +327,11 @@ class MiniXServer(
         // Register pre-defined atoms
         PREDEFINED_ATOMS.forEach { (name, id) -> atoms[name] = id }
 
+        // Initialize clipboard manager from Android context
+        context?.let { ctx ->
+            clipboardManager = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager?
+        }
+
         rootWindowId = allocateResourceId()
         windows[rootWindowId] = XWindow(
             id = rootWindowId, width = displayWidth, height = displayHeight,
@@ -240,52 +340,100 @@ class MiniXServer(
         canvas.drawColor(windows[rootWindowId]!!.bgColor)
 
         serverThread = Thread {
+            var tcpSocket: ServerSocket? = null
+            var unixSocket: java.net.ServerSocket? = null
             try {
-                val socket = ServerSocket(6000, 10, java.net.InetAddress.getByName("127.0.0.1"))
-                serverSocket = socket
-                Log.i(TAG, "Embedded X server listening on 127.0.0.1:6000")
+                // TCP listener on 127.0.0.1:6000 (X11 default port)
+                tcpSocket = ServerSocket(6000, 10, InetAddress.getByName("127.0.0.1"))
+                serverSocket = tcpSocket
+                Log.i(TAG, "Embedded X server listening on TCP 127.0.0.1:6000 (DISPLAY=:0)")
 
+                // Unix domain socket at /tmp/.X11-unix/X0 (native Wine binaries connect here)
+                try {
+                    val unixDir = File(X11_UNIX_DIR)
+                    if (!unixDir.exists()) unixDir.mkdirs()
+                    val unixSocketFile = File(X11_UNIX_SOCKET)
+                    if (unixSocketFile.exists()) unixSocketFile.delete()
+                    unixLocalServer = LocalServerSocket(X11_UNIX_SOCKET)
+                    Log.i(TAG, "Embedded X server listening on Unix socket $X11_UNIX_SOCKET")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Unix domain socket not available: ${e.message}")
+                }
+
+                // Accept loop for both sockets
                 while (running.get()) {
-                    val client = runCatching { socket.accept() }.getOrNull() ?: break
-                    Thread {
-                        handleClient(client)
-                    }.apply { name = "XClient-${client.port}"; isDaemon = true; start() }
+                    val client = runCatching {
+                        tcpSocket?.soTimeout = 1000
+                        tcpSocket?.accept()
+                    }.getOrNull()
+                    if (client != null) {
+                        Thread {
+                            handleClient(client.inputStream, client.outputStream, client)
+                        }.apply {
+                            name = "XClient-TCP-${client.port}"
+                            isDaemon = true
+                            start()
+                        }
+                        continue
+                    }
+                    // Try Unix socket
+                    val unixClient = runCatching {
+                        unixLocalServer?.accept()
+                    }.getOrNull()
+                    if (unixClient != null) {
+                        Thread {
+                            handleClient(unixClient.inputStream, unixClient.outputStream, unixClient)
+                        }.apply {
+                            name = "XClient-Unix"
+                            isDaemon = true
+                            start()
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 if (running.get()) Log.e(TAG, "X server error", e)
             } finally {
+                runCatching { tcpSocket?.close() }
+                runCatching { unixLocalServer?.close() }
                 Log.i(TAG, "X server stopped")
             }
-        }.apply { name = "MiniXServer"; isDaemon = true; start() }
+        }.apply {
+            name = "MiniXServer"
+            isDaemon = true
+            start()
+        }
     }
 
     fun stop() {
         running.set(false)
         runCatching { serverSocket?.close() }
+        runCatching { unixLocalServer?.close() }
+        // Clean up Unix socket file
+        runCatching { File(X11_UNIX_SOCKET).delete() }
         clientOutputs.clear()
     }
 
     val isRunning: Boolean get() = running.get()
 
+    /** Returns the DISPLAY string clients should use. */
+    fun getDisplayString(): String = DISPLAY_STRING
+
     // =====================================================================
     // Client handling
     // =====================================================================
 
-    private fun handleClient(socket: Socket) {
+    private fun handleClient(inputStream: java.io.InputStream, outputStream: java.io.OutputStream, closeable: java.io.Closeable?) {
         try {
-            socket.soTimeout = 30_000
-            socket.tcpNoDelay = true
-            val input = DataInputStream(socket.getInputStream())
-            val output = DataOutputStream(socket.getOutputStream())
+            val input = DataInputStream(inputStream)
+            val output = DataOutputStream(outputStream)
 
             if (!handleHandshake(input, output)) {
-                Log.w(TAG, "X handshake failed"); socket.close(); return
+                Log.w(TAG, "X handshake failed"); closeable?.close(); return
             }
             Log.i(TAG, "X handshake complete — client registered")
             clientOutputs.add(output)
 
-            socket.soTimeout = 0
-            while (running.get() && !socket.isClosed) {
+            while (running.get()) {
                 val b0 = input.read()
                 if (b0 < 0) break
                 val opcode = b0
@@ -302,7 +450,7 @@ class MiniXServer(
             Log.d(TAG, "Client disconnected: ${e.message}")
         } finally {
             clientOutputs.removeIf { runCatching { it.write(0); true }.getOrDefault(false) }
-            runCatching { socket.close() }
+            runCatching { closeable?.close() }
         }
     }
 
@@ -659,6 +807,9 @@ class MiniXServer(
         applyClip(gc, canvas) {
             target.setPixels(pixels, 0, width, dstX, dstY, width, height)
         }
+        // Mark dirty region for UI refresh optimization
+        dirtyRects.add(DirtyRect(dstX.coerceAtLeast(0), dstY.coerceAtLeast(0),
+            (dstX + width).coerceAtMost(displayWidth), (dstY + height).coerceAtMost(displayHeight)))
     }
 
     private fun handleCopyArea(buf: ByteBuffer) {
@@ -684,6 +835,8 @@ class MiniXServer(
         applyClip(gc, canvas) {
             dst.setPixels(pixels, 0, w, dstX, dstY, w, h)
         }
+        dirtyRects.add(DirtyRect(dstX.coerceAtLeast(0), dstY.coerceAtLeast(0),
+            (dstX + w).coerceAtMost(displayWidth), (dstY + h).coerceAtMost(displayHeight)))
     }
 
     private fun handlePolyFillRectangle(buf: ByteBuffer) {
@@ -1006,6 +1159,11 @@ class MiniXServer(
             val name = String(data, Charsets.UTF_8)
             Log.d(TAG, "Window $windowId name: $name")
         }
+
+        // Clipboard: when a selection owner sets CLIPBOARD/PRIMARY property
+        if (atomName == "CLIPBOARD" || atomName == "PRIMARY") {
+            setClipboardContent(atomName, data)
+        }
     }
 
     private fun handleDeleteProperty(buf: ByteBuffer) {
@@ -1019,14 +1177,34 @@ class MiniXServer(
         val windowId = buf.getInt(4)
         val propertyAtom = buf.getInt(8)
         val atomName = atoms.entries.firstOrNull { it.value == propertyAtom }?.key
-        val data = atomName?.let { properties[windowId]?.get(it) } ?: ByteArray(0)
 
-        val typeAtom = if (data.isNotEmpty()) 22 else 0 // UTF8_STRING or None
+        // Clipboard: respond to CLIPBOARD/PRIMARY/TARGETS selection requests
+        var data: ByteArray
+        var replyTypeAtom: Int
+        when {
+            atomName == null -> {
+                data = ByteArray(0)
+                replyTypeAtom = 0
+            }
+            atomName == "CLIPBOARD" || atomName == "PRIMARY" -> {
+                getClipboardContent(atomName)?.let { data = it; replyTypeAtom = 22 } // UTF8_STRING
+                    ?: run { data = ByteArray(0); replyTypeAtom = 0 }
+            }
+            atomName == "TARGETS" -> {
+                data = getClipboardContent("TARGETS") ?: ByteArray(0)
+                replyTypeAtom = 22 // UTF8_STRING
+            }
+            else -> {
+                data = atomName?.let { properties[windowId]?.get(it) } ?: ByteArray(0)
+                replyTypeAtom = if (data.isNotEmpty()) 22 else 0 // UTF8_STRING or None
+            }
+        }
+
         val reply = ByteBuffer.allocate(32 + data.size + 4).order(ByteOrder.LITTLE_ENDIAN)
         reply.put(1); reply.put(0)
         reply.putShort(nextSeq().toShort())
         reply.putInt(data.size / 4) // value length in 4-byte units
-        reply.putInt(if (data.isNotEmpty()) typeAtom else 0)
+        reply.putInt(replyTypeAtom)
         reply.putInt(data.size.toLong().toInt()) // bytes after
         reply.putInt(data.size / 4)
         reply.putInt(0); reply.putInt(0)
@@ -1136,8 +1314,7 @@ class MiniXServer(
         val nameBytes = ByteArray(nameLen)
         buf.get(nameBytes)
         val name = String(nameBytes)
-        // We support XInput2 for touch
-        val supported = name == "XInputExtension" || name == "BIG-REQUESTS"
+        val supported = EXTENSION_NAMES.contains(name)
         val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
         reply.put(1); reply.put(0)
         reply.putShort(nextSeq().toShort())
@@ -1149,7 +1326,7 @@ class MiniXServer(
     }
 
     private fun handleListExtensions(output: DataOutputStream) {
-        val extensions = listOf("BIG-REQUESTS", "XInputExtension")
+        val extensions = EXTENSION_NAMES
         val namesBlob = extensions.joinToString("") { it + "\u0000" }
         val bytes = namesBlob.toByteArray(Charsets.US_ASCII)
         val reply = ByteBuffer.allocate(32 + bytes.size).order(ByteOrder.LITTLE_ENDIAN)
@@ -1206,6 +1383,34 @@ class MiniXServer(
         val bytes = event.array()
         clientOutputs.forEach { output ->
             runCatching { output.write(bytes); output.flush() }
+        }
+    }
+
+    // =====================================================================
+    // Clipboard integration (CLIPBOARD / PRIMARY atoms)
+    // =====================================================================
+
+    /** Get clipboard content for a given selection atom. */
+    private fun getClipboardContent(atomName: String): ByteArray? {
+        return when (atomName) {
+            "CLIPBOARD", "PRIMARY" -> {
+                val clip = clipboardManager?.primaryClip
+                clip?.getItemAt(0)?.text?.toString()?.toByteArray(Charsets.UTF_8)
+            }
+            "TARGETS" -> {
+                val targets = listOf("UTF8_STRING", "STRING", "TEXT", "COMPOUND_TEXT")
+                targets.joinToString("\n").toByteArray(Charsets.US_ASCII)
+            }
+            else -> null
+        }
+    }
+
+    /** Set clipboard content from X11 selection request. */
+    private fun setClipboardContent(atomName: String, data: ByteArray) {
+        if (atomName == "CLIPBOARD" || atomName == "PRIMARY") {
+            val text = String(data, Charsets.UTF_8)
+            val clip = ClipData.newPlainText("x11-selection", text)
+            clipboardManager?.setPrimaryClip(clip)
         }
     }
 
