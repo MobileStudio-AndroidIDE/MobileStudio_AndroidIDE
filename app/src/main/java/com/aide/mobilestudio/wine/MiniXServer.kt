@@ -965,6 +965,16 @@ class MiniXServer(
                 canvas.drawPath(path, linePaint)
             }
         }
+        dirtyRects.add(DirtyRect(0, 0, displayWidth, displayHeight))
+
+        // Hardware-accelerated presentation via EGL
+        if (eglContextManager.isReady()) {
+            val surface = drawableToEglSurface[drawableId]
+            if (surface != null) {
+                eglContextManager.makeCurrent(surface)
+                eglContextManager.swapBuffers(surface)
+            }
+        }
     }
 
     private fun handlePolySegment(buf: ByteBuffer) {
