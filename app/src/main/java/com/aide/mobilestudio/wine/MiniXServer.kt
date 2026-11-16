@@ -438,6 +438,7 @@ class MiniXServer(
 
     fun stop() {
         running.set(false)
+        eglContextManager.release()
         runCatching { serverSocket?.close() }
         runCatching { unixLocalServer?.close() }
         // Clean up Unix socket file
