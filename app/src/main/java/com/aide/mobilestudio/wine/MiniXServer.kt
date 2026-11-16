@@ -1082,6 +1082,17 @@ class MiniXServer(
         buf.position(21)
         buf.get(textBytes)
         drawText(buf, drawableId, gcId, x, y, String(textBytes, Charsets.ISO_8859_1))
+        dirtyRects.add(DirtyRect(x.coerceAtLeast(0), y.coerceAtLeast(0),
+            (x + 100).coerceAtMost(displayWidth), (y + 20).coerceAtMost(displayHeight)))
+
+        // Hardware-accelerated presentation via EGL
+        if (eglContextManager.isReady()) {
+            val surface = drawableToEglSurface[drawableId]
+            if (surface != null) {
+                eglContextManager.makeCurrent(surface)
+                eglContextManager.swapBuffers(surface)
+            }
+        }
     }
 
     private fun handleImageText16(buf: ByteBuffer) {
