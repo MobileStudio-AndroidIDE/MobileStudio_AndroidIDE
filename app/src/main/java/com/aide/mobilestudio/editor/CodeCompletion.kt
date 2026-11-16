@@ -1,27 +1,31 @@
 package com.aide.mobilestudio.editor
 
 import android.content.Context
-import android.widget.ArrayAdapter
-import android.widget.ListView
+import com.aide.mobilestudio.LineNumberEditText
 
 /**
- * Code Completion - code completion suggestions.
+ * Code Completion - code completion suggestions backed by LineNumberEditText's
+ * autocomplete candidate list.
  */
 class CodeCompletion(
-    private val context: Context
+    private val editor: LineNumberEditText
 ) {
     private val suggestions = mutableListOf<String>()
 
     fun addSuggestion(suggestion: String) {
-        suggestions.add(suggestion)
+        if (!suggestions.contains(suggestion)) {
+            suggestions.add(suggestion)
+        }
     }
 
     fun getSuggestions(): List<String> = suggestions
 
-    fun createView(): android.widget.ListView {
-        val listView = android.widget.ListView(context)
-        val adapter = android.widget.ArrayAdapter(context, android.R.layout.simple_list_item_1, suggestions)
-        listView.adapter = adapter
-        return listView
+    fun clear() {
+        suggestions.clear()
+    }
+
+    fun setSuggestions(suggestions: List<String>) {
+        this.suggestions.clear()
+        this.suggestions.addAll(suggestions)
     }
 }

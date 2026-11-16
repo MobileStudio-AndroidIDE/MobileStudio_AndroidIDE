@@ -1,16 +1,15 @@
 package com.aide.mobilestudio.editor
 
 import android.content.Context
-import android.widget.EditText
-import android.widget.LinearLayout
+import com.aide.mobilestudio.LineNumberEditText
 
 /**
- * Editor Core - core editor functionality.
+ * Editor Core - wraps LineNumberEditText as the core editor view.
  */
 class EditorCore(
     private val context: Context
 ) {
-    private val editor = android.widget.EditText(context)
+    private val editor = LineNumberEditText(context)
 
     fun setText(text: String) {
         editor.setText(text)
@@ -20,7 +19,27 @@ class EditorCore(
         return editor.text.toString()
     }
 
-    fun createView(): android.widget.EditText {
+    fun createView(): LineNumberEditText {
         return editor
+    }
+
+    fun getEditor(): LineNumberEditText {
+        return editor
+    }
+
+    fun undo() {
+        editor.undo()
+    }
+
+    fun redo() {
+        editor.redo()
+    }
+
+    fun setInlayHints(hints: List<LineNumberEditText.InlayHint>) {
+        editor.setInlayHints(hints)
+    }
+
+    fun setCodeLenses(lenses: List<LineNumberEditText.CodeLens>) {
+        editor.setCodeLenses(lenses)
     }
 }

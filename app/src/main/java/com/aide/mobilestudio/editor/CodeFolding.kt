@@ -1,27 +1,26 @@
 package com.aide.mobilestudio.editor
 
-import android.content.Context
-import android.widget.ArrayAdapter
-import android.widget.ListView
+import com.aide.mobilestudio.LineNumberEditText
 
 /**
- * Code Folding - code folding regions.
+ * Code Folding - delegates to LineNumberEditText's built-in code folding.
  */
 class CodeFolding(
-    private val context: Context
+    private val editor: LineNumberEditText
 ) {
-    private val folds = mutableListOf<String>()
+    fun toggleFoldAtLine(line: Int): Boolean = editor.toggleFoldAtLine(line)
 
-    fun addFold(fold: String) {
-        folds.add(fold)
-    }
+    fun foldCurrentBlock() = editor.foldCurrentBlock()
 
-    fun getFolds(): List<String> = folds
+    fun expandAtLine(line: Int) = editor.expandAtLine(line)
 
-    fun createView(): android.widget.ListView {
-        val listView = android.widget.ListView(context)
-        val adapter = android.widget.ArrayAdapter(context, android.R.layout.simple_list_item_1, folds)
-        listView.adapter = adapter
-        return listView
-    }
+    fun expandAll() = editor.expandAll()
+
+    fun foldAllBlocks() = editor.foldAllBlocks()
+
+    fun clearFolding() = editor.clearFolding()
+
+    fun isLineCollapsed(line: Int) = editor.isLineCollapsed(line)
+
+    fun hasCollapsedBlocks() = editor.hasCollapsedBlocks()
 }
