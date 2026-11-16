@@ -73,6 +73,9 @@ class MiniXServer(
         const val X11_UNIX_DIR = "/tmp/.X11-unix"
         const val X11_UNIX_SOCKET = "/tmp/.X11-unix/X0"
 
+        /** Static EGL context manager for cross-activity access */
+        @Volatile var eglContextManager: EGLContextManager? = null
+
         // --- X11 opcodes ---
         private const val OP_CREATE_WINDOW = 1
         private const val OP_CHANGE_WINDOW_ATTRIBUTES = 2
@@ -358,6 +361,9 @@ class MiniXServer(
 
         // Register X11 extensions
         x11Extensions.registerExtensions()
+
+        // Initialize EGL context manager for hardware acceleration
+        MiniXServer.eglContextManager = EGLContextManager(this)
 
         // Initialize clipboard manager from Android context
         context?.let { ctx ->

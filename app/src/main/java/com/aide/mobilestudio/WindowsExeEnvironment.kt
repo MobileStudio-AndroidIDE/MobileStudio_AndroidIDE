@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
+import com.aide.mobilestudio.wine.MiniXServer
 
 /**
  * Windows .exe 실행 환경 (Box64 + Wine, mobox 아키텍처 이식).
@@ -933,6 +934,9 @@ fun install(onProgress: (String) -> Unit) {
         timeoutMs: Long = TimeUnit.MINUTES.toMillis(30),
         onLine: (String) -> Unit = {}
     ): Int {
+        // Initialize EGL for hardware-accelerated rendering
+        MiniXServer.eglContextManager?.init()
+        Log.i(TAG, "EGL context initialized for hardware acceleration")
         val process = startWindowsExe(exeFile, args, cwd, extraEnv)
         val exeLogDir = File(context.filesDir, "logs/exe").apply { mkdirs() }
         val exeLog = File(exeLogDir, "${exeFile.name}-${System.currentTimeMillis()}.log")
