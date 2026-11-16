@@ -112,6 +112,9 @@ class WineGuiActivity : Activity() {
             server.start()
             Thread.sleep(1000) // wait for X server to be ready
 
+            Log.d("WineGui", "X11 display: ${server.getDisplayString()}")
+            Log.d("WineGui", "X11 unix socket: ${MiniXServer.X11_UNIX_SOCKET}")
+
             val exe = exeFile ?: return@Thread
             val env = WindowsExeEnvironment(this)
             if (!env.isInstalled) {
