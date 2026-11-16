@@ -1206,6 +1206,17 @@ class MiniXServer(
                 offset += itemLen * 2
             }
         }
+        dirtyRects.add(DirtyRect(curX.coerceAtLeast(0), curY.coerceAtLeast(0),
+            (curX + 100).coerceAtMost(displayWidth), (curY + 20).coerceAtMost(displayHeight)))
+
+        // Hardware-accelerated presentation via EGL
+        if (eglContextManager.isReady()) {
+            val surface = drawableToEglSurface[drawableId]
+            if (surface != null) {
+                eglContextManager.makeCurrent(surface)
+                eglContextManager.swapBuffers(surface)
+            }
+        }
     }
 
     private fun handleOpenFont(buf: ByteBuffer) {
