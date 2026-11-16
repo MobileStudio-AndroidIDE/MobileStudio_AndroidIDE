@@ -514,6 +514,11 @@ class X11Extensions(
                     sendExtensionError(output, opcode, minorOpcode)
                 }
             }
+            12 -> {
+                // glXSwapBuffers - present rendered content to screen
+                server.eglContextManager.swapBuffers(null)
+                sendExtensionReply(output, opcode, true)
+            }
             else -> sendExtensionReply(output, opcode, true)
         }
         return true
