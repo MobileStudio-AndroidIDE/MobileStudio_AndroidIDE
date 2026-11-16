@@ -86,7 +86,7 @@ class WineGuiActivity : Activity() {
             }
         }
 
-        // Periodically render X framebuffer to SurfaceView canvas
+        // Periodically render X framebuffer to SurfaceView canvas (dirty rect optimized)
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
         val updater = object : Runnable {
             override fun run() {
@@ -95,6 +95,14 @@ class WineGuiActivity : Activity() {
                     val canvas = holder.lockCanvas()
                     if (canvas != null) {
                         try {
+                            // Clip to dirty region for efficient partial redraw
+                            val dirty = server.dirtyRects.toList()
+                            server.dirtyRects.clear()
+                            if (dirty.isNotEmpty()) {
+                                for (r in dirty) {
+                                    canvas.clipRect(r.left.toFloat(), r.top.toFloat(), r.right.toFloat(), r.bottom.toFloat(), android.graphics.Region.Op.UNION)
+                                }
+                            }
                             canvas.drawBitmap(server.framebuffer, 0f, 0f, null)
                         } finally {
                             holder.unlockCanvasAndPost(canvas)
