@@ -284,6 +284,22 @@ class MiniXServer(
     /** Maps X11 drawable IDs to EGLSurface objects */
     val drawableToEglSurface = ConcurrentHashMap<Int, EGLSurface>()
 
+    /** Create an EGL pbuffer surface and bind it to an X11 drawable ID */
+    fun createEGLSurfaceForDrawable(drawableId: Int, width: Int, height: Int): EGLSurface? {
+        val surface = eglContextManager.createPbufferSurface(width, height)
+        if (surface != null) {
+            eglSurfaceToDrawable[surface] = drawableId
+            drawableToEglSurface[drawableId] = surface
+            Log.d(TAG, "EGL surface created for drawable $drawableId: ${width}x${height}")
+        }
+        return surface
+    }
+
+    /** Get the EGLSurface bound to an X11 drawable ID */
+    fun getEGLSurfaceForDrawable(drawableId: Int): EGLSurface? {
+        return drawableToEglSurface[drawableId]
+    }
+
     /** The main framebuffer that the UI layer reads and displays. */
     val framebuffer: Bitmap = Bitmap.createBitmap(displayWidth, displayHeight, Bitmap.Config.ARGB_8888)
     private val canvas = Canvas(framebuffer)
