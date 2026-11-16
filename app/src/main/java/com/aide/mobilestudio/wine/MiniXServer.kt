@@ -1110,6 +1110,17 @@ class MiniXServer(
             sb.append((((charBytes[i * 2].toInt() and 0xFF) shl 8) or (charBytes[i * 2 + 1].toInt() and 0xFF)).toChar())
         }
         drawText(buf, drawableId, gcId, x, y, sb.toString())
+        dirtyRects.add(DirtyRect(x.coerceAtLeast(0), y.coerceAtLeast(0),
+            (x + 100).coerceAtMost(displayWidth), (y + 20).coerceAtMost(displayHeight)))
+
+        // Hardware-accelerated presentation via EGL
+        if (eglContextManager.isReady()) {
+            val surface = drawableToEglSurface[drawableId]
+            if (surface != null) {
+                eglContextManager.makeCurrent(surface)
+                eglContextManager.swapBuffers(surface)
+            }
+        }
     }
 
     private fun handlePolyText8(buf: ByteBuffer) {
