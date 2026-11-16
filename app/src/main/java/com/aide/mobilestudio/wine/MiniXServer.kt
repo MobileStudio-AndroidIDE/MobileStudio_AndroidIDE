@@ -271,6 +271,9 @@ class MiniXServer(
     // State
     // =====================================================================
 
+    /** X11 extensions handler */
+    val x11Extensions = X11Extensions(this)
+
     /** The main framebuffer that the UI layer reads and displays. */
     val framebuffer: Bitmap = Bitmap.createBitmap(displayWidth, displayHeight, Bitmap.Config.ARGB_8888)
     private val canvas = Canvas(framebuffer)
@@ -316,7 +319,7 @@ class MiniXServer(
 
     fun allocateResourceId(): Int = nextResourceId.getAndIncrement()
 
-    private fun nextSeq(): Int = nextSequence.getAndIncrement() and 0xFFFF
+    fun nextSeq(): Int = nextSequence.getAndIncrement() and 0xFFFF
 
     // =====================================================================
     // Server lifecycle
@@ -326,6 +329,9 @@ class MiniXServer(
         if (running.getAndSet(true)) return
         // Register pre-defined atoms
         PREDEFINED_ATOMS.forEach { (name, id) -> atoms[name] = id }
+
+        // Register X11 extensions
+        x11Extensions.registerExtensions()
 
         // Initialize clipboard manager from Android context
         context?.let { ctx ->
@@ -596,17 +602,22 @@ class MiniXServer(
             -> {} // consume silently
             OP_QUERY_FONT -> handleQueryFont(buf, output)
             else -> {
-                // Unknown request: if it expects a reply, send an error.
-                // Error response: type=0(error), opcode, sequence, bad-value...
-                val err = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
-                err.put(0) // error type
-                err.put(1) // BadRequest
-                err.putShort(nextSeq().toShort())
-                err.putInt(0) // bad value
-                err.putShort(opcode.toShort())
-                repeat(21) { err.put(0) }
-                output.write(err.array())
-                output.flush()
+                // Check if this is an extension request
+                if (x11Extensions.handleExtensionRequest(opcode, buf, output)) {
+                    // Extension handled it
+                } else {
+                    // Unknown request: if it expects a reply, send an error.
+                    // Error response: type=0(error), opcode, sequence, bad-value...
+                    val err = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                    err.put(0) // error type
+                    err.put(1) // BadRequest
+                    err.putShort(nextSeq().toShort())
+                    err.putInt(0) // bad value
+                    err.putShort(opcode.toShort())
+                    repeat(21) { err.put(0) }
+                    output.write(err.array())
+                    output.flush()
+                }
             }
         }
         onFrameChanged?.invoke()

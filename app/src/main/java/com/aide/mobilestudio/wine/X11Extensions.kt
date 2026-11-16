@@ -1,0 +1,376 @@
+package com.aide.mobilestudio.wine
+
+import android.util.Log
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * X11 Extensions Handler - XInput2, XRender, XComposite, XDamage, XFixes, XRandR, XKB, GLX
+ *
+ * Wine requires these extensions for proper GUI operation:
+ *   - XInput2: Tablet/touch input, extended device events
+ *   - XRender: Antialiased text, compositing, picture operations
+ *   - XComposite: Redirect window drawing to off-screen pixmaps
+ *   - XDamage: Track damaged regions for efficient redraw
+ *   - XFixes: Cursor images, region operations, selection notification
+ *   - XRandR: Screen resolution, rotation, output management
+ *   - XKB: Keyboard extension, indicators, bell
+ *   - GLX: OpenGL rendering to X drawables
+ */
+class X11Extensions(
+    private val server: MiniXServer
+) {
+    companion object {
+        private const val TAG = "X11Extensions"
+
+        // Extension base opcodes (assigned dynamically at connection setup)
+        var extBase = IntArray(8) { 0 }
+
+        // Extension event/error bases
+        var extEventBase = IntArray(8) { 0 }
+        var extErrorBase = IntArray(8) { 0 }
+
+        // Extension indices
+        const val IDX_BIG_REQUESTS = 0
+        const val IDX_XINPUT = 1
+        const val IDX_XKB = 2
+        const val IDX_XRANDR = 3
+        const val IDX_XFIXES = 4
+        const val IDX_XSHAPE = 5
+        const val IDX_XCOMPOSITE = 6
+        const val IDX_XDAMAGE = 7
+        const val IDX_XRENDER = 8
+        const val IDX_GLX = 9
+
+        // Extension names
+        val EXTENSION_NAMES = listOf(
+            "BIG-REQUESTS",
+            "XInputExtension",
+            "XKEYBOARD",
+            "XINERAMA",
+            "XFIXES",
+            "XRENDER",
+            "RANDR",
+            "XTEST",
+            "XINPUT",
+            "MIT-SHM",
+            "XC-MISC",
+            "XShape",
+            "Composite",
+            "Damage",
+            "GLX"
+        )
+
+        // XFixes opcodes
+        const val XFixes_CURSOR_IMAGE = 0
+        const val XFixes_CURSOR_NAME = 1
+        const val XFixes_CURSOR_IMAGE_SIZE = 32
+
+        // XRender opcodes
+        const val XRender_QUERY_VERSION = 0
+        const val XRender_CREATE_PICTURE = 6
+        const val XRender_FREE_PICTURE = 7
+        const val XRender_COMPOSITE = 8
+
+        // XComposite opcodes
+        const val XComposite_QUERY_VERSION = 0
+        const val XComposite_REDIRECT_WINDOW = 2
+        const val XComposite_UNREDIRECT_WINDOW = 3
+
+        // XDamage opcodes
+        const val XDamage_QUERY_VERSION = 0
+        const val XDamage_CREATE = 2
+
+        // XRandR opcodes
+        const val XRandR_QUERY_VERSION = 0
+        const val XRandR_GET_SCREEN_RESOURCES = 2
+
+        // XKB opcodes
+        const val XKB_QUERY_EXTENSION = 0
+        const val XKB_USE_EXTENSION = 1
+    }
+
+    // =====================================================================
+    // Extension registration
+    // =====================================================================
+
+    fun registerExtensions() {
+        // Assign base opcodes dynamically
+        var nextBase = 128
+        extBase[IDX_BIG_REQUESTS] = nextBase++
+        extBase[IDX_XINPUT] = nextBase++
+        extBase[IDX_XKB] = nextBase++
+        extBase[IDX_XRANDR] = nextBase++
+        extBase[IDX_XFIXES] = nextBase++
+        extBase[IDX_XSHAPE] = nextBase++
+        extBase[IDX_XCOMPOSITE] = nextBase++
+        extBase[IDX_XDAMAGE] = nextBase++
+        extBase[IDX_XRENDER] = nextBase++
+        extBase[IDX_GLX] = nextBase++
+
+        Log.i(TAG, "Registered ${
+            EXTENSION_NAMES.size
+        } X11 extensions")
+    }
+
+    // =====================================================================
+    // Extension request dispatch
+    // =====================================================================
+
+    fun handleExtensionRequest(
+        opcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        // Find which extension this opcode belongs to
+        val extIdx = findExtensionIndex(opcode)
+        if (extIdx < 0) return false
+
+        val minorOpcode = buf.getShort(2).toInt() and 0xFFFF
+
+        return when (extIdx) {
+            IDX_BIG_REQUESTS -> handleBigRequests(opcode, buf, output)
+            IDX_XINPUT -> handleXInput(opcode, minorOpcode, buf, output)
+            IDX_XKB -> handleXKB(opcode, minorOpcode, buf, output)
+            IDX_XRANDR -> handleXRandR(opcode, minorOpcode, buf, output)
+            IDX_XFIXES -> handleXFixes(opcode, minorOpcode, buf, output)
+            IDX_XSHAPE -> handleXShape(opcode, minorOpcode, buf, output)
+            IDX_XCOMPOSITE -> handleXComposite(opcode, minorOpcode, buf, output)
+            IDX_XDAMAGE -> handleXDamage(opcode, minorOpcode, buf, output)
+            IDX_XRENDER -> handleXRender(opcode, minorOpcode, buf, output)
+            IDX_GLX -> handleGLX(opcode, minorOpcode, buf, output)
+            else -> false
+        }
+    }
+
+    private fun findExtensionIndex(opcode: Int): Int {
+        for (i in extBase.indices) {
+            if (opcode >= extBase[i] && opcode < extBase[i] + 256) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    // =====================================================================
+    // BIG-REQUESTS extension
+    // =====================================================================
+
+    private fun handleBigRequests(
+        opcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        // BIG-REQUESTS allows requests larger than 65535 bytes
+        val minorOpcode = buf.getShort(2).toInt() and 0xFFFF
+        when (minorOpcode) {
+            0 -> {
+                // Enable big requests
+                sendExtensionReply(output, opcode, true)
+            }
+            else -> {
+                sendExtensionError(output, opcode, minorOpcode)
+            }
+        }
+        return true
+    }
+
+    // =====================================================================
+    // XInput2 extension
+    // =====================================================================
+
+    private fun handleXInput(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XInput2 minorOpcode=$minorOpcode")
+        when (minorOpcode) {
+            // XInput2 core opcodes
+            0 -> sendExtensionReply(output, opcode, true) // QueryVersion
+            1 -> sendExtensionReply(output, opcode, true) // DeviceChangedNotify
+            else -> sendExtensionReply(output, opcode, true)
+        }
+        return true
+    }
+
+    // =====================================================================
+    // XKB extension
+    // =====================================================================
+
+    private fun handleXKB(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XKB minorOpcode=$minorOpcode")
+        sendExtensionReply(output, opcode, true)
+        return true
+    }
+
+    // =====================================================================
+    // XRandR extension
+    // =====================================================================
+
+    private fun handleXRandR(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XRandR minorOpcode=$minorOpcode")
+        when (minorOpcode) {
+            0 -> {
+                // QueryVersion - return version 1.5
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(1); reply.put(5) // major, minor version
+                output.write(reply.array())
+                output.flush()
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
+        return true
+    }
+
+    // =====================================================================
+    // XFixes extension
+    // =====================================================================
+
+    private fun handleXFixes(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XFixes minorOpcode=$minorOpcode")
+        sendExtensionReply(output, opcode, true)
+        return true
+    }
+
+    // =====================================================================
+    // XShape extension
+    // =====================================================================
+
+    private fun handleXShape(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XShape minorOpcode=$minorOpcode")
+        sendExtensionReply(output, opcode, true)
+        return true
+    }
+
+    // =====================================================================
+    // XComposite extension
+    // =====================================================================
+
+    private fun handleXComposite(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XComposite minorOpcode=$minorOpcode")
+        sendExtensionReply(output, opcode, true)
+        return true
+    }
+
+    // =====================================================================
+    // XDamage extension
+    // =====================================================================
+
+    private fun handleXDamage(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XDamage minorOpcode=$minorOpcode")
+        sendExtensionReply(output, opcode, true)
+        return true
+    }
+
+    // =====================================================================
+    // XRender extension
+    // =====================================================================
+
+    private fun handleXRender(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XRender minorOpcode=$minorOpcode")
+        when (minorOpcode) {
+            XRender_QUERY_VERSION -> {
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(0); reply.put(0) // major, minor
+                output.write(reply.array())
+                output.flush()
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
+        return true
+    }
+
+    // =====================================================================
+    // GLX extension
+    // =====================================================================
+
+    private fun handleGLX(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "GLX minorOpcode=$minorOpcode")
+        sendExtensionReply(output, opcode, true)
+        return true
+    }
+
+    // =====================================================================
+    // Helper methods
+    // =====================================================================
+
+    private fun sendExtensionReply(
+        output: java.io.DataOutputStream,
+        opcode: Int,
+        success: Boolean
+    ) {
+        val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+        reply.put(if (success) 1 else 0)
+        reply.put(0)
+        reply.putShort(server.nextSeq().toShort())
+        reply.putInt(0)
+        repeat(20) { reply.putInt(0) }
+        output.write(reply.array())
+        output.flush()
+    }
+
+    private fun sendExtensionError(
+        output: java.io.DataOutputStream,
+        opcode: Int,
+        minorOpcode: Int
+    ) {
+        val err = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+        err.put(0) // error type
+        err.put(1) // BadRequest
+        err.putShort(server.nextSeq().toShort())
+        err.putInt(minorOpcode.toLong().toInt())
+        err.putShort(opcode.toShort())
+        repeat(21) { err.put(0) }
+        output.write(err.array())
+        output.flush()
+    }
+}
