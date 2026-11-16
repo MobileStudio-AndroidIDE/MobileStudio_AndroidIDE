@@ -296,7 +296,26 @@ class X11Extensions(
         output: java.io.DataOutputStream
     ): Boolean {
         Log.d(TAG, "XComposite minorOpcode=$minorOpcode")
-        sendExtensionReply(output, opcode, true)
+        when (minorOpcode) {
+            XComposite_QUERY_VERSION -> {
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(0); reply.put(0) // major, minor
+                output.write(reply.array())
+                output.flush()
+            }
+            XComposite_REDIRECT_WINDOW -> {
+                // Redirect window drawing to off-screen pixmap
+                sendExtensionReply(output, opcode, true)
+            }
+            XComposite_UNREDIRECT_WINDOW -> {
+                // Stop redirecting window drawing
+                sendExtensionReply(output, opcode, true)
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
         return true
     }
 
