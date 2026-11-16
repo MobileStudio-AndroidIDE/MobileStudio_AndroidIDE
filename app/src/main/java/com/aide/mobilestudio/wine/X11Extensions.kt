@@ -330,7 +330,22 @@ class X11Extensions(
         output: java.io.DataOutputStream
     ): Boolean {
         Log.d(TAG, "XDamage minorOpcode=$minorOpcode")
-        sendExtensionReply(output, opcode, true)
+        when (minorOpcode) {
+            XDamage_QUERY_VERSION -> {
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(1); reply.put(1) // major, minor version 1.1
+                output.write(reply.array())
+                output.flush()
+            }
+            XDamage_CREATE -> {
+                // Create damage object to track region changes
+                sendExtensionReply(output, opcode, true)
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
         return true
     }
 
