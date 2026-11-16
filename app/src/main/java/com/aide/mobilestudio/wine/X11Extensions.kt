@@ -42,6 +42,8 @@ class X11Extensions(
         const val IDX_XDAMAGE = 7
         const val IDX_XRENDER = 8
         const val IDX_GLX = 9
+        const val IDX_MITSHM = 10
+        const val IDX_XCMISC = 11
 
         // Extension names
         val EXTENSION_NAMES = listOf(
@@ -108,6 +110,8 @@ class X11Extensions(
         extBase[IDX_XDAMAGE] = nextBase++
         extBase[IDX_XRENDER] = nextBase++
         extBase[IDX_GLX] = nextBase++
+        extBase[IDX_MITSHM] = nextBase++
+        extBase[IDX_XCMISC] = nextBase++
 
         Log.i(TAG, "Registered ${
             EXTENSION_NAMES.size
@@ -140,6 +144,8 @@ class X11Extensions(
             IDX_XDAMAGE -> handleXDamage(opcode, minorOpcode, buf, output)
             IDX_XRENDER -> handleXRender(opcode, minorOpcode, buf, output)
             IDX_GLX -> handleGLX(opcode, minorOpcode, buf, output)
+            IDX_MITSHM -> handleMITSHM(opcode, minorOpcode, buf, output)
+            IDX_XCMISC -> handleXCMISC(opcode, minorOpcode, buf, output)
             else -> false
         }
     }
@@ -313,6 +319,36 @@ class X11Extensions(
         output: java.io.DataOutputStream
     ): Boolean {
         Log.d(TAG, "XShape minorOpcode=$minorOpcode")
+        sendExtensionReply(output, opcode, true)
+        return true
+    }
+
+    // =====================================================================
+    // MIT-SHM extension
+    // =====================================================================
+
+    private fun handleMITSHM(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "MIT-SHM minorOpcode=$minorOpcode")
+        sendExtensionReply(output, opcode, true)
+        return true
+    }
+
+    // =====================================================================
+    // XC-MISC extension
+    // =====================================================================
+
+    private fun handleXCMISC(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "XC-MISC minorOpcode=$minorOpcode")
         sendExtensionReply(output, opcode, true)
         return true
     }
