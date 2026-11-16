@@ -514,6 +514,24 @@ class X11Extensions(
                     sendExtensionError(output, opcode, minorOpcode)
                 }
             }
+            5 -> {
+                // glXCreateWindow - create GLX window from X11 drawable
+                val ready = server.eglContextManager.init()
+                if (ready && server.eglContextManager.isReady()) {
+                    val drawableId = buf.getInt(4)
+                    val glxWindowId = buf.getInt(8)
+                    val surface = server.eglContextManager.createPbufferSurface(server.displayWidth, server.displayHeight)
+                    if (surface != null) {
+                        server.eglSurfaceToDrawable[surface] = drawableId
+                        server.drawableToEglSurface[glxWindowId] = surface
+                        sendExtensionReply(output, opcode, true)
+                    } else {
+                        sendExtensionError(output, opcode, minorOpcode)
+                    }
+                } else {
+                    sendExtensionError(output, opcode, minorOpcode)
+                }
+            }
             12 -> {
                 // glXSwapBuffers - present rendered content to screen
                 server.eglContextManager.swapBuffers(null)
