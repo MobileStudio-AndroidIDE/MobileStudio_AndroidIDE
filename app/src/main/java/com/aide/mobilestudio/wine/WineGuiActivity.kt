@@ -3,6 +3,7 @@ package com.aide.mobilestudio.wine
 import android.app.Activity
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceView
 import android.view.View
