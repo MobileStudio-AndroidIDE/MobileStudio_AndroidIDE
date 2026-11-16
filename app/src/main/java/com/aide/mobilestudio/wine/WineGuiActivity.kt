@@ -124,6 +124,7 @@ class WineGuiActivity : Activity() {
             Log.d("WineGui", "X11 display: ${server.getDisplayString()}")
             Log.d("WineGui", "X11 unix socket: ${MiniXServer.X11_UNIX_SOCKET}")
             Log.d("WineGui", "EGL ready: ${server.eglContextManager.isReady()}")
+            Log.d("WineGui", "EGL GL version: ${server.eglContextManager.getGlVersionString()}")
 
             // Test EGL pbuffer surface creation for hardware acceleration
             val eglSurface = server.eglContextManager.createPbufferSurface(800, 600)
