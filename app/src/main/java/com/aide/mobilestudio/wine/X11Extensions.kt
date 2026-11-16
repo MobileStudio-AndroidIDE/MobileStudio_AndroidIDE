@@ -501,6 +501,19 @@ class X11Extensions(
                     sendExtensionError(output, opcode, minorOpcode)
                 }
             }
+            4 -> {
+                // glXMakeCurrent - bind context to drawable for current thread
+                val ready = server.eglContextManager.init()
+                if (ready && server.eglContextManager.isReady()) {
+                    val drawableId = buf.getInt(4)
+                    val contextId = buf.getInt(8)
+                    server.eglSurfaceToDrawable[server.eglContextManager.createPbufferSurface(server.displayWidth, server.displayHeight)!!] = drawableId
+                    server.eglContextManager.makeCurrent(server.eglContextManager.createPbufferSurface(server.displayWidth, server.displayHeight))
+                    sendExtensionReply(output, opcode, true)
+                } else {
+                    sendExtensionError(output, opcode, minorOpcode)
+                }
+            }
             else -> sendExtensionReply(output, opcode, true)
         }
         return true
