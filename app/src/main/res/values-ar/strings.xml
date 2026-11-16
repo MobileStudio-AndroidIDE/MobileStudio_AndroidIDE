@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileStudio</string>
+
+    <!-- Common actions -->
+    <string name="action_open">فتح</string>
+    <string name="action_open_text">فتح نص</string>
+    <string name="action_save">حفظ</string>
+    <string name="action_save_all">حفظ الكل</string>
+    <string name="action_delete">حذف</string>
+    <string name="action_rename">إعادة تسمية</string>
+    <string name="action_copy">نسخ</string>
+    <string name="action_copy_path">نسخ المسار</string>
+    <string name="action_copy_content">نسخ المحتوى</string>
+    <string name="action_paste">لصق</string>
+    <string name="action_cut">قص</string>
+    <string name="action_move">نقل</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_ok">موافق</string>
+    <string name="action_close">إغلاق</string>
+    <string name="action_create">إنشاء</string>
+    <string name="action_apply">تطبيق</string>
+    <string name="action_edit">تعديل</string>
+    <string name="action_search">بحث</string>
+    <string name="action_replace">استبدال</string>
+    <string name="action_refresh">تحديث</string>
+    <string name="action_stop">إيقاف</string>
+    <string name="action_install">تثبيت</string>
+    <string name="action_download">تحميل</string>
+    <string name="action_build">بناء</string>
+    <string name="action_run">تشغيل</string>
+    <string name="action_clear">مسح</string>
+    <string name="action_back">عودة</string>
+    <string name="action_next">التالي</string>
+    <string name="action_skip">تخطي</string>
+    <string name="action_retry">إعادة المحاولة</string>
+    <string name="action_settings">الإعدادات</string>
+    <string name="action_yes">نعم</string>
+    <string name="action_no">لا</string>
+    <string name="action_use">استخدام</string>
+    <string name="action_extract">استخراج</string>
+    <string name="action_install_apk">تثبيت APK</string>
+    <string name="action_run_jar">تشغيل JAR</string>
+    <string name="action_set_executable">تعيين صلاحية تنفيذ</string>
+    <string name="action_permissions">الأذونات</string>
+    <string name="action_duplicate">تكرار</string>
+    <string name="action_format">تنسيق</string>
+    <string name="action_undo">تراجع</string>
+    <string name="action_redo">إعادة</string>
+
+    <!-- File types -->
+    <string name="file_new_file">ملف جديد</string>
+    <string name="file_new_folder">مجلد جديد</string>
+    <string name="file_new_project">مشروع جديد</string>
+    <string name="file_open_project">فتح مشروع</string>
+    <string name="file_folder_name">اسم المجلد</string>
+    <string name="file_file_name">اسم الملف</string>
+    <string name="file_empty">ملف فارغ</string>
+
+    <!-- Menu labels -->
+    <string name="menu_file">ملف</string>
+    <string name="menu_edit">تعديل</string>
+    <string name="menu_view">عرض</string>
+    <string name="menu_tools">أدوات</string>
+    <string name="menu_code">كود</string>
+    <string name="menu_refactor">إعادة هيكلة</string>
+    <string name="menu_run">تشغيل</string>
+    <string name="menu_navigate">تنقل</string>
+    <string name="menu_ide">بيئة تطوير</string>
+
+    <!-- Panel tabs -->
+    <string name="tab_build">بناء</string>
+    <string name="tab_output">مخرجات</string>
+    <string name="tab_logcat">سجلkat</string>
+    <string name="tab_problems">مشاكل</string>
+    <string name="tab_search">بحث</string>
+    <string name="tab_pip">صورة داخل صورة</string>
+    <string name="tab_shell">غلاف الأوامر</string>
+    <string name="tab_preview">معاينة</string>
+    <string name="tab_source">المصدر</string>
+    <string name="tab_outline">مخطط عام</string>
+    <string name="tab_project">مشروع</string>
+    <string name="tab_community">مجتمع</string>
+    <string name="tab_apk">ملف تطبيقي</string>
+    <string name="tab_extensions">ملحقات</string>
+    <string name="tab_explorer">مستكشف الملفات</string>
+
+    <!-- Status -->
+    <string name="status_ready">جاهز</string>
+    <string name="status_building">جارٍ البناء…</string>
+    <string name="status_build_stopped">تم إيقاف البناء</string>
+    <string name="status_saved">تم الحفظ</string>
+    <string name="status_encoding">UTF-8</string>
+    <string name="status_rebuild_needed">مطلوب إعادة البناء</string>
+    <string name="status_synced">تم المزامنة</string>
+    <string name="status_sync_failed">فشلت المزامنة</string>
+    <string name="status_sync_now">المزامنة الآن</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_confirm_delete">تأكيد الحذف</string>
+    <string name="dialog_confirm_delete_title">حذف "%s"؟</string>
+    <string name="dialog_cannot_be_undone">لا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="dialog_confirm_replace_title">استبدال المشروع</string>
+    <string name="dialog_confirm_replace_message">MobileStudio/%s موجود بالفعل. استبداله بالمشروع المحدد من /sdcard؟</string>
+    <string name="dialog_replace">استبدال</string>
+    <string name="dialog_project_closed_warning"></string>
+    <string name="dialog_unsaved_changes">تغييرات غير محفوظة</string>
+    <string name="dialog_save_changes">حفظ التغييرات؟</string>
+    <string name="dialog_discard">تجاهل</string>
+    <string name="dialog_select_project">اختيار المشروع</string>
+    <string name="dialog_new_project">مشروع جديد</string>
+    <string name="dialog_new_folder">مجلد جديد</string>
+    <string name="dialog_rename">إعادة تسمية</string>
+
+    <!-- File tree context menu -->
+    <string name="filetree_new_file_here">ملف جديد هنا</string>
+    <string name="filetree_new_folder_here">مجلد جديد هنا</string>
+    <string name="filetree_ask_ai">اسأل الذكاء الاصطناعي عن هذا الملف</string>
+    <string name="filetree_open">فتح</string>
+    <string name="filetree_rename">إعادة تسمية</string>
+    <string name="filetree_duplicate">تكرار</string>
+    <string name="filetree_delete">حذف</string>
+    <string name="filetree_copy_path">نسخ المسار</string>
+    <string name="filetree_copy_content">نسخ المحتوى</string>
+    <string name="filetree_extract_here">استخراج هنا</string>
+
+    <!-- Toast messages -->
+    <string name="toast_deleted">تم الحذف</string>
+    <string name="toast_delete_failed">فشل الحذف</string>
+    <string name="toast_renamed">تم إعادة التسمية</string>
+    <string name="toast_rename_failed">فشل إعادة التسمية</string>
+    <string name="toast_copied">تم النسخ</string>
+    <string name="toast_path_copied">تم نسخ المسار</string>
+    <string name="toast_content_copied">تم نسخ المحتوى (%d بايت)</string>
+    <string name="toast_open_file_first">افتح ملفًا أولاً</string>
+    <string name="toast_open_project_first">افتح مشروعًا أولاً</string>
+    <string name="toast_no_apk_found">لم يتم العثور على ملف APK. قم بالبناء أولاً.</string>
+    <string name="toast_install_failed">فشل التثبيت: %s</string>
+    <string name="toast_build_started">بدأ البناء. يرجى الانتظار…</string>
+    <string name="toast_build_complete">اكتمل البناء</string>
+
+    <!-- Build output -->
+    <string name="build_successful">نجح البناء</string>
+    <string name="build_failed">فشل البناء</string>
+    <string name="build_cancelled">تم إلغاء البناء</string>
+    <string name="build_cancelled_lower">تم إلغاء البناء</string>
+    <string name="build_started">بدأ البناء</string>
+    <string name="build_preparing">جاري إعداد أدوات البناء… %d%%</string>
+    <string name="build_stopped">تم إيقاف البناء</string>
+    <string name="build_ignored">تم تجاهل البناء: افتح مشروعًا أولاً.</string>
+    <string name="build_no_start">لم يتمكن البناء من البدء: %s</string>
+    <string name="build_environment_ready">بيئة البناء جاهزة!</string>
+    <string name="build_installing_jdk_gradle">جارٍ تثبيت JDK 17 + Gradle… (التشغيل الأول، حوالي 200 ميجابايت)</string>
+    <string name="build_jdk_gradle_failed">فشل تثبيت JDK/Gradle</string>
+
+    <!-- Editor -->
+    <string name="editor_search_hint">البحث في المشروع…</string>
+    <string name="editor_command_or_ai_hint">أمر أو مؤشر ذكاء اصطناعي</string>
+    <string name="editor_shell_description">لوحة مفاتيح النظام · اكتب أوامر الغلاف</string>
+
+    <!-- Projects -->
+    <string name="projects_app_name">اسم التطبيق</string>
+    <string name="projects_package_name">اسم الحزمة</string>
+    <string name="projects_project_folder">مجلد المشروع</string>
+    <string name="projects_project_type">نوع المشروع</string>
+    <string name="projects_template">قالب</string>
+    <string name="projects_app_name_empty">الرجاء إدخال اسم التطبيق.</string>
+    <string name="projects_app_name_invalid">يحتوي اسم التطبيق على أحرف غير صالحة.</string>
+    <string name="projects_package_invalid">اسم حزمة غير صالح.</string>
+    <string name="projects_already_exists">مشروع باسم "%s" موجود بالفعل.</string>
+    <string name="projects_created">تم إنشاء المشروع: %s</string>
+    <string name="projects_create_failed">فشل إنشاء المشروع: %s</string>
+
+    <!-- New Project dialog -->
+    <string name="newproject_title">مشروع جديد</string>
+    <string name="newproject_subtitle">إعداد مشروع جديد في بضع خطوات</string>
+    <string name="newproject_app_name_hint">مثال: MyApp</string>
+    <string name="newproject_package_name_hint">com.example.</string>
+    <string name="newproject_project_folder_hint">مثال: /sdcard/MobileStudio</string>
+    <string name="newproject_save_path_format">%1$s/&lt;ProjectName&gt;</string>
+    <string name="newproject_build_script">برنامج البناء</string>
+    <string name="newproject_build_dsl_kts">build.gradle.kts</string>
+    <string name="newproject_build_dsl_groovy">build.gradle (Groovy)</string>
+    <string name="newproject_minimum_sdk">أدنى SDK</string>
+    <string name="newproject_options">خيارات</string>
+    <string name="newproject_enable_view_binding">تفعيل View Binding</string>
+    <string name="newproject_python_template">نص بايثون (终端 + pip)</string>
+    <string name="newproject_windows_template">Windows .exe (C - mingw-w64)</string>
+    <string name="newproject_windows_note">استخدم أدوات &gt; Wine &amp; Box64 &gt; Build .exe للترميز، وتشغيل .exe للتشغيل</string>
+    <string name="newproject_godot_template">Godot 4.7.2 (project.godot + main.tscn)</string>
+    <string name="newproject_godot_note">اضغط على تشغيل لفتح محرر Godot المضمن.</string>
+    <string name="newproject_type_android">تطبيق Android</string>
+    <string name="newproject_type_android_desc">تطبيق Android مبني على Gradle</string>
+    <string name="newproject_type_java">تطبيق Java</string>
+    <string name="newproject_type_java_desc">تطبيق Java مستقل</string>
+    <string name="newproject_type_kotlin">تطبيق Kotlin</string>
+    <string name="newproject_type_kotlin_desc">تطبيق Kotlin مستقل</string>
+    <string name="newproject_type_exe">تنفيذي أصلي / EXE</string>
+    <string name="newproject_type_exe_desc">مشروع C++ أصلي</string>
+    <string name="newproject_type_godot">Godot</string>
+    <string name="newproject_project_type_label">نوع المشروع</string>
+    <string name="newproject_enter_location">الرجاء إدخال موقع المشروع.</string>
+    <string name="newproject_created_toast">تم إنشاء المشروع: %s</string>
+    <string name="newproject_type_python">Python (Shell)</string>
+    <string name="newproject_type_windows">Windows .exe</string>
+    <string name="newproject_creation_failed_title">فشل إنشاء المشروع</string>
+    <string name="newproject_path_label">الموقع</string>
+    <string name="newproject_placeholder_app">MyApplication</string>
+    <string name="newproject_placeholder_folder">مجلد المشروع</string>
+
+    <!-- Toolchain file explorer -->
+    <string name="explorer_empty">فارغ أو إذن مرفوض</string>
+    <string name="explorer_nothing_to_paste">لا شيء للصق</string>
+    <string name="explorer_source_gone">المصدر لم يعد موجودًا</string>
+    <string name="explorer_paste_failed">فشل اللصق: %s</string>
+    <string name="explorer_invalid_name">اسم غير صالح</string>
+    <string name="explorer_already_exists">موجود بالفعل</string>
+    <string name="explorer_extracted">تم الاستخراج إلى %s</string>
+    <string name="explorer_extract_failed">فشل الاستخراج: %s</string>
+    <string name="explorer_copy_ready">تم النسخ: %s. افتح مجلدًا وانقر فوق لصق.</string>
+    <string name="explorer_move_ready">جاري النقل: %s. افتح مجلدًا وانقر فوق لصق.</string>
+
+    <!-- Tools activity -->
+    <string name="tools_crash_logs">سجلات الأعطال</string>
+    <string name="tools_view_crash">عرض العطل</string>
+    <string name="tools_copy_crash">نسخ العطل</string>
+    <string name="tools_clear_crash">مسح العطل</string>
+    <string name="tools_cache_trimmed">تم تقليم التخزين المؤقت المؤقت</string>
+    <string name="tools_trim_cache">تقليم التخزين المؤقت</string>
+    <string name="tools_install_bundled">تثبيت المجموعة</string>
+    <string name="tools_import_zip">استيراد ZIP من Android Studio</string>
+    <string name="tools_install_all">تثبيت الكل</string>
+    <string name="tools_runtime_tools_installing">جارٍ تثبيت أدوات التشغيل…</string>
+    <string name="tools_runtime_tools_complete">اكتمل تثبيت أدوات التشغيل</string>
+    <string name="tools_open_folder">فتح المجلد</string>
+    <string name="tools_add">إضافة</string>
+    <string name="tools_fetch">جلب</string>
+    <string name="tools_save">حفظ</string>
+    <string name="tools_delete">حذف</string>
+    <string name="tools_reset_defaults">إعادة الضبط إلى الافتراضي</string>
+    <string name="tools_connecting">جارٍ الاتصال…</string>
+    <string name="tools_versions_loaded">%s: تم تحميل %d إصدارات</string>
+    <string name="tools_update_site_failed">فشل موقع تحديث %s: %s</string>
+    <string name="tools_preparing">جارٍ الإعداد…</string>
+    <string name="tools_language">اللغة</string>
+    <string name="tools_active_version">النشط: %s</string>
+    <string name="tools_not_installed">غير مثبت</string>
+    <string name="tools_activate">تفعيل</string>
+    <string name="tools_activated">تم التفعيل: %s → %s</string>
+    <string name="tools_licenses">تراخيص</string>
+    <string name="tools_sdk_install">تثبيت SDK</string>
+    <string name="tools_download_started">بدأ التحميل</string>
+    <string name="tools_download_failed">فشل التحميل</string>
+    <string name="tools_already_installed">مثبت بالفعل</string>
+    <string name="tools_custom_url">رابط مخصص</string>
+    <string name="tools_manual">يدوي</string>
+    <string name="tools_manual_install_required">هذه النسخة تتطلب تثبيتًا يدويًا</string>
+
+    <!-- Boot setup -->
+    <string name="setup_mobile_studio">إعداد MobileStudio</string>
+    <string name="setup_welcome">مرحبًا! قم بتكوين بيئة التطوير الخاصة بك.</string>
+    <string name="setup_start">بدء</string>
+    <string name="setup_open_ide">فتح بيئة التطوير</string>
+    <string name="setup_language_korean">한국어</string>
+    <string name="setup_language_korean_desc">Korean language interface</string>
+    <string name="setup_language_english">English</string>
+    <string name="setup_language_english_desc">واجهة باللغة الإنجليزية</string>
+    <string name="setup_language_japanese">日本語</string>
+    <string name="setup_language_japanese_desc">واجهة باللغة اليابانية</string>
+    <string name="setup_dev_android">تطوير تطبيقات Android</string>
+    <string name="setup_dev_android_desc">بناء تطبيقات APK باستخدام Gradle و JDK و SDK و NDK</string>
+    <string name="setup_dev_python">تطوير بايثون</string>
+    <string name="setup_dev_python_desc">سكريبت بايثون باستخدام pip والمحطة ومساعد الذكاء الاصطناعي</string>
+    <string name="setup_dev_both">كلاهما (Android + Python)</string>
+    <string name="setup_dev_both_desc">بيئة كاملة: سلسلة أدوات Android + بايثون</string>
+    <string name="setup_sdk_version">إصدار Android SDK</string>
+    <string name="setup_recommended">موصى به</string>
+    <string name="setup_jdk_version">إصدار JDK</string>
+    <string name="setup_jdk17">JDK 17 (LTS)</string>
+    <string name="setup_jdk17_desc">مستقر، تم اختباره على نطاق واسع مع Android Gradle</string>
+    <string name="setup_jdk21">JDK 21 (الأحدث)</string>
+    <string name="setup_jdk21_desc">ميزات جديدة، موصى به لـ Gradle 8.5+</string>
+    <string name="setup_gradle_version">إصدار Gradle</string>
+
+    <!-- Python -->
+    <string name="python_not_installed">غير مثبت بايثون</string>
+    <string name="python_running">جارٍ تشغيل بايثون</string>
+    <string name="python_finished">اكتمل بايثون</string>
+    <string name="python_failed">فشل بايثون</string>
+    <string name="python_no_entry">لم يتم العثور على ملف إدخال بايثون. قم بإنشاء main.py أولاً.</string>
+
+    <!-- Quick doc / symbols -->
+    <string name="quick_doc">توثيق سريع</string>
+    <string name="rename_symbol">إعادة تسمية الرمز</string>
+    <string name="no_symbol_under_cursor">لا يوجد رمز تحت المؤشر</string>
+    <string name="no_declaration">لم يتم العثور على إعلان: %s</string>
+    <string name="no_usages">لم يتم العثور على استخدامات</string>
+    <string name="parameter_hint">تلميح الوسيطة</string>
+    <string name="no_parameter_info">لم يتم العثور على معلومات الوسيطة.</string>
+    <string name="quick_fix">إصلاح سريع</string>
+    <string name="no_quick_fix">لا يوجد إصلاح سريع متاح لهذا السطر</string>
+    <string name="imported">تم الاستيراد: %s</string>
+    <string name="already_imported">تم الاستيراد بالفعل: %s</string>
+    <string name="no_import_candidate">لم يتم العثور على مرشح استيراد: %s</string>
+    <string name="formatted">تم تنسيق الكود</string>
+
+    <!-- Problems panel -->
+    <string name="problems_no_problems">لا توجد مشاكل</string>
+    <string name="problems_no_problems_desc">لم يبلغ البناء الأخير عن أخطاء أو تحذيرات.</string>
+    <string name="problems_copy_problem">نسخ المشكلة</string>
+    <string name="problems_copy_all">نسخ جميع المشاكل</string>
+    <string name="problems_copied">تم نسخ المشكلة</string>
+    <string name="problems_no_location">لا يوجد موقع</string>
+    <string name="problems_too_many_errors">كثير جدًا من الأخطاء —一部 مخفية. أصلح الأخطاء المذكورة وأعد البناء.</string>
+
+    <!-- Layout preview -->
+    <string name="preview_lightweight">معاينة خفيفة</string>
+    <string name="preview_jdk21_required">مطلوب JDK 21</string>
+    <string name="preview_jdk21_message">معاينة XML تتطلب JDK 21 كامل مع libjli.so و jdk.compiler. انقر موافق للتحميل، أو لا لإلغاء المعاينة.</string>
+    <string name="preview_jdk21_unavailable">رابط تحميل JDK 21 غير متاح.</string>
+    <string name="preview_jdk21_started">بدأ تحميل JDK 21. أعد فتح المعاينة بعد انتهاء التحميل.</string>
+    <string name="preview_cancelled">تم إلغاء معاينة LayoutLib لأن JDK 21 غير مثبت.</string>
+    <string name="preview_no_widgets">لم يتم العثور على أدوات قابلة للتحرير.</string>
+
+    <!-- Extensions -->
+    <string name="extensions_removed">تم إزالة الملحقات</string>
+
+    <!-- Android shell -->
+    <string name="shell_title">غلاف Android</string>
+
+    <!-- GitHub OAuth -->
+    <string name="github_oauth_client_id" translatable="false"></string>
+</resources>

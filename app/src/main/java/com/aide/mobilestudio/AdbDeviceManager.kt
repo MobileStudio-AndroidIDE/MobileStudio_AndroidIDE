@@ -48,6 +48,9 @@ object AdbDeviceManager {
     fun addListener(listener: DeviceListener) { listeners.add(listener) }
     fun removeListener(listener: DeviceListener) { listeners.remove(listener) }
 
+    fun getCurrentAdbInfo(): AdbInfo? = currentAdbInfo
+    fun getDevices(): List<AdbDevice> = devices.values.toList()
+
     private fun notifyDeviceListChanged() {
         val list = devices.values.toList()
         listeners.forEach { try { it.onDeviceListChanged(list) } catch (_: Exception) {} }

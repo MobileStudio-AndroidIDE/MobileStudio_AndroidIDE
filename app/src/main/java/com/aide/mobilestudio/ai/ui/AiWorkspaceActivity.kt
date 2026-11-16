@@ -5771,8 +5771,9 @@ class AiWorkspaceActivity : AppCompatActivity() {
         // Language selection
         column.addView(sectionTitle(t("Language", "언어")))
         val languages = AppLanguage.supported
-        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, languages.map { it.nativeName }.toTypedArray())
+        val adapter = android.widget.ArrayAdapter(this, R.layout.spinner_dark_item, languages.map { it.nativeName }.toTypedArray())
         val languageSpinner = androidx.appcompat.widget.AppCompatSpinner(this).apply {
+            adapter.setDropDownViewResource(R.layout.spinner_dark_dropdown_item)
             setAdapter(adapter)
             setOnItemSelectedListener(object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {

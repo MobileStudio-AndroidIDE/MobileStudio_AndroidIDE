@@ -47,6 +47,8 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var pathBar: TextView
     private lateinit var fileList: LinearLayout
     private lateinit var currentDir: File
+    private val navBackStack = mutableListOf<File>()
+    private val navForwardStack = mutableListOf<File>()
     private val handler = Handler(Looper.getMainLooper())
 
     private val REQ_STORAGE = 1001
@@ -77,16 +79,14 @@ class FileManagerActivity : AppCompatActivity() {
             setPadding(0, 0, 0, dp(8))
             gravity = Gravity.CENTER_VERTICAL
         }
-        val backBtn = makeButton("◀") { goUp() }
-        val fwdBtn = makeButton("▶") { /* forward not implemented */ }
+        val backBtn = makeButton("◀") { goBack() }
+        val fwdBtn = makeButton("▶") { goForward() }
         val upBtn = makeButton("↑") { goUp() }
         val homeBtn = makeButton("🏠 Home") {
-            currentDir = Environment.getExternalStorageDirectory()
-            refresh()
+            navigateTo(Environment.getExternalStorageDirectory())
         }
         val dlBtn = makeButton("⬇ Downloads") {
-            currentDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            refresh()
+            navigateTo(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS))
         }
         listOf(backBtn, fwdBtn, upBtn, homeBtn, dlBtn).forEach { topBar.addView(it) }
 
@@ -126,8 +126,7 @@ class FileManagerActivity : AppCompatActivity() {
                 REQ_STORAGE
             )
         } else {
-            currentDir = Environment.getExternalStorageDirectory()
-            refresh()
+            navigateTo(Environment.getExternalStorageDirectory())
         }
     }
 
@@ -205,8 +204,7 @@ class FileManagerActivity : AppCompatActivity() {
                 if (projectMode) {
                     confirmOpenAsProject(file)
                 } else {
-                    currentDir = file
-                    refresh()
+                    navigateTo(file)
                 }
             } else {
                 openFileAction(file)
@@ -279,9 +277,35 @@ class FileManagerActivity : AppCompatActivity() {
     private fun goUp() {
         val parent = currentDir.parentFile
         if (parent != null) {
-            currentDir = parent
+            navigateTo(parent)
+        }
+    }
+
+    private fun goBack() {
+        if (navBackStack.isNotEmpty()) {
+            navForwardStack.add(currentDir)
+            val prev = navBackStack.removeAt(navBackStack.size - 1)
+            currentDir = prev
             refresh()
         }
+    }
+
+    private fun goForward() {
+        if (navForwardStack.isNotEmpty()) {
+            navBackStack.add(currentDir)
+            val next = navForwardStack.removeAt(navForwardStack.size - 1)
+            currentDir = next
+            refresh()
+        }
+    }
+
+    private fun navigateTo(dir: File, addToBack: Boolean = true) {
+        if (addToBack) {
+            navBackStack.add(currentDir)
+            navForwardStack.clear()
+        }
+        currentDir = dir
+        refresh()
     }
 
     private fun promptNewFolder() {
@@ -630,8 +654,7 @@ class FileManagerActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_STORAGE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            currentDir = Environment.getExternalStorageDirectory()
-            refresh()
+            navigateTo(Environment.getExternalStorageDirectory())
         } else {
             Toast.makeText(this, "Storage permission required", Toast.LENGTH_LONG).show()
             finish()

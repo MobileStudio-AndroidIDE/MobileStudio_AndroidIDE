@@ -111,6 +111,7 @@ class ToolchainFileExplorerActivity : AppCompatActivity(), ContextMenuUtils.File
         private const val EXTRA_SELECTABLE = "selectable"
         private const val EXTRA_PICK_EXE = "pick_exe"
         const val RESULT_EXE_PATH = "exe_path"
+        const val REQUEST_CODE_PICK_FILES = 1003
 
         fun start(context: Context, kind: ToolchainManager.Kind) {
             context.startActivity(Intent(context, ToolchainFileExplorerActivity::class.java).apply {
@@ -412,14 +413,84 @@ class ToolchainFileExplorerActivity : AppCompatActivity(), ContextMenuUtils.File
         }
     }
 
-    /** 새 폴더 만들기 (추후 구현). */
+    /** 새 폴더 만들기. */
     private fun showNewFolderDialog() {
-        // TODO: 폴더 이름 입력 다이얼로그 구현
+        val input = EditText(this).apply {
+            hint = "폴더 이름"
+            setSingleLine(true)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("새 폴더")
+            .setView(input)
+            .setPositiveButton("만들기") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isEmpty()) {
+                    Toast.makeText(this@ToolchainFileExplorerActivity, "폴더 이름을 입력하세요.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val newDir = File(currentDir, name)
+                if (newDir.exists()) {
+                    Toast.makeText(this@ToolchainFileExplorerActivity, "이미 존재하는 폴더입니다.", Toast.LENGTH_SHORT).show()
+                } else if (newDir.mkdir()) {
+                    refreshDirectory()
+                    Toast.makeText(this@ToolchainFileExplorerActivity, "폴더를 만들었습니다: $name", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@ToolchainFileExplorerActivity, "폴더 생성에 실패했습니다.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("취소", null)
+            .show()
     }
 
-    /** 파일 업로드 (추후 구현). */
+    /** 파일 업로드 - 기기에서 파일을 선택해 현재 폴더로 복사. */
     private fun pickFilesToUpload() {
-        // TODO: 파일 선택기 구현
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "*/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+        }
+        startActivityForResult(Intent.createChooser(intent, "파일 선택"), REQUEST_CODE_PICK_FILES)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_CODE_PICK_FILES && resultCode == RESULT_OK && data != null) {
+            data.clipData?.let { clip ->
+                var copied = 0
+                for (i in 0 until clip.itemCount) {
+                    clip.getItemAt(i).uri?.let { uri ->
+                        if (copyUriToCurrentDir(uri)) copied++
+                    }
+                }
+                if (copied > 0) {
+                    refreshDirectory()
+                    Toast.makeText(this, "${copied}개 파일을 업로드했습니다.", Toast.LENGTH_SHORT).show()
+                }
+            } ?: run {
+                data.data?.let { uri ->
+                    if (copyUriToCurrentDir(uri)) {
+                        refreshDirectory()
+                        Toast.makeText(this, "파일을 업로드했습니다.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun copyUriToCurrentDir(uri: Uri): Boolean {
+        return try {
+            val input = contentResolver.openInputStream(uri) ?: return false
+            val fileName = uri.lastPathSegment?.let { it.substringAfterLast("/") } ?: "uploaded_file"
+            val target = File(currentDir, fileName)
+            input.use { input ->
+                target.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Toast.makeText(this, "업로드 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+            false
+        }
     }
 
     @OptIn(ExperimentalFoundationApi::class)

@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileStudio</string>
+
+    <!-- Common actions -->
+    <string name="action_open">開く</string>
+    <string name="action_open_text">テキストを開く</string>
+    <string name="action_save">保存</string>
+    <string name="action_save_all">すべて保存</string>
+    <string name="action_delete">削除</string>
+    <string name="action_rename">名前変更</string>
+    <string name="action_copy">コピー</string>
+    <string name="action_copy_path">パスをコピー</string>
+    <string name="action_copy_content">内容をコピー</string>
+    <string name="action_paste">貼り付け</string>
+    <string name="action_cut">切り取り</string>
+    <string name="action_move">移動</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="action_ok">OK</string>
+    <string name="action_close">閉じる</string>
+    <string name="action_create">作成</string>
+    <string name="action_apply">適用</string>
+    <string name="action_edit">編集</string>
+    <string name="action_search">検索</string>
+    <string name="action_replace">置換</string>
+    <string name="action_refresh">更新</string>
+    <string name="action_stop">停止</string>
+    <string name="action_install">インストール</string>
+    <string name="action_download">ダウンロード</string>
+    <string name="action_build">ビルド</string>
+    <string name="action_run">実行</string>
+    <string name="action_clear">クリア</string>
+    <string name="action_back">戻る</string>
+    <string name="action_next">次へ</string>
+    <string name="action_skip">スキップ</string>
+    <string name="action_retry">再試行</string>
+    <string name="action_settings">設定</string>
+    <string name="action_yes">はい</string>
+    <string name="action_no">いいえ</string>
+    <string name="action_use">使用</string>
+    <string name="action_extract">抽出</string>
+    <string name="action_install_apk">APKをインストール</string>
+    <string name="action_run_jar">JARを実行</string>
+    <string name="action_set_executable">実行権限を設定</string>
+    <string name="action_permissions">権限</string>
+    <string name="action_duplicate">複製</string>
+    <string name="action_format">フォーマット</string>
+    <string name="action_undo">元に戻す</string>
+    <string name="action_redo">やり直す</string>
+
+    <!-- File types -->
+    <string name="file_new_file">新規ファイル</string>
+    <string name="file_new_folder">新規フォルダ</string>
+    <string name="file_new_project">新規プロジェクト</string>
+    <string name="file_open_project">プロジェクトを開く</string>
+    <string name="file_folder_name">フォルダ名</string>
+    <string name="file_file_name">ファイル名</string>
+    <string name="file_empty">空ファイル</string>
+
+    <!-- Menu labels -->
+    <string name="menu_file">ファイル</string>
+    <string name="menu_edit">編集</string>
+    <string name="menu_view">表示</string>
+    <string name="menu_tools">ツール</string>
+    <string name="menu_code">コード</string>
+    <string name="menu_refactor">リファクタリング</string>
+    <string name="menu_run">実行</string>
+    <string name="menu_navigate">ナビゲート</string>
+    <string name="menu_ide">IDE</string>
+
+    <!-- Panel tabs -->
+    <string name="tab_build">ビルド</string>
+    <string name="tab_output">出力</string>
+    <string name="tab_logcat">Logcat</string>
+    <string name="tab_problems">問題</string>
+    <string name="tab_search">検索</string>
+    <string name="tab_pip">PIP</string>
+    <string name="tab_shell">シェル</string>
+    <string name="tab_preview">プレビュー</string>
+    <string name="tab_source">ソース</string>
+    <string name="tab_outline">アウトライン</string>
+    <string name="tab_project">プロジェクト</string>
+    <string name="tab_community">コミュニティ</string>
+    <string name="tab_apk">APK</string>
+    <string name="tab_extensions">拡張機能</string>
+    <string name="tab_explorer">エクスプローラー</string>
+
+    <!-- Status -->
+    <string name="status_ready">準備完了</string>
+    <string name="status_building">ビルド中…</string>
+    <string name="status_build_stopped">ビルド停止</string>
+    <string name="status_saved">保存済み</string>
+    <string name="status_encoding">UTF-8</string>
+    <string name="status_rebuild_needed">再ビルドが必要</string>
+    <string name="status_synced">同期済み</string>
+    <string name="status_sync_failed">同期失敗</string>
+    <string name="status_sync_now">今すぐ同期</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_confirm_delete">削除の確認</string>
+    <string name="dialog_confirm_delete_title">"%s" を削除しますか？</string>
+    <string name="dialog_cannot_be_undone">この操作は元に戻せません。</string>
+    <string name="dialog_confirm_replace_title">プロジェクトを置き換え</string>
+    <string name="dialog_confirm_replace_message">MobileStudio/%s は既に存在します。選択した /sdcard プロジェクトで置き換えますか？</string>
+    <string name="dialog_replace">置き換え</string>
+    <string name="dialog_project_closed_warning">現在開いているプロジェクトが閉じられます。続行しますか？</string>
+    <string name="dialog_unsaved_changes">保存されていない変更があります</string>
+    <string name="dialog_save_changes">変更を保存しますか？</string>
+    <string name="dialog_discard">破棄</string>
+    <string name="dialog_select_project">プロジェクトを選択</string>
+    <string name="dialog_new_project">新規プロジェクト</string>
+    <string name="dialog_new_folder">新規フォルダ</string>
+    <string name="dialog_rename">名前変更</string>
+
+    <!-- File tree context menu -->
+    <string name="filetree_new_file_here">ここに新規ファイル</string>
+    <string name="filetree_new_folder_here">ここに新規フォルダ</string>
+    <string name="filetree_ask_ai">AIにこのファイルについて質問</string>
+    <string name="filetree_open">開く</string>
+    <string name="filetree_rename">名前変更</string>
+    <string name="filetree_duplicate">複製</string>
+    <string name="filetree_delete">削除</string>
+    <string name="filetree_copy_path">パスをコピー</string>
+    <string name="filetree_copy_content">内容をコピー</string>
+    <string name="filetree_extract_here">ここに抽出</string>
+
+    <!-- Toast messages -->
+    <string name="toast_deleted">削除されました</string>
+    <string name="toast_delete_failed">削除に失敗しました</string>
+    <string name="toast_renamed">名前が変更されました</string>
+    <string name="toast_rename_failed">名前変更に失敗しました</string>
+    <string name="toast_copied">コピーされました</string>
+    <string name="toast_path_copied">パスがコピーされました</string>
+    <string name="toast_content_copied">内容をコピーしました（%dバイト）</string>
+    <string name="toast_open_file_first">まずファイルを開いてください</string>
+    <string name="toast_open_project_first">まずプロジェクトを開いてください</string>
+    <string name="toast_no_apk_found">APKが見つかりません。まずビルドしてください。</string>
+    <string name="toast_install_failed">インストールに失敗しました: %s</string>
+    <string name="toast_build_started">ビルドを開始しました。しばらくお待ちください…</string>
+    <string name="toast_build_complete">ビルドが完了しました</string>
+
+    <!-- Build output -->
+    <string name="build_successful">ビルド成功</string>
+    <string name="build_failed">ビルド失敗</string>
+    <string name="build_cancelled">ビルド取消</string>
+    <string name="build_cancelled_lower">ビルド取消</string>
+    <string name="build_started">ビルド開始</string>
+    <string name="build_preparing">ビルドツールを準備中… %d%%</string>
+    <string name="build_stopped">ビルド停止</string>
+    <string name="build_ignored">ビルド無視: まずプロジェクトを開いてください。</string>
+    <string name="build_no_start">ビルドを開始できませんでした: %s</string>
+    <string name="build_environment_ready">ビルド環境の準備ができました！</string>
+    <string name="build_installing_jdk_gradle">JDK 17 + Gradleをインストール中…（初回実行、約200MB）</string>
+    <string name="build_jdk_gradle_failed">JDK/Gradleのインストールに失敗しました</string>
+
+    <!-- Editor -->
+    <string name="editor_search_hint">プロジェクトを検索…</string>
+    <string name="editor_command_or_ai_hint">コマンドまたはAIプロンプト</string>
+    <string name="editor_shell_description">システムキーボード · シェルコマンドを入力</string>
+
+    <!-- Projects -->
+    <string name="projects_app_name">アプリ名</string>
+    <string name="projects_package_name">パッケージ名</string>
+    <string name="projects_project_folder">プロジェクトフォルダ</string>
+    <string name="projects_project_type">プロジェクトタイプ</string>
+    <string name="projects_template">テンプレート</string>
+    <string name="projects_app_name_empty">アプリ名を入力してください。</string>
+    <string name="projects_app_name_invalid">アプリ名に無効な文字が含まれています。</string>
+    <string name="projects_package_invalid">無効なパッケージ名です。</string>
+    <string name="projects_already_exists">"%s" という名前のプロジェクトは既に存在します。</string>
+    <string name="projects_created">プロジェクトを作成しました: %s</string>
+    <string name="projects_create_failed">プロジェクトの作成に失敗しました: %s</string>
+
+    <!-- New Project dialog -->
+    <string name="newproject_title">新規プロジェクト</string>
+    <string name="newproject_subtitle">新しいプロジェクトを数ステップでセットアップ</string>
+    <string name="newproject_app_name_hint">例: MyApp</string>
+    <string name="newproject_package_name_hint">com.example.</string>
+    <string name="newproject_project_folder_hint">例: /sdcard/MobileStudio</string>
+    <string name="newproject_save_path_format">%1$s/&lt;ProjectName&gt;</string>
+    <string name="newproject_build_script">ビルドスクリプト</string>
+    <string name="newproject_build_dsl_kts">build.gradle.kts</string>
+    <string name="newproject_build_dsl_groovy">build.gradle (Groovy)</string>
+    <string name="newproject_minimum_sdk">最小 SDK</string>
+    <string name="newproject_options">オプション</string>
+    <string name="newproject_enable_view_binding">View Binding を有効にする</string>
+    <string name="newproject_python_template">Python スクリプト (ターミナル + pip)</string>
+    <string name="newproject_windows_template">Windows .exe (C - mingw-w64)</string>
+    <string name="newproject_windows_note">ツール &gt; Wine &amp; Box64 &gt; Build .exe でコンパイルし、Run .exe で実行</string>
+    <string name="newproject_godot_template">Godot 4.7.2 (project.godot + main.tscn)</string>
+    <string name="newproject_godot_note">実行ボタンを押すと組み込み Godot エディターが開きます。</string>
+    <string name="newproject_type_android">Android アプリ</string>
+    <string name="newproject_type_android_desc">Gradle ベースの Android アプリ</string>
+    <string name="newproject_type_java">Java アプリケーション</string>
+    <string name="newproject_type_java_desc">スタンドアロン Java アプリケーション</string>
+    <string name="newproject_type_kotlin">Kotlin アプリケーション</string>
+    <string name="newproject_type_kotlin_desc">スタンドアロン Kotlin アプリケーション</string>
+    <string name="newproject_type_exe">EXE / ネイティブバイナリ</string>
+    <string name="newproject_type_exe_desc">C++ ネイティブ プロジェクト</string>
+    <string name="newproject_type_godot">Godot</string>
+    <string name="newproject_project_type_label">プロジェクトタイプ</string>
+    <string name="newproject_enter_location">プロジェクトの場所を入力してください。</string>
+    <string name="newproject_created_toast">プロジェクトを作成しました: %s</string>
+    <string name="newproject_type_python">Python (シェル)</string>
+    <string name="newproject_type_windows">Windows .exe</string>
+    <string name="newproject_creation_failed_title">プロジェクトの作成に失敗しました</string>
+    <string name="newproject_path_label">場所</string>
+    <string name="newproject_placeholder_app">MyApplication</string>
+    <string name="newproject_placeholder_folder">プロジェクトフォルダ</string>
+
+    <!-- Toolchain file explorer -->
+    <string name="explorer_empty">空または権限がありません</string>
+    <string name="explorer_nothing_to_paste">貼り付ける項目がありません</string>
+    <string name="explorer_source_gone">ソースが存在しなくなりました</string>
+    <string name="explorer_paste_failed">貼り付けに失敗しました: %s</string>
+    <string name="explorer_invalid_name">無効な名前</string>
+    <string name="explorer_already_exists">既に存在します</string>
+    <string name="explorer_extracted">%s に抽出しました</string>
+    <string name="explorer_extract_failed">抽出に失敗しました: %s</string>
+    <string name="explorer_copy_ready">コピー済み: %s。フォルダを開いて貼り付けをタップしてください。</string>
+    <string name="explorer_move_ready">移動準備完了: %s。フォルダを開いて貼り付けをタップしてください。</string>
+
+    <!-- Tools activity -->
+    <string name="tools_crash_logs">クラッシュログ</string>
+    <string name="tools_view_crash">クラッシュを表示</string>
+    <string name="tools_copy_crash">クラッシュをコピー</string>
+    <string name="tools_clear_crash">クラッシュをクリア</string>
+    <string name="tools_cache_trimmed">一時キャッシュをトリミングしました</string>
+    <string name="tools_trim_cache">キャッシュをトリミング</string>
+    <string name="tools_install_bundled">バンドルをインストール</string>
+    <string name="tools_import_zip">Android Studio ZIPをインポート</string>
+    <string name="tools_install_all">すべてインストール</string>
+    <string name="tools_runtime_tools_installing">ランタイムツールをインストール中…</string>
+    <string name="tools_runtime_tools_complete">ランタイムツールのインストールが完了しました</string>
+    <string name="tools_open_folder">フォルダを開く</string>
+    <string name="tools_add">追加</string>
+    <string name="tools_fetch">取得</string>
+    <string name="tools_save">保存</string>
+    <string name="tools_delete">削除</string>
+    <string name="tools_reset_defaults">デフォルトにリセット</string>
+    <string name="tools_connecting">接続中…</string>
+    <string name="tools_versions_loaded">%s: %d バージョンがロードされました</string>
+    <string name="tools_update_site_failed">%s 更新サイトでエラーが発生しました: %s</string>
+    <string name="tools_preparing">準備中…</string>
+    <string name="tools_language">言語</string>
+    <string name="tools_active_version">アクティブ: %s</string>
+    <string name="tools_not_installed">インストールされていません</string>
+    <string name="tools_activate">アクティブ化</string>
+    <string name="tools_activated">アクティブ化済み: %s → %s</string>
+    <string name="tools_licenses">ライセンス</string>
+    <string name="tools_sdk_install">SDKインストール</string>
+    <string name="tools_download_started">ダウンロードを開始しました</string>
+    <string name="tools_download_failed">ダウンロードに失敗しました</string>
+    <string name="tools_already_installed">既にインストール済みです</string>
+    <string name="tools_custom_url">カスタムURL</string>
+    <string name="tools_manual">手動</string>
+    <string name="tools_manual_install_required">このバージョンは手動インストールが必要です</string>
+
+    <!-- Boot setup -->
+    <string name="setup_mobile_studio">MobileStudio セットアップ</string>
+    <string name="setup_welcome">ようこそ！開発環境を設定してください。</string>
+    <string name="setup_start">開始</string>
+    <string name="setup_open_ide">IDEを開く</string>
+    <string name="setup_language_korean">한국어</string>
+    <string name="setup_language_korean_desc">Korean language interface</string>
+    <string name="setup_language_english">English</string>
+    <string name="setup_language_english_desc">英語インターフェース</string>
+    <string name="setup_language_japanese">日本語</string>
+    <string name="setup_language_japanese_desc">日本語インターフェース</string>
+    <string name="setup_dev_android">Android アプリ開発</string>
+    <string name="setup_dev_android_desc">Gradle, JDK, SDK, NDK で APK アプリをビルド</string>
+    <string name="setup_dev_python">Python 開発</string>
+    <string name="setup_dev_python_desc">pip, ターミナル, AI エージェントを使用した Python スクリプティング</string>
+    <string name="setup_dev_both">両方 (Android + Python)</string>
+    <string name="setup_dev_both_desc">フル環境: Android ツールチェーン + Python</string>
+    <string name="setup_sdk_version">Android SDK バージョン</string>
+    <string name="setup_recommended">推奨</string>
+    <string name="setup_jdk_version">JDK バージョン</string>
+    <string name="setup_jdk17">JDK 17 (LTS)</string>
+    <string name="setup_jdk17_desc">安定しており、Android Gradle プラグインで広くテスト済み</string>
+    <string name="setup_jdk21">JDK 21 (最新)</string>
+    <string name="setup_jdk21_desc">新機能、Gradle 8.5+ で推奨</string>
+    <string name="setup_gradle_version">Gradle バージョン</string>
+
+    <!-- Python -->
+    <string name="python_not_installed">python はインストールされていません</string>
+    <string name="python_running">Python 実行中</string>
+    <string name="python_finished">Python 完了</string>
+    <string name="python_failed">Python 失敗</string>
+    <string name="python_no_entry">Python エントリファイルが見つかりません。まず main.py を作成してください。</string>
+
+    <!-- Quick doc / symbols -->
+    <string name="quick_doc">クイックドキュメント</string>
+    <string name="rename_symbol">シンボル名を変更</string>
+    <string name="no_symbol_under_cursor">カーソル下にシンボルがありません</string>
+    <string name="no_declaration">宣言が見つかりません: %s</string>
+    <string name="no_usages">使用箇所が見つかりません</string>
+    <string name="parameter_hint">パラメータ ヒント</string>
+    <string name="no_parameter_info">パラメータ情報が見つかりません。</string>
+    <string name="quick_fix">クイックフィックス</string>
+    <string name="no_quick_fix">この行に利用可能なクイックフィックスはありません</string>
+    <string name="imported">インポートしました: %s</string>
+    <string name="already_imported">既にインポート済み: %s</string>
+    <string name="no_import_candidate">インポート候補が見つかりません: %s</string>
+    <string name="formatted">コードをフォーマットしました</string>
+
+    <!-- Problems panel -->
+    <string name="problems_no_problems">問題なし</string>
+    <string name="problems_no_problems_desc">最後のビルドでエラーや警告は報告されませんでした。</string>
+    <string name="problems_copy_problem">問題をコピー</string>
+    <string name="problems_copy_all">すべての問題をコピー</string>
+    <string name="problems_copied">問題をコピーしました</string>
+    <string name="problems_no_location">場所なし</string>
+    <string name="problems_too_many_errors">エラーが多すぎます — 一部は非表示です。一覧のエラーを修正して再ビルドしてください。</string>
+
+    <!-- Layout preview -->
+    <string name="preview_lightweight">軽量プレビュー</string>
+    <string name="preview_jdk21_required">JDK 21 が必要</string>
+    <string name="preview_jdk21_message">XML プレビューには libjli.so と jdk.compiler を備えたフル JDK 21 が必要です。OK を押すとダウンロードし、NO を押すとプレビューをキャンセルします。</string>
+    <string name="preview_jdk21_unavailable">JDK 21 ダウンロード URL を利用できません。</string>
+    <string name="preview_jdk21_started">JDK 21 のダウンロードを開始しました。ダウンロード完了後にプレビューを再度開いてください。</string>
+    <string name="preview_cancelled">JDK 21 がインストールされていないため LayoutLib プレビューがキャンセルされました。</string>
+    <string name="preview_no_widgets">編集可能なウィジェットが見つかりません。</string>
+
+    <!-- Extensions -->
+    <string name="extensions_removed">拡張機能を削除しました</string>
+
+    <!-- Android shell -->
+    <string name="shell_title">Android シェル</string>
+
+    <!-- GitHub OAuth -->
+    <string name="github_oauth_client_id" translatable="false"></string>
+</resources>

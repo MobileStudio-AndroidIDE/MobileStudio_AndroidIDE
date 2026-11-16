@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/ms_background">
+
+    <TextView
+        android:id="@+id/evaluate_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Evaluate Expression"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@color/ms_text_light"
+        android:paddingBottom="12dp"/>
+
+    <AutoCompleteTextView
+        android:id="@+id/evaluate_expression_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter expression (e.g., variable.method())"
+        android:textSize="14sp"
+        android:textColor="@color/ms_text_light"
+        android:background="@drawable/bg_input_dark"
+        android:padding="12dp"
+        android:completionThreshold="0"
+        android:dropDownWidth="match_parent"
+        android:imeOptions="actionDone"/>
+
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/evaluate_result_compose"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_marginTop="16dp"
+        android:background="@color/ms_primary"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:layout_marginTop="16dp"
+        android:paddingTop="8dp">
+
+        <Button
+            android:id="@+id/evaluate_close_btn"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Close"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/evaluate_btn"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Evaluate"/>
+
+    </LinearLayout>
+</LinearLayout>

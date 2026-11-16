@@ -8045,9 +8045,9 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         val spinner = Spinner(this).apply {
             adapter = ArrayAdapter(
                 this@MainActivity,
-                android.R.layout.simple_spinner_item,
+                R.layout.spinner_dark_item,
                 fileTemplateOptions.map { it.label }
-            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            ).also { it.setDropDownViewResource(R.layout.spinner_dark_dropdown_item) }
             setSelection(preferredIndex)
             onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {

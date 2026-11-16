@@ -2099,15 +2099,15 @@ internal class SettingsController(
                                     downloadActive = true
                                     downloadResult = null
                                     host.lifecycleScope.launch {
-                                        withContext(Dispatchers.IO) {
-                                            val result = ClangToolsDownloader.downloadTool(
+                                        val result = withContext(Dispatchers.IO) {
+                                            ClangToolsDownloader.downloadTool(
                                                 url, toolName, host,
                                                 onLog = { msg -> Log.d("ClangDownload", msg) }
                                             )
-                                            downloadResult = if (result != null) "success" else "failed"
-                                            downloadActive = false
-                                            tick++ // refresh path detection
                                         }
+                                        downloadResult = if (result != null) "success" else "failed"
+                                        downloadActive = false
+                                        tick++ // refresh path detection
                                     }
                                 }
                                 if (downloadActive) {
@@ -2132,20 +2132,6 @@ internal class SettingsController(
                 ActionRow("Refresh versions") { tick++ }
             }
             ActionRow("Refresh") { tick++ }
-            SectionRow("Options")
-            if (toolName != null) {
-                CheckRow(
-                    checked = getBool("${binary}_enabled", true),
-                    label = "Enable $title",
-                    desc = "Runs $title during code analysis.",
-                ) { putBool("${binary}_enabled", it) }
-            }
-            FieldRow(
-                label = "Extra arguments:",
-                value = get("${binary}_args", ""),
-                numeric = false,
-                desc = "",
-            ) { put("${binary}_args", it) }
         }
     }
 

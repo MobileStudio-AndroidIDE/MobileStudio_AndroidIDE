@@ -735,9 +735,9 @@ class XmlVisualEditorActivity : AppCompatActivity() {
             setBackgroundColor(if (isDark) "#161B22".toColorInt() else "#E4E7EC".toColorInt())
             adapter = ArrayAdapter(
                 this@XmlVisualEditorActivity,
-                android.R.layout.simple_spinner_item,
+                R.layout.spinner_dark_item,
                 options
-            ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            ).apply { setDropDownViewResource(R.layout.spinner_dark_dropdown_item) }
             val idx = options.indexOfFirst { it == value }.let { if (it < 0) 0 else it }
             setSelection(idx)
             onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -2690,7 +2690,7 @@ class XmlVisualEditorActivity : AppCompatActivity() {
             tag == "Spinner" -> Spinner(this).apply {
                 adapter = ArrayAdapter(
                     this@XmlVisualEditorActivity,
-                    android.R.layout.simple_spinner_item,
+                    R.layout.spinner_dark_item,
                     listOf("Item 1", "Item 2", "Item 3")
                 )
             }

@@ -135,8 +135,8 @@ object NewProjectDialog {
             "Game: C# (MonoGame-style)"
         )
         val spinnerTemplate = Spinner(context).apply {
-            adapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, androidTemplates)
-                .also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            adapter = ArrayAdapter(context, R.layout.spinner_dark_item, androidTemplates)
+                .also { it.setDropDownViewResource(R.layout.spinner_dark_dropdown_item) }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -175,8 +175,8 @@ object NewProjectDialog {
         )
         val minSdkValues = listOf(21, 24, 26, 28, 29, 31, 33)
         val spinnerMinSdk = Spinner(context).apply {
-            adapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, minSdkLabels)
-                .also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            adapter = ArrayAdapter(context, R.layout.spinner_dark_item, minSdkLabels)
+                .also { it.setDropDownViewResource(R.layout.spinner_dark_dropdown_item) }
             setSelection(1)
         }
         androidSection.addView(spinnerMinSdk)

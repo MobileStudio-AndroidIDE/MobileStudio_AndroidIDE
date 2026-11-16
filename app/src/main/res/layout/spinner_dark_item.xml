@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 다크 테마에서 읽기 쉬운 스피너 아이템 레이아웃 (TextAppearance 상속으로 테마 색상 적용) -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/text1"
+    style="?android:attr/spinnerItemStyle"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="marquee"
+    android:singleLine="true"
+    android:padding="12dp"
+    android:textColor="?android:attr/textColorPrimary"
+    android:textSize="16sp" />

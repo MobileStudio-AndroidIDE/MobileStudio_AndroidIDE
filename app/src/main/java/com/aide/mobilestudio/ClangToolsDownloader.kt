@@ -7,6 +7,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Downloads arm64 Android native clang-family tools (clangd, clang-tidy, cling)
@@ -172,7 +173,7 @@ object ClangToolsDownloader {
         onProgress: ((String, Int, Int) -> Unit)? = null,
         onLog: ((String) -> Unit)? = null
     ): Map<String, Boolean> {
-        val results = mutableMapOf<String, Boolean>()
+        val results = ConcurrentHashMap<String, Boolean>()
         val executor = java.util.concurrent.Executors.newFixedThreadPool(3.coerceAtLeast(1))
         val futures = mutableMapOf<String, java.util.concurrent.Future<Boolean>>()
 

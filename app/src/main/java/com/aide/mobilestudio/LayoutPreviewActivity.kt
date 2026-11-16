@@ -1197,9 +1197,9 @@ class LayoutPreviewActivity : AppCompatActivity() {
             low.endsWith("spinner") -> Spinner(this).apply {
                 adapter = ArrayAdapter(
                     this@LayoutPreviewActivity,
-                    android.R.layout.simple_spinner_item,
+                    R.layout.spinner_dark_item,
                     listOf(attrs["text"] ?: "Item 1", "Item 2", "Item 3")
-                )
+                ).also { it.setDropDownViewResource(R.layout.spinner_dark_dropdown_item) }
             }
             low.endsWith("numberpicker") -> NumberPicker(this).apply { minValue = 0; maxValue = 10 }
             low.endsWith("searchview") -> SearchView(this).apply {

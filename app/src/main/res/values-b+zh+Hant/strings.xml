@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileStudio</string>
+
+    <!-- Common actions -->
+    <string name="action_open">打開</string>
+    <string name="action_open_text">打開文本</string>
+    <string name="action_save">儲存</string>
+    <string name="action_save_all">全部儲存</string>
+    <string name="action_delete">刪除</string>
+    <string name="action_rename">重新命名</string>
+    <string name="action_copy">複製</string>
+    <string name="action_copy_path">複製路徑</string>
+    <string name="action_copy_content">複製內容</string>
+    <string name="action_paste">貼上</string>
+    <string name="action_cut">剪下</string>
+    <string name="action_move">移動</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_ok">確定</string>
+    <string name="action_close">關閉</string>
+    <string name="action_create">建立</string>
+    <string name="action_apply">套用</string>
+    <string name="action_edit">編輯</string>
+    <string name="action_search">搜尋</string>
+    <string name="action_replace">替換</string>
+    <string name="action_refresh">重新整理</string>
+    <string name="action_stop">停止</string>
+    <string name="action_install">安裝</string>
+    <string name="action_download">下載</string>
+    <string name="action_build">建置</string>
+    <string name="action_run">執行</string>
+    <string name="action_clear">清除</string>
+    <string name="action_back">回上一頁</string>
+    <string name="action_next">下一步</string>
+    <string name="action_skip">跳過</string>
+    <string name="action_retry">重試</string>
+    <string name="action_settings">設定</string>
+    <string name="action_yes">是</string>
+    <string name="action_no">否</string>
+    <string name="action_use">使用</string>
+    <string name="action_extract">解壓</string>
+    <string name="action_install_apk">安裝 APK</string>
+    <string name="action_run_jar">執行 JAR</string>
+    <string name="action_set_executable">設定執行權限</string>
+    <string name="action_permissions">權限</string>
+    <string name="action_duplicate">複製</string>
+    <string name="action_format">格式化</string>
+    <string name="action_undo">撤銷</string>
+    <string name="action_redo">重做</string>
+
+    <!-- File types -->
+    <string name="file_new_file">新建檔案</string>
+    <string name="file_new_folder">新建資料夾</string>
+    <string name="file_new_project">新建專案</string>
+    <string name="file_open_project">開啟專案</string>
+    <string name="file_folder_name">資料夾名稱</string>
+    <string name="file_file_name">檔名</string>
+    <string name="file_empty">空檔</string>
+
+    <!-- Menu labels -->
+    <string name="menu_file">檔案</string>
+    <string name="menu_edit">編輯</string>
+    <string name="menu_view">檢視</string>
+    <string name="menu_tools">工具</string>
+    <string name="menu_code">程式碼</string>
+    <string name="menu_refactor">重構</string>
+    <string name="menu_run">執行</string>
+    <string name="menu_navigate">導覽</string>
+    <string name="menu_ide">IDE</string>
+
+    <!-- Panel tabs -->
+    <string name="tab_build">建置</string>
+    <string name="tab_output">輸出</string>
+    <string name="tab_logcat">Logcat</string>
+    <string name="tab_problems">問題</string>
+    <string name="tab_search">搜尋</string>
+    <string name="tab_pip">PIP</string>
+    <string name="tab_shell">Shell</string>
+    <string name="tab_preview">預覽</string>
+    <string name="tab_source">原始碼</string>
+    <string name="tab_outline">大綱</string>
+    <string name="tab_project">專案</string>
+    <string name="tab_community">社群</string>
+    <string name="tab_apk">APK</string>
+    <string name="tab_extensions">擴展</string>
+    <string name="tab_explorer">總管</string>
+
+    <!-- Status -->
+    <string name="status_ready">就緒</string>
+    <string name="status_building">建置中…</string>
+    <string name="status_build_stopped">建置已停止</string>
+    <string name="status_saved">已儲存</string>
+    <string name="status_encoding">UTF-8</string>
+    <string name="status_rebuild_needed">需要重新建置</string>
+    <string name="status_synced">已同步</string>
+    <string name="status_sync_failed">同步失敗</string>
+    <string name="status_sync_now">立即同步</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_confirm_delete">確認刪除</string>
+    <string name="dialog_confirm_delete_title">刪除 "%s"？</string>
+    <string name="dialog_cannot_be_undone">此操作無法撤銷。</string>
+    <string name="dialog_confirm_replace_title">替換專案</string>
+    <string name="dialog_confirm_replace_message">MobileStudio/%s 已存在。是否用選取的 /sdcard 專案替換？</string>
+    <string name="dialog_replace">替換</string>
+    <string name="dialog_project_closed_warning">目前開啟的專案將被關閉。是否繼續？</string>
+    <string name="dialog_unsaved_changes">有未儲存的變更</string>
+    <string name="dialog_save_changes">儲存變更？</string>
+    <string name="dialog_discard">捨棄</string>
+    <string name="dialog_select_project">選擇專案</string>
+    <string name="dialog_new_project">新建專案</string>
+    <string name="dialog_new_folder">新建資料夾</string>
+    <string name="dialog_rename">重新命名</string>
+
+    <!-- File tree context menu -->
+    <string name="filetree_new_file_here">在此新建檔案</string>
+    <string name="filetree_new_folder_here">在此新建資料夾</string>
+    <string name="filetree_ask_ai">詢問 AI 關於此檔案</string>
+    <string name="filetree_open">開啟</string>
+    <string name="filetree_rename">重新命名</string>
+    <string name="filetree_duplicate">複製</string>
+    <string name="filetree_delete">刪除</string>
+    <string name="filetree_copy_path">複製路徑</string>
+    <string name="filetree_copy_content">複製內容</string>
+    <string name="filetree_extract_here">在此解壓</string>
+
+    <!-- Toast messages -->
+    <string name="toast_deleted">已刪除</string>
+    <string name="toast_delete_failed">刪除失敗</string>
+    <string name="toast_renamed">已重新命名</string>
+    <string name="toast_rename_failed">重新命名失敗</string>
+    <string name="toast_copied">已複製</string>
+    <string name="toast_path_copied">路徑已複製</string>
+    <string name="toast_content_copied">內容已複製（%d 位元組）</string>
+    <string name="toast_open_file_first">請先開啟檔案</string>
+    <string name="toast_open_project_first">請先開啟專案</string>
+    <string name="toast_no_apk_found">找不到 APK。請先建置。</string>
+    <string name="toast_install_failed">安裝失敗：%s</string>
+    <string name="toast_build_started">建置已開始。請稍候…</string>
+    <string name="toast_build_complete">建置完成</string>
+
+    <!-- Build output -->
+    <string name="build_successful">建置成功</string>
+    <string name="build_failed">建置失敗</string>
+    <string name="build_cancelled">建置已取消</string>
+    <string name="build_cancelled_lower">建置已取消</string>
+    <string name="build_started">建置開始</string>
+    <string name="build_preparing">正在準備建置工具… %d%%</string>
+    <string name="build_stopped">建置停止</string>
+    <string name="build_ignored">建置已忽略：請先開啟專案。</string>
+    <string name="build_no_start">無法啟動建置：%s</string>
+    <string name="build_environment_ready">建置環境已準備就緒！</string>
+    <string name="build_installing_jdk_gradle">正在安裝 JDK 17 + Gradle…（首次執行，約 200MB）</string>
+    <string name="build_jdk_gradle_failed">JDK/Gradle 安裝失敗</string>
+
+    <!-- Editor -->
+    <string name="editor_search_hint">搜尋專案…</string>
+    <string name="editor_command_or_ai_hint">指令或 AI 提示詞</string>
+    <string name="editor_shell_description">系統鍵盤 · 輸入 shell 指令</string>
+
+    <!-- Projects -->
+    <string name="projects_app_name">應用程式名稱</string>
+    <string name="projects_package_name">套件名稱</string>
+    <string name="projects_project_folder">專案資料夾</string>
+    <string name="projects_project_type">專案類型</string>
+    <string name="projects_template">範本</string>
+    <string name="projects_app_name_empty">請輸入應用程式名稱。</string>
+    <string name="projects_app_name_invalid">應用程式名稱包含無效字元。</string>
+    <string name="projects_package_invalid">套件名稱無效。</string>
+    <string name="projects_already_exists">名為 "%s" 的專案已存在。</string>
+    <string name="projects_created">專案已建立：%s</string>
+    <string name="projects_create_failed">專案建立失敗：%s</string>
+
+    <!-- New Project dialog -->
+    <string name="newproject_title">新建專案</string>
+    <string name="newproject_subtitle">在幾個步驟中設定新專案</string>
+    <string name="newproject_app_name_hint">例如: MyApp</string>
+    <string name="newproject_package_name_hint">com.example.</string>
+    <string name="newproject_project_folder_hint">例如: /sdcard/MobileStudio</string>
+    <string name="newproject_save_path_format">%1$s/&lt;ProjectName&gt;</string>
+    <string name="newproject_build_script">建置腳本</string>
+    <string name="newproject_build_dsl_kts">build.gradle.kts</string>
+    <string name="newproject_build_dsl_groovy">build.gradle (Groovy)</string>
+    <string name="newproject_minimum_sdk">最低 SDK</string>
+    <string name="newproject_options">選項</string>
+    <string name="newproject_enable_view_binding">啟用 View Binding</string>
+    <string name="newproject_python_template">Python 腳本 (終端 + pip)</string>
+    <string name="newproject_windows_template">Windows .exe (C - mingw-w64)</string>
+    <string name="newproject_windows_note">使用 工具 &gt; Wine &amp; Box64 &gt; Build .exe 建置，使用 Run .exe 執行</string>
+    <string name="newproject_godot_template">Godot 4.7.2 (project.godot + main.tscn)</string>
+    <string name="newproject_godot_note">按下執行以開啟內建 Godot 編輯器。</string>
+    <string name="newproject_type_android">Android 應用程式</string>
+    <string name="newproject_type_android_desc">基於 Gradle 的 Android 應用程式</string>
+    <string name="newproject_type_java">Java 應用程式</string>
+    <string name="newproject_type_java_desc">獨立 Java 應用程式</string>
+    <string name="newproject_type_kotlin">Kotlin 應用程式</string>
+    <string name="newproject_type_kotlin_desc">獨立 Kotlin 應用程式</string>
+    <string name="newproject_type_exe">EXE / 本機二進制</string>
+    <string name="newproject_type_exe_desc">C++ 本機專案</string>
+    <string name="newproject_type_godot">Godot</string>
+    <string name="newproject_project_type_label">專案類型</string>
+    <string name="newproject_enter_location">請輸入專案位置。</string>
+    <string name="newproject_created_toast">專案已建立：%s</string>
+    <string name="newproject_type_python">Python (Shell)</string>
+    <string name="newproject_type_windows">Windows .exe</string>
+    <string name="newproject_creation_failed_title">專案建立失敗</string>
+    <string name="newproject_path_label">位置</string>
+    <string name="newproject_placeholder_app">MyApplication</string>
+    <string name="newproject_placeholder_folder">專案資料夾</string>
+
+    <!-- Toolchain file explorer -->
+    <string name="explorer_empty">空白或權限被拒絕</string>
+    <string name="explorer_nothing_to_paste">沒有可貼上的項目</string>
+    <string name="explorer_source_gone">來源不再存在</string>
+    <string name="explorer_paste_failed">貼上失敗：%s</string>
+    <string name="explorer_invalid_name">無效的名稱</string>
+    <string name="explorer_already_exists">已存在</string>
+    <string name="explorer_extracted">已解壓到 %s</string>
+    <string name="explorer_extract_failed">解壓失敗：%s</string>
+    <string name="explorer_copy_ready">已複製：%s。開啟資料夾並點擊貼上。</string>
+    <string name="explorer_move_ready">移動準備就緒：%s。開啟資料夾並點擊貼上。</string>
+
+    <!-- Tools activity -->
+    <string name="tools_crash_logs">當機記錄</string>
+    <string name="tools_view_crash">檢視當機</string>
+    <string name="tools_copy_crash">複製當機記錄</string>
+    <string name="tools_clear_crash">清除當機記錄</string>
+    <string name="tools_cache_trimmed">暫存快取已修剪</string>
+    <string name="tools_trim_cache">修剪快取</string>
+    <string name="tools_install_bundled">安裝套件</string>
+    <string name="tools_import_zip">匯入 Android Studio ZIP</string>
+    <string name="tools_install_all">全部安裝</string>
+    <string name="tools_runtime_tools_installing">正在安裝執行時期工具…</string>
+    <string name="tools_runtime_tools_complete">執行時期工具安裝完成</string>
+    <string name="tools_open_folder">開啟資料夾</string>
+    <string name="tools_add">新增</string>
+    <string name="tools_fetch">擷取</string>
+    <string name="tools_save">儲存</string>
+    <string name="tools_delete">刪除</string>
+    <string name="tools_reset_defaults">重設為預設值</string>
+    <string name="tools_connecting">連線中…</string>
+    <string name="tools_versions_loaded">%s：已載入 %d 個版本</string>
+    <string name="tools_update_site_failed">%s 更新網站失敗：%s</string>
+    <string name="tools_preparing">準備中…</string>
+    <string name="tools_language">語言</string>
+    <string name="tools_active_version">啟用：%s</string>
+    <string name="tools_not_installed">未安裝</string>
+    <string name="tools_activate">啟用</string>
+    <string name="tools_activated">已啟用：%s → %s</string>
+    <string name="tools_licenses">授權</string>
+    <string name="tools_sdk_install">SDK 安裝</string>
+    <string name="tools_download_started">下載已開始</string>
+    <string name="tools_download_failed">下載失敗</string>
+    <string name="tools_already_installed">已安裝</string>
+    <string name="tools_custom_url">自訂 URL</string>
+    <string name="tools_manual">手動</string>
+    <string name="tools_manual_install_required">此版本需要手動安裝</string>
+
+    <!-- Boot setup -->
+    <string name="setup_mobile_studio">MobileStudio 設定</string>
+    <string name="setup_welcome">歡迎！設定您的開發環境。</string>
+    <string name="setup_start">開始</string>
+    <string name="setup_open_ide">開啟 IDE</string>
+    <string name="setup_language_korean">한국어</string>
+    <string name="setup_language_korean_desc">Korean language interface</string>
+    <string name="setup_language_english">English</string>
+    <string name="setup_language_english_desc">英語介面</string>
+    <string name="setup_language_japanese">日本語</string>
+    <string name="setup_language_japanese_desc">日語介面</string>
+    <string name="setup_dev_android">Android 應用程式開發</string>
+    <string name="setup_dev_android_desc">使用 Gradle、JDK、SDK、NDK 建置 APK 應用程式</string>
+    <string name="setup_dev_python">Python 開發</string>
+    <string name="setup_dev_python_desc">使用 pip、終端機、AI 代理人進行 Python 腳本開發</string>
+    <string name="setup_dev_both">兩者 (Android + Python)</string>
+    <string name="setup_dev_both_desc">完整環境：Android 工具鏈 + Python</string>
+    <string name="setup_sdk_version">Android SDK 版本</string>
+    <string name="setup_recommended">推薦</string>
+    <string name="setup_jdk_version">JDK 版本</string>
+    <string name="setup_jdk17">JDK 17 (LTS)</string>
+    <string name="setup_jdk17_desc">穩定，與 Android Gradle 外掛廣泛測試</string>
+    <string name="setup_jdk21">JDK 21 (最新)</string>
+    <string name="setup_jdk21_desc">新功能，推薦用於 Gradle 8.5+</string>
+    <string name="setup_gradle_version">Gradle 版本</string>
+
+    <!-- Python -->
+    <string name="python_not_installed">python 未安裝</string>
+    <string name="python_running">Python 執行中</string>
+    <string name="python_finished">Python 已完成</string>
+    <string name="python_failed">Python 失敗</string>
+    <string name="python_no_entry">找不到 Python 進入點檔案。請先建立 main.py。</string>
+
+    <!-- Quick doc / symbols -->
+    <string name="quick_doc">快速文件</string>
+    <string name="rename_symbol">重新命名符號</string>
+    <string name="no_symbol_under_cursor">游標下沒有符號</string>
+    <string name="no_declaration">未找到宣告：%s</string>
+    <string name="no_usages">未找到用法</string>
+    <string name="parameter_hint">參數提示</string>
+    <string name="no_parameter_info">未找到參數資訊。</string>
+    <string name="quick_fix">快速修正</string>
+    <string name="no_quick_fix">此行沒有可用的快速修正</string>
+    <string name="imported">已匯入：%s</string>
+    <string name="already_imported">已匯入：%s</string>
+    <string name="no_import_candidate">未找到匯入候選項：%s</string>
+    <string name="formatted">程式碼已格式化</string>
+
+    <!-- Problems panel -->
+    <string name="problems_no_problems">無問題</string>
+    <string name="problems_no_problems_desc">上次建置未回報錯誤或警告。</string>
+    <string name="problems_copy_problem">複製問題</string>
+    <string name="problems_copy_all">複製所有問題</string>
+    <string name="problems_copied">問題已複製</string>
+    <string name="problems_no_location">無位置</string>
+    <string name="problems_too_many_errors">錯誤過多 — 部分已隱藏。修正列出的錯誤並重新建置。</string>
+
+    <!-- Layout preview -->
+    <string name="preview_lightweight">輕量預覽</string>
+    <string name="preview_jdk21_required">需要 JDK 21</string>
+    <string name="preview_jdk21_message">XML 預覽需要帶有 libjli.so 和 jdk.compiler 的完整 JDK 21。按 OK 下載，或按 NO 取消預覽。</string>
+    <string name="preview_jdk21_unavailable">JDK 21 下載 URL 不可用。</string>
+    <string name="preview_jdk21_started">JDK 21 下載已開始。下載完成後重新開啟預覽。</string>
+    <string name="preview_cancelled">由於未安裝 JDK 21，LayoutLib 預覽已取消。</string>
+    <string name="preview_no_widgets">未找到可編輯的小部件。</string>
+
+    <!-- Extensions -->
+    <string name="extensions_removed">已移除擴展</string>
+
+    <!-- Android shell -->
+    <string name="shell_title">Android Shell</string>
+
+    <!-- GitHub OAuth -->
+    <string name="github_oauth_client_id" translatable="false"></string>
+</resources>
