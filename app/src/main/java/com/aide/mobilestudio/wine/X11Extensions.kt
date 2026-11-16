@@ -319,6 +319,23 @@ class X11Extensions(
                 output.write(reply.array())
                 output.flush()
             }
+            XRender_CREATE_PICTURE -> {
+                // Create a picture from a drawable
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.putInt(buf.getInt(4)) // picture ID echoed back
+                output.write(reply.array())
+                output.flush()
+            }
+            XRender_FREE_PICTURE -> {
+                // Free a picture - no reply needed typically
+            }
+            XRender_COMPOSITE -> {
+                // Composite operation - render source picture onto destination
+                // This is the core of XRender antialiased rendering
+            }
             else -> sendExtensionReply(output, opcode, true)
         }
         return true
