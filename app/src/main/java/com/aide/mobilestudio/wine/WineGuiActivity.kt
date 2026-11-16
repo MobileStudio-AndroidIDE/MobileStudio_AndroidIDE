@@ -125,6 +125,16 @@ class WineGuiActivity : Activity() {
             Log.d("WineGui", "X11 unix socket: ${MiniXServer.X11_UNIX_SOCKET}")
             Log.d("WineGui", "EGL ready: ${server.eglContextManager.isReady()}")
 
+            // Test EGL pbuffer surface creation for hardware acceleration
+            val eglSurface = server.eglContextManager.createPbufferSurface(800, 600)
+            Log.d("WineGui", "EGL pbuffer surface: ${if (eglSurface != null) "created" else "failed"}")
+            if (eglSurface != null) {
+                server.eglContextManager.makeCurrent(eglSurface)
+                Log.d("WineGui", "EGL makeCurrent: ${server.eglContextManager.isReady()}")
+                server.eglContextManager.swapBuffers(eglSurface)
+                Log.d("WineGui", "EGL swapBuffers: ok")
+            }
+
             val exe = exeFile ?: return@Thread
             val env = WindowsExeEnvironment(this)
             if (!env.isInstalled) {
