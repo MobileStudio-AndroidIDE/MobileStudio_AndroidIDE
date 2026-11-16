@@ -274,6 +274,9 @@ class MiniXServer(
     /** X11 extensions handler */
     val x11Extensions = X11Extensions(this)
 
+    /** EGL context manager for hardware-accelerated rendering */
+    val eglContextManager = EGLContextManager(this)
+
     /** The main framebuffer that the UI layer reads and displays. */
     val framebuffer: Bitmap = Bitmap.createBitmap(displayWidth, displayHeight, Bitmap.Config.ARGB_8888)
     private val canvas = Canvas(framebuffer)

@@ -481,11 +481,13 @@ class X11Extensions(
         Log.d(TAG, "GLX minorOpcode=$minorOpcode")
         when (minorOpcode) {
             1 -> {
-                // glXQueryVersion
+                // glXQueryVersion - initialize EGL for hardware acceleration
+                val ready = server.eglContextManager.init()
                 val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
                 reply.put(1); reply.put(0)
                 reply.putShort(server.nextSeq().toShort())
                 reply.putInt(0)
+                reply.put(if (ready) 1 else 0) // supported
                 reply.put(1); reply.put(4) // GLX 1.4
                 output.write(reply.array())
                 output.flush()
