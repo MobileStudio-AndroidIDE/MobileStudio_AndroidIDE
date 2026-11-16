@@ -44,6 +44,8 @@ class X11Extensions(
         const val IDX_GLX = 9
         const val IDX_MITSHM = 10
         const val IDX_XCMISC = 11
+        const val IDX_DRI3 = 12
+        const val IDX_PRESENT = 13
 
         // Extension names
         val EXTENSION_NAMES = listOf(
@@ -61,7 +63,9 @@ class X11Extensions(
             "XShape",
             "Composite",
             "Damage",
-            "GLX"
+            "GLX",
+            "DRI3",
+            "Present"
         )
 
         // XFixes opcodes
@@ -112,6 +116,8 @@ class X11Extensions(
         extBase[IDX_GLX] = nextBase++
         extBase[IDX_MITSHM] = nextBase++
         extBase[IDX_XCMISC] = nextBase++
+        extBase[IDX_DRI3] = nextBase++
+        extBase[IDX_PRESENT] = nextBase++
 
         Log.i(TAG, "Registered ${
             EXTENSION_NAMES.size
@@ -146,6 +152,8 @@ class X11Extensions(
             IDX_GLX -> handleGLX(opcode, minorOpcode, buf, output)
             IDX_MITSHM -> handleMITSHM(opcode, minorOpcode, buf, output)
             IDX_XCMISC -> handleXCMISC(opcode, minorOpcode, buf, output)
+            IDX_DRI3 -> handleDRI3(opcode, minorOpcode, buf, output)
+            IDX_PRESENT -> handlePresent(opcode, minorOpcode, buf, output)
             else -> false
         }
     }
@@ -481,6 +489,81 @@ class X11Extensions(
                 reply.put(1); reply.put(4) // GLX 1.4
                 output.write(reply.array())
                 output.flush()
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
+        return true
+    }
+
+    // =====================================================================
+    // DRI3 extension - Direct Rendering Infrastructure 3
+    // Provides buffer sharing between clients and direct rendering
+    // =====================================================================
+
+    private fun handleDRI3(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "DRI3 minorOpcode=$minorOpcode")
+        when (minorOpcode) {
+            0 -> { // DRI3 QueryVersion
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(1); reply.put(0) // version 1.0
+                output.write(reply.array())
+                output.flush()
+            }
+            1 -> { // DRI3 OpenConnection - Open a rendering connection to a drawable
+                sendExtensionReply(output, opcode, true)
+            }
+            2 -> { // DRI3 CreatePixmapFromBuffer - Create a pixmap from a buffer
+                sendExtensionReply(output, opcode, true)
+            }
+            3 -> { // DRI3 BufferFromPixmap - Get buffer info from pixmap
+                sendExtensionReply(output, opcode, true)
+            }
+            4 -> { // DRI3 FenceFromFD - Create fence from file descriptor
+                sendExtensionReply(output, opcode, true)
+            }
+            5 -> { // DRI3 FDFromFence - Get file descriptor from fence
+                sendExtensionReply(output, opcode, true)
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
+        return true
+    }
+
+    // =====================================================================
+    // Present extension - Present windows to screen with timing
+    // Provides VBlank-synchronized presentation for smooth rendering
+    // =====================================================================
+
+    private fun handlePresent(
+        opcode: Int,
+        minorOpcode: Int,
+        buf: ByteBuffer,
+        output: java.io.DataOutputStream
+    ): Boolean {
+        Log.d(TAG, "Present minorOpcode=$minorOpcode")
+        when (minorOpcode) {
+            0 -> { // Present QueryVersion
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(1); reply.put(1) // version 1.1
+                output.write(reply.array())
+                output.flush()
+            }
+            1 -> { // Present Create Pixmap
+                sendExtensionReply(output, opcode, true)
+            }
+            2 -> { // Present Present Pixmap - Present window contents to screen
+                sendExtensionReply(output, opcode, true)
             }
             else -> sendExtensionReply(output, opcode, true)
         }
