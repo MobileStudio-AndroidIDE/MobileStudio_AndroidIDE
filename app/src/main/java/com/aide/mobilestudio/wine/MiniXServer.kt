@@ -847,6 +847,15 @@ class MiniXServer(
         // Mark dirty region for UI refresh optimization
         dirtyRects.add(DirtyRect(dstX.coerceAtLeast(0), dstY.coerceAtLeast(0),
             (dstX + width).coerceAtMost(displayWidth), (dstY + height).coerceAtMost(displayHeight)))
+
+        // Hardware-accelerated presentation via EGL
+        if (eglContextManager.isReady()) {
+            val surface = eglSurfaceToDrawable.values.firstOrNull()
+            if (surface != null) {
+                eglContextManager.makeCurrent(surface)
+                eglContextManager.swapBuffers(surface)
+            }
+        }
     }
 
     private fun handleCopyArea(buf: ByteBuffer) {
