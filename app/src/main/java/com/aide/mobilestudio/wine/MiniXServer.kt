@@ -883,6 +883,15 @@ class MiniXServer(
         }
         dirtyRects.add(DirtyRect(dstX.coerceAtLeast(0), dstY.coerceAtLeast(0),
             (dstX + w).coerceAtMost(displayWidth), (dstY + h).coerceAtMost(displayHeight)))
+
+        // Hardware-accelerated presentation via EGL
+        if (eglContextManager.isReady()) {
+            val surface = drawableToEglSurface[dstId]
+            if (surface != null) {
+                eglContextManager.makeCurrent(surface)
+                eglContextManager.swapBuffers(surface)
+            }
+        }
     }
 
     private fun handlePolyFillRectangle(buf: ByteBuffer) {
