@@ -571,6 +571,9 @@ class MiniXServer(
         sb.putInt(0x00FF0000); sb.putInt(0x0000FF00); sb.putInt(0x000000FF)
         sb.putInt(0) // unused
 
+        // Initialize EGL for hardware-accelerated rendering
+        eglContextManager.init()
+
         output.write(sb.array(), 0, sb.position())
         output.flush()
         return true
