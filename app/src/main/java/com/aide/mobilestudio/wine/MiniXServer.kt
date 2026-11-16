@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.opengl.EGLSurface
 import android.util.Log
 import android.net.LocalServerSocket
 import android.net.LocalSocket
@@ -276,6 +277,12 @@ class MiniXServer(
 
     /** EGL context manager for hardware-accelerated rendering */
     val eglContextManager = EGLContextManager(this)
+
+    /** Maps EGLSurface objects to X11 drawable IDs for GLX rendering */
+    val eglSurfaceToDrawable = ConcurrentHashMap<EGLSurface, Int>()
+
+    /** Maps X11 drawable IDs to EGLSurface objects */
+    val drawableToEglSurface = ConcurrentHashMap<Int, EGLSurface>()
 
     /** The main framebuffer that the UI layer reads and displays. */
     val framebuffer: Bitmap = Bitmap.createBitmap(displayWidth, displayHeight, Bitmap.Config.ARGB_8888)
