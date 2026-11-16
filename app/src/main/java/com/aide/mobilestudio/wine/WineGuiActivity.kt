@@ -64,6 +64,27 @@ class WineGuiActivity : Activity() {
         }
         root.addView(surfaceView)
 
+        // Forward touch events to X11 server for Wine input
+        surfaceView.setOnTouchListener { _, event ->
+            val x = event.x.toInt()
+            val y = event.y.toInt()
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    xServer?.injectPointerEvent(4, x, y, 1) // ButtonPress, button 1
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP -> {
+                    xServer?.injectPointerEvent(5, x, y, 1) // ButtonRelease, button 1
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    xServer?.injectPointerEvent(6, x, y, 0) // MotionNotify
+                    true
+                }
+                else -> false
+            }
+        }
+
         // Periodically render X framebuffer to SurfaceView canvas
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
         val updater = object : Runnable {
