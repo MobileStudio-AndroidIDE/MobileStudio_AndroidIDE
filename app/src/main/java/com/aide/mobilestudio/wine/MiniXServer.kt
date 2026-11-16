@@ -850,7 +850,7 @@ class MiniXServer(
 
         // Hardware-accelerated presentation via EGL
         if (eglContextManager.isReady()) {
-            val surface = eglSurfaceToDrawable.values.firstOrNull()
+            val surface = drawableToEglSurface[drawableId]
             if (surface != null) {
                 eglContextManager.makeCurrent(surface)
                 eglContextManager.swapBuffers(surface)
