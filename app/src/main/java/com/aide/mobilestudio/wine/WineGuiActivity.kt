@@ -165,6 +165,7 @@ class WineGuiActivity : Activity() {
     }
 
     override fun onDestroy() {
+        server.eglContextManager.release()
         xServer?.stop()
         super.onDestroy()
     }
