@@ -223,13 +223,29 @@ class X11Extensions(
     ): Boolean {
         Log.d(TAG, "XRandR minorOpcode=$minorOpcode")
         when (minorOpcode) {
-            0 -> {
-                // QueryVersion - return version 1.5
+            XRandR_QUERY_VERSION -> {
                 val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
                 reply.put(1); reply.put(0)
                 reply.putShort(server.nextSeq().toShort())
                 reply.putInt(0)
-                reply.put(1); reply.put(5) // major, minor version
+                reply.put(1); reply.put(6) // version 1.6
+                output.write(reply.array())
+                output.flush()
+            }
+            XRandR_GET_SCREEN_RESOURCES -> {
+                // Return screen resources with current mode
+                val reply = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(8) // length
+                reply.putInt(server.rootWindowId) // root window
+                reply.putInt(0) // timestamp
+                reply.putInt(1) // number of CRTCs
+                reply.putInt(1) // number of outputs
+                reply.putInt(1) // number of modes
+                reply.putInt(server.displayWidth) // current mode width
+                reply.putInt(server.displayHeight) // current mode height
+                reply.putInt(60) // dot clock (kHz)
                 output.write(reply.array())
                 output.flush()
             }
