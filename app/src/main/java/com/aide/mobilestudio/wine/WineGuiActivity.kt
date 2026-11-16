@@ -51,23 +51,35 @@ class WineGuiActivity : Activity() {
         val root = FrameLayout(this).apply {
             setBackgroundColor(StudioUi.palette.bg)
         }
-        val imageView = android.widget.ImageView(this).apply {
+        val surfaceView = android.view.SurfaceView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
-            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: android.view.SurfaceHolder) {}
+                override fun surfaceChanged(holder: android.view.SurfaceHolder, format: Int, width: Int, height: Int) {}
+                override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {}
+            })
         }
-        root.addView(imageView)
+        root.addView(surfaceView)
 
-        // Periodically copy the X framebuffer to the ImageView
+        // Periodically render X framebuffer to SurfaceView canvas
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
         val updater = object : Runnable {
             override fun run() {
-                server.framebuffer.let { fb ->
-                    imageView.setImageBitmap(fb)
+                val holder = surfaceView.holder
+                if (!holder.isCreating && holder.surface.isValid) {
+                    val canvas = holder.lockCanvas()
+                    if (canvas != null) {
+                        try {
+                            canvas.drawBitmap(server.framebuffer, 0f, 0f, null)
+                        } finally {
+                            holder.unlockCanvasAndPost(canvas)
+                        }
+                    }
                 }
-                if (!isFinishing) handler.postDelayed(this, 100)
+                if (!isFinishing) handler.postDelayed(this, 16) // ~60 FPS
             }
         }
         handler.post(updater)
