@@ -435,7 +435,19 @@ class X11Extensions(
         output: java.io.DataOutputStream
     ): Boolean {
         Log.d(TAG, "GLX minorOpcode=$minorOpcode")
-        sendExtensionReply(output, opcode, true)
+        when (minorOpcode) {
+            1 -> {
+                // glXQueryVersion
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(1); reply.put(4) // GLX 1.4
+                output.write(reply.array())
+                output.flush()
+            }
+            else -> sendExtensionReply(output, opcode, true)
+        }
         return true
     }
 
