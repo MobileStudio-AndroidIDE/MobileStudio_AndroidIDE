@@ -532,6 +532,11 @@ class X11Extensions(
                     sendExtensionError(output, opcode, minorOpcode)
                 }
             }
+            6 -> {
+                // glXDestroyContext - destroy GLX context
+                server.eglContextManager.release()
+                sendExtensionReply(output, opcode, true)
+            }
             12 -> {
                 // glXSwapBuffers - present rendered content to screen
                 server.eglContextManager.swapBuffers(null)
