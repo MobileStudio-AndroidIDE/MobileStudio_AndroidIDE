@@ -7,4 +7,9 @@
     <locale android:name="zh-Hant"/>
     <locale android:name="ar"/>
     <locale android:name="fr"/>
+    <locale android:name="de"/>
+    <locale android:name="it"/>
+    <locale android:name="pt"/>
+    <locale android:name="ru"/>
+    <locale android:name="es"/>
 </locale-config>

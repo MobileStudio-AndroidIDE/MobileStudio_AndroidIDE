@@ -53,8 +53,8 @@ class Win64ManagerActivity : AppCompatActivity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-    private fun t(enResId: Int, koText: String): String =
-        if (AppLanguage.isKorean(this)) koText else AppLanguage.string(this, enResId)
+    private fun t(ko: String, en: String = ko): String =
+        if (AppLanguage.isKorean(this)) ko else en
 
     private fun buildUi(): View {
         val p = StudioUi.palette

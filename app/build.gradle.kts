@@ -20,7 +20,7 @@ android {
         multiDexEnabled = true
         missingDimensionStrategy("products", "editor")
         manifestPlaceholders["godotLibraryVersion"] = "4.7.2.stable"
-        resConfigs("en", "ko", "ja", "b+zh+Hans", "b+zh+Hant", "ar", "fr")
+        resConfigs("en", "ko", "ja", "b+zh+Hans", "b+zh+Hant", "ar", "fr", "de", "it", "pt", "ru", "es")
 
         ndk {
             abiFilters += listOf("arm64-v8a")
