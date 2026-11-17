@@ -20,11 +20,15 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,8 +36,11 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -42,9 +49,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -851,7 +860,11 @@ private fun BuildLogPane(lines: List<StudioLogLine>) {
 private fun TerminalPane(activity: MainActivity) {
     val ide = LocalIdeColors.current
     var shellProcess by remember { mutableStateOf<java.lang.Process?>(null) }
-    val outputState = remember { mutableStateOf<String>("") }
+    var terminalText by remember { mutableStateOf("") }
+    var draftInput by remember { mutableStateOf("") }
+
+    val scrollState = rememberScrollState()
+    val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         val pb = java.lang.ProcessBuilder("/system/bin/sh")
@@ -864,63 +877,72 @@ private fun TerminalPane(activity: MainActivity) {
             while (proc.isAlive) {
                 val line = reader.readLine()
                 if (line == null) break
-                withContext(Dispatchers.Main) { outputState.value = outputState.value + (line ?: "") + "\n" }
+                withContext(Dispatchers.Main) { terminalText = terminalText + (line ?: "") + "\n" }
             }
         }
     }
 
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    LaunchedEffect(terminalText) {
+        if (scrollState.maxValue > 0) scrollState.scrollTo(scrollState.maxValue)
+    }
+
+    fun sendCommand() {
+        val cmd = draftInput.trim()
+        if (cmd.isEmpty()) {
+            draftInput = ""
+            return
+        }
+        draftInput = ""
+        terminalText = terminalText + cmd + "\n"
+        val proc = shellProcess ?: return
+        try {
+            val os = proc.outputStream
+            os.write((cmd + "\n").toByteArray(Charset.forName("UTF-8")))
+            os.flush()
+        } catch (_: Exception) { }
+        focusRequester.requestFocus()
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(Color(ide.p.editorBg))) {
-        Text(
-            text = outputState.value,
-            color = ide.synStr,
-            style = IdeMono.terminal,
+        Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(10.dp)
-                .verticalScroll(rememberScrollState()),
-        )
-        IdeDivider()
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(ide.p.surface))
-                .padding(horizontal = 10.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .verticalScroll(scrollState)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            Text(text = "$ ", color = ide.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            AndroidView(
-                modifier = Modifier.weight(1f),
-                factory = { ctx ->
-                    EditText(ctx).apply {
-                        hint = "Type a command..."
-                        setTextColor(ide.p.editorText)
-                        setHintTextColor(ide.p.muted)
-                        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f)
-                        typeface = android.graphics.Typeface.MONOSPACE
-                        setBackgroundColor(ide.p.editorBg)
-                        setSingleLine(true)
-                        setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEND)
-                    }
-                },
-                update = { view: android.widget.EditText ->
-                    view.setOnEditorActionListener { _, actionId, _ ->
-                        if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
-                            val cmd = view.text.toString()
-                            if (cmd.isNotEmpty()) {
-                                activity.studioScope.launch(Dispatchers.IO) {
-                                    shellProcess?.outputStream?.also { os ->
-                                        os.write((cmd + "\n").toByteArray(Charset.forName("UTF-8")))
-                                        os.flush()
-                                    }
-                                }
-                                view.setText("")
-                            }
-                            true
-                        } else false
-                    }
-                },
-            )
+            if (terminalText.isNotEmpty()) {
+                Text(
+                    text = terminalText,
+                    color = ide.synStr,
+                    style = IdeMono.terminal,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = "$ ",
+                    color = ide.accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                )
+                BasicTextField(
+                    value = draftInput,
+                    onValueChange = { draftInput = it },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { sendCommand() }),
+                    cursorBrush = SolidColor(ide.accent),
+                    textStyle = IdeMono.terminal,
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(Color.Transparent),
+                )
+            }
         }
     }
 }
