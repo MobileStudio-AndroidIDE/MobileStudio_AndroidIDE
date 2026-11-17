@@ -507,8 +507,8 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
             realtimeCompiler = com.aide.mobilestudio.analysis.RealtimeCompiler(this),
             onAutoCompileLine = { line, level ->
                 runOnUiThread {
-                    buildOutput.appendLine(line, level)
-                    buildMonitor.onLine(line, level)
+                    buildOutput?.appendLine(line, level)
+                    buildMonitor?.onLine(line, level)
                 }
             },
             onProblemsUpdated = { problems ->
@@ -518,16 +518,16 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
                 val errCount = problems.count { it.severity == BuildProblem.Severity.ERROR }
                 val warnCount = problems.count { it.severity == BuildProblem.Severity.WARNING }
                 runOnUiThread {
-                    badgeErrors.text = if (errCount > 0) " \u2716 $errCount " else ""
-                    badgeErrors.visibility = if (errCount > 0) View.VISIBLE else View.GONE
-                    badgeWarnings.text = if (warnCount > 0) " \u26A0 $warnCount " else ""
-                    badgeWarnings.visibility = if (warnCount > 0) View.VISIBLE else View.GONE
-                    tvStatusRight.text = ""
+                    badgeErrors?.text = if (errCount > 0) " \u2716 $errCount " else ""
+                    badgeErrors?.visibility = if (errCount > 0) View.VISIBLE else View.GONE
+                    badgeWarnings?.text = if (warnCount > 0) " \u26A0 $warnCount " else ""
+                    badgeWarnings?.visibility = if (warnCount > 0) View.VISIBLE else View.GONE
+                    tvStatusRight?.text = ""
                 }
             },
             onBuildState = { state ->
                 runOnUiThread {
-                    buildProgress.visibility = if (state == BuildScheduler.State.BUILDING)
+                    buildProgress?.visibility = if (state == BuildScheduler.State.BUILDING)
                         View.VISIBLE else View.GONE
                     when (state) {
                         BuildScheduler.State.BUILDING -> setStatus("Compiling...")
@@ -7771,8 +7771,10 @@ Long press: Toggle Shell panel"""
         gradleSyncNeeded = currentProjectKind != ProjectKind.GODOT
         checkProjectUpdates()
 
-        tvStatusRight.text = if (currentProjectKind == ProjectKind.GODOT) "Godot" else "Sync Now"
-        tvStatusRight.setTextColor(StudioUi.color(if (currentProjectKind == ProjectKind.GODOT) "#61AFEF" else StudioUi.Amber))
+        if (::tvStatusRight.isInitialized) {
+            tvStatusRight.text = if (currentProjectKind == ProjectKind.GODOT) "Godot" else "Sync Now"
+            tvStatusRight.setTextColor(StudioUi.color(if (currentProjectKind == ProjectKind.GODOT) "#61AFEF" else StudioUi.Amber))
+        }
 
         // Live edit: watch project files.
         fileWatcher?.stop()
@@ -7792,6 +7794,9 @@ Long press: Toggle Shell panel"""
             buildScheduler.attachTo(fileWatcher!!, targetDir)
             scheduleInitialProjectDiagnostics(targetDir)
         }
+        
+        // Start real-time analysis engine (standalone Kotlin/Java compiler)
+        analysisEngine?.stopAll()
 
         // Start real-time analysis engine (standalone Kotlin/Java compiler)
         analysisEngine?.stopAll()
@@ -7817,7 +7822,7 @@ Long press: Toggle Shell panel"""
                             // while the compiler ran), the line/column spans
                             // would land on the wrong text — drop the result
                             // instead of painting stale squiggles.
-                            val editorText = codeEditor.text?.toString()
+                            val editorText = if (::codeEditor.isInitialized) codeEditor.text?.toString() else null
                             if (source != editorText) return@runOnUiThread
                             liveErrors = diagnostics.map { diag ->
                                 BuildProblem(
@@ -7842,7 +7847,7 @@ Long press: Toggle Shell panel"""
 
                 override fun onAnalysisStarted(file: java.io.File) {
                     runOnUiThread {
-                        if (file == currentFile) {
+                        if (file == currentFile && ::tvStatusRight.isInitialized) {
                             tvStatusRight.text = "Analyzing..."
                             tvStatusRight.setTextColor(StudioUi.color(StudioUi.Amber))
                         }
@@ -7851,7 +7856,7 @@ Long press: Toggle Shell panel"""
 
                 override fun onAnalysisFinished(file: java.io.File) {
                     runOnUiThread {
-                        if (file == currentFile) {
+                        if (file == currentFile && ::tvStatusRight.isInitialized) {
                             val summary = analysisEngine?.getDiagnosticsForFile(file).orEmpty()
                             val errCount = summary.count { it.severity == com.aide.mobilestudio.analysis.DiagnosticSeverity.ERROR }
                             val warnCount = summary.count { it.severity == com.aide.mobilestudio.analysis.DiagnosticSeverity.WARNING }
@@ -8754,6 +8759,7 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
      */
     private fun updateInlineDiagnostics(diagnostics: List<com.aide.mobilestudio.analysis.Diagnostic>, source: String) {
         currentDiagnostics = diagnostics
+        if (!::codeEditor.isInitialized) return
         val editor = codeEditor
         val text = editor.text?.toString() ?: return
         if (diagnostics.isEmpty()) {
