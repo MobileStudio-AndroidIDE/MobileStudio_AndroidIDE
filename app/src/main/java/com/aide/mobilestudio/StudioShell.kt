@@ -748,6 +748,13 @@ private fun EditorPane(
                         val ep: MutableList<EditorProblem> = host.studioEditorProblems
                         ep.clear()
                         ep.addAll(newProblems)
+                        
+                        // Pass real-time compiler diagnostics to editor gutter markers
+                        val editorView = EditorPaneState.editor
+                        if (editorView != null) {
+                            val errorLineSet = errors.map { it.line }.toSet()
+                            editorView.setDiagnostics(errorLineSet, emptySet())
+                        }
                     }
                     addTextChangedListener(object : android.text.TextWatcher {
                         override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}

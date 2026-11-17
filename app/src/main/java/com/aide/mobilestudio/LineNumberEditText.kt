@@ -122,6 +122,17 @@ class LineNumberEditText @JvmOverloads constructor(
     private var highlightedLine = -1
     var autoPairEdit = false
 
+    /** Lines with compiler errors (for real-time inline diagnostics). */
+    var errorLines = setOf<Int>()
+    /** Lines with compiler warnings. */
+    var warningLines = setOf<Int>()
+
+    fun setDiagnostics(errors: Set<Int>, warnings: Set<Int>) {
+        errorLines = errors
+        warningLines = warnings
+        postInvalidateOnAnimation()
+    }
+
     data class InlayHint(val offset: Int, val text: String)
     data class CodeLens(val line: Int, val text: String)
 
@@ -832,6 +843,7 @@ class LineNumberEditText @JvmOverloads constructor(
         val firstLine = lyt.getLineForVertical(scrollY)
         val lastLine  = lyt.getLineForVertical(scrollY + height)
         numPaint.textSize = textSize * 0.85f
+        val markerRadius = (4 * resources.displayMetrics.density).toFloat()
         for (i in firstLine..lastLine) {
             val baseline = lyt.getLineBaseline(i).toFloat() + paddingTop
             val lineNum  = (i + 1).toString()
@@ -839,6 +851,17 @@ class LineNumberEditText @JvmOverloads constructor(
             // wide numbers are never clipped at the left screen edge
             val x = ((scrollX + gutterWidth) - numPaint.measureText(lineNum) - (8 * resources.displayMetrics.density))
                 .coerceAtLeast(scrollX + (6 * resources.displayMetrics.density))
+            
+            // Draw real-time compiler diagnostic markers in the gutter
+            val lineNumber = i + 1
+            if (lineNumber in errorLines) {
+                numPaint.color = StudioUi.palette.error
+                canvas.drawCircle(x - markerRadius - 2f, baseline - 6f, markerRadius, numPaint)
+            } else if (lineNumber in warningLines) {
+                numPaint.color = StudioUi.palette.warning
+                canvas.drawCircle(x - markerRadius - 2f, baseline - 6f, markerRadius, numPaint)
+            }
+            
             numPaint.color = if (i == cursorLine) StudioUi.palette.textSoft else StudioUi.palette.gutterText
             canvas.drawText(lineNum, x, baseline, numPaint)
         }
