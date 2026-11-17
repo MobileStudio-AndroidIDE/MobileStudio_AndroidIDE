@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CountDownLatch
@@ -306,6 +307,79 @@ object DownloadCenter {
 
     fun dismiss() {
         state.value = null
+    }
+
+    // =====================================================================
+    // Tool install by name (e.g. "tool install clangd")
+    // =====================================================================
+
+    /** Map of installable tool names to their GitHub release asset names. */
+    val INSTALLABLE_TOOLS = mapOf(
+        "clangd" to "clangd-android-arm64.tar.gz",
+        "clang-tidy" to "clang-tidy-android-arm64.tar.gz",
+        "clang" to "clang-android-arm64.tar.gz",
+        "lld" to "lld-android-arm64.tar.gz",
+        "cling" to "cling-android-arm64.tar.gz",
+    )
+
+    /**
+     * Install a tool by name from the GitHub release.
+     * Shows a download confirmation dialog when UI is attached, otherwise
+     * auto-approves (headless/legacy flows).
+     */
+    fun installTool(
+        toolName: String,
+        context: android.content.Context,
+        onResult: (Boolean) -> Unit = {},
+    ) {
+        val assetName = INSTALLABLE_TOOLS[toolName] ?: run {
+            state.value = state.value?.copy(
+                status = Status.FAILED,
+                message = "Unknown tool: $toolName"
+            )
+            onResult(false)
+            return
+        }
+        val url = "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/v0.1.0-cling-port/$assetName"
+        val targetDir = File(context.filesDir, "toolchain/clang-tools")
+        targetDir.mkdirs()
+        val archive = File(targetDir, "${toolName}.tar.gz.part")
+        val fileName = when (toolName) {
+            "clangd" -> "clangd"
+            "clang-tidy" -> "clang-tidy"
+            "clang" -> "clang"
+            "lld" -> "lld"
+            "cling" -> "cling"
+            else -> toolName
+        }
+
+        val totalBytes = probeContentLength(url)
+        if (!confirm("Install $toolName", url, targetDir.absolutePath, fileName, totalBytes)) {
+            state.value = state.value?.copy(status = Status.CANCELLED, message = "Install cancelled")
+            onResult(false)
+            return
+        }
+
+        begin("Install $toolName", url, targetDir.absolutePath, fileName, totalBytes)
+
+        context.mainExecutor?.execute {
+            try {
+                ClangToolsDownloader.downloadTool(
+                    url,
+                    toolName,
+                    context,
+                    onProgress = { _, _ -> },
+                    onLog = { msg ->
+                        stage(msg)
+                    },
+                )
+                done("$toolName installed")
+                onResult(true)
+            } catch (e: Exception) {
+                fail(e.message ?: "Install failed")
+                onResult(false)
+            }
+        }
     }
 
     private fun resetSpeed() {

@@ -389,6 +389,25 @@ class MiniXServer(
 
     /** The currently focused window (for keyboard input routing). */
     var focusedWindowId: Int = 0
+
+    // =====================================================================
+    // Cursor state (XFixes)
+    // =====================================================================
+
+    /** Whether the cursor is currently visible. */
+    var cursorVisible: Boolean = true
+
+    /** Current cursor image (ARGB_8888, 32x32), null if using default. */
+    var cursorImage: ByteArray? = null
+
+    /** Cursor hotspot X. */
+    var cursorHotX: Int = 0
+
+    /** Cursor hotspot Y. */
+    var cursorHotY: Int = 0
+
+    /** Current cursor serial (incremented on change). */
+    var cursorSerial: Int = 0
         private set
 
     /** Callback when the framebuffer changes. */

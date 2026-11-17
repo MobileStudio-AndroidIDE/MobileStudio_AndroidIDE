@@ -918,6 +918,49 @@ private fun TerminalPane(activity: MainActivity) {
         if (scrollState.maxValue > 0) scrollState.scrollTo(scrollState.maxValue)
     }
 
+    // --- Built-in tool commands (not sent to /system/bin/sh) ---
+    // Returns true if the command was handled here.
+    fun handleBuiltinCommand(cmd: String): Boolean {
+        if (cmd.startsWith("tool install ")) {
+            val toolName = cmd.substringAfter("tool install ").trim()
+            terminalText = terminalText + "$ $cmd\n"
+            DownloadCenter.installTool(toolName, activity) { success ->
+                terminalText = terminalText + (if (success) "[OK] $toolName installed\n" else "[FAIL] $toolName install failed\n")
+            }
+            focusRequester.requestFocus()
+            return true
+        }
+
+        // <toolName> --version  or  <toolName> -version
+        val versionMatch = Regex("^(java|clang|clangd|clang-tidy|lld|cling)(?: --version| -version)\\s*$").find(cmd)
+        if (versionMatch != null) {
+            val toolName = versionMatch.groupValues[1]
+            terminalText = terminalText + "$ $cmd\n"
+            activity.studioScope.launch(Dispatchers.IO) {
+                val result = NativeToolRunner.runToolVersion(toolName)
+                withContext(Dispatchers.Main) {
+                    terminalText = terminalText + result + (if (result.endsWith("\n")) "" else "\n")
+                }
+            }
+            focusRequester.requestFocus()
+            return true
+        }
+
+        return false
+    }
+
+    fun sendQuickCommand(cmd: String) {
+        if (handleBuiltinCommand(cmd)) return
+        terminalText = terminalText + "$ $cmd\n"
+        val proc = shellProcess ?: return
+        try {
+            val os = proc.outputStream
+            os.write((cmd + "\n").toByteArray(Charset.forName("UTF-8")))
+            os.flush()
+        } catch (_: Exception) { }
+        focusRequester.requestFocus()
+    }
+
     fun sendCommand() {
         val cmd = draftInput.trim()
         if (cmd.isEmpty()) {
@@ -925,7 +968,10 @@ private fun TerminalPane(activity: MainActivity) {
             return
         }
         draftInput = ""
-        terminalText = terminalText + cmd + "\n"
+
+        if (handleBuiltinCommand(cmd)) return
+
+        terminalText = terminalText + "$ $cmd\n"
         val proc = shellProcess ?: return
         try {
             val os = proc.outputStream
@@ -936,6 +982,27 @@ private fun TerminalPane(activity: MainActivity) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(ide.p.editorBg))) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+                .background(Color(ide.p.surface))
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            QuickCommandChip(label = "pwd", cmd = "pwd", onClick = { sendQuickCommand("pwd") })
+            QuickCommandChip(label = "ls", cmd = "ls -la", onClick = { sendQuickCommand("ls -la") })
+            QuickCommandChip(label = "whoami", cmd = "whoami", onClick = { sendQuickCommand("whoami") })
+            QuickCommandChip(label = "java", cmd = "java --version", onClick = { sendQuickCommand("java --version") })
+            QuickCommandChip(label = "gradle", cmd = "gradle --version", onClick = { sendQuickCommand("gradle --version") })
+            QuickCommandChip(label = "clang", cmd = "clang --version", onClick = { sendQuickCommand("clang --version") })
+            QuickCommandChip(label = "clangd", cmd = "clangd --version", onClick = { sendQuickCommand("clangd --version") })
+            QuickCommandChip(label = "cling", cmd = "cling --version", onClick = { sendQuickCommand("cling --version") })
+            QuickCommandChip(label = "lld", cmd = "lld --version", onClick = { sendQuickCommand("lld --version") })
+            QuickCommandChip(label = "python", cmd = "python --version", onClick = { sendQuickCommand("python --version") })
+        }
+        IdeDivider()
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -974,6 +1041,31 @@ private fun TerminalPane(activity: MainActivity) {
                 )
             }
         }
+    }
+}
+
+/** Chip button that sends a quick command to the terminal. */
+@Composable
+private fun QuickCommandChip(
+    label: String,
+    cmd: String,
+    onClick: () -> Unit,
+) {
+    val ide = LocalIdeColors.current
+    Box(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .background(Color(ide.p.surface2), RoundedCornerShape(6.dp))
+            .border(0.5.dp, ide.border, RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = IdeMono.path,
+            color = ide.text,
+            fontSize = 10.sp,
+        )
     }
 }
 

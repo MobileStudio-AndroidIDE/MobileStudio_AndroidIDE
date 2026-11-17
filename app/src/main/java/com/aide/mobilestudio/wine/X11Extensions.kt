@@ -72,6 +72,10 @@ class X11Extensions(
         const val XFixes_CURSOR_IMAGE = 0
         const val XFixes_CURSOR_NAME = 1
         const val XFixes_CURSOR_IMAGE_SIZE = 32
+        const val XFixes_SELECT_CURSOR_IMAGE_NOTIFY = 2
+        const val XFixes_GET_CURSOR_IMAGE = 3
+        const val XFixes_HIDE_CURSOR = 4
+        const val XFixes_SHOW_CURSOR = 5
 
         // XRender opcodes
         const val XRender_QUERY_VERSION = 0
@@ -296,18 +300,54 @@ class X11Extensions(
     ): Boolean {
         Log.d(TAG, "XFixes minorOpcode=$minorOpcode")
         when (minorOpcode) {
+            XFixes_GET_CURSOR_IMAGE -> {
+                // XFixesGetCursorImage: return current cursor image
+                val server = this.server
+                val img = server.cursorImage
+                val w = if (img != null) XFixes_CURSOR_IMAGE_SIZE else 0
+                val h = if (img != null) XFixes_CURSOR_IMAGE_SIZE else 0
+                // Reply size: 32 (header) + w*h*4 (cursor image data)
+                val dataSize = w * h * 4
+                val reply = ByteBuffer.allocate(32 + dataSize).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt((8 + dataSize / 4).toInt()) // length in 4-byte units
+                reply.putInt(w) // width
+                reply.putInt(h) // height
+                reply.putInt(server.cursorHotX) // xhot
+                reply.putInt(server.cursorHotY) // yhot
+                reply.putInt(server.cursorSerial) // cursor serial
+                if (img != null) {
+                    reply.put(img)
+                }
+                output.write(reply.array())
+                output.flush()
+            }
+            XFixes_HIDE_CURSOR -> {
+                this.server.cursorVisible = false
+                sendExtensionReply(output, opcode, true)
+            }
+            XFixes_SHOW_CURSOR -> {
+                this.server.cursorVisible = true
+                sendExtensionReply(output, opcode, true)
+            }
+            XFixes_SELECT_CURSOR_IMAGE_NOTIFY -> {
+                // Enable/disable cursor image change notifications
+                sendExtensionReply(output, opcode, true)
+            }
             XFixes_CURSOR_IMAGE -> {
-                // Return cursor image for Wine cursor rendering
-                val reply = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN)
+                // Legacy: return cursor image info
+                val server = this.server
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
                 reply.put(1); reply.put(0)
                 reply.putShort(server.nextSeq().toShort())
                 reply.putInt(8) // length in 4-byte units
                 reply.putInt(XFixes_CURSOR_IMAGE_SIZE) // width
                 reply.putInt(XFixes_CURSOR_IMAGE_SIZE) // height
-                reply.putInt(0) // xhot
-                reply.putInt(0) // yhot
-                reply.putInt(0) // cursor serial
-                reply.putInt(0) // cursor image data (empty)
+                reply.putInt(server.cursorHotX) // xhot
+                reply.putInt(server.cursorHotY) // yhot
+                reply.putInt(server.cursorSerial) // cursor serial
+                reply.putInt(0) // cursor image data (empty placeholder)
                 output.write(reply.array())
                 output.flush()
             }
