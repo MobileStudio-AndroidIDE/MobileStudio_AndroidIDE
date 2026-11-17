@@ -269,6 +269,24 @@ class MiniXServer(
         var shape: Int = 0,
         var hotX: Int = 0,
         var hotY: Int = 0,
+        var image: ByteArray? = null,
+    )
+
+    /** XRender Picture state for antialiased rendering. */
+    data class XRenderPicture(
+        val id: Int,
+        var drawableId: Int = 0,
+        var format: Int = 0,
+        var repeat: Boolean = false,
+        var alpha: Float = 1.0f,
+    )
+
+    /** XInput2 device state for device hierarchy enumeration. */
+    data class XInputDevice(
+        val id: Int,
+        var type: Int = 0, // 3=master pointer, 4=master keyboard, 5=slave pointer, 6=slave keyboard
+        var name: String = "unknown",
+        var enabled: Boolean = true,
     )
 
     // =====================================================================
@@ -378,6 +396,12 @@ class MiniXServer(
     val cursors = ConcurrentHashMap<Int, XCursor>()
     val properties = ConcurrentHashMap<Int, ConcurrentHashMap<String, ByteArray>>()
 
+    // XRender Picture state
+    val pictures = ConcurrentHashMap<Int, XRenderPicture>()
+
+    // XInput2 device state
+    val inputDevices = ConcurrentHashMap<Int, XInputDevice>()
+
     var rootWindowId: Int = 0
         private set
 
@@ -408,7 +432,6 @@ class MiniXServer(
 
     /** Current cursor serial (incremented on change). */
     var cursorSerial: Int = 0
-        private set
 
     /** Callback when the framebuffer changes. */
     var onFrameChanged: (() -> Unit)? = null
@@ -882,6 +905,9 @@ class MiniXServer(
         if (windows.containsKey(drawableId)) return framebuffer
         return framebuffer
     }
+
+    /** Public wrapper so extensions (e.g. XRender) can read target bitmaps. */
+    fun targetBitmapForDrawable(drawableId: Int): Bitmap? = getTargetBitmap(drawableId)
 
     private fun applyClip(gc: XGC?, canvas: Canvas, block: () -> Unit) {
         if (gc?.clipEnabled == true) {

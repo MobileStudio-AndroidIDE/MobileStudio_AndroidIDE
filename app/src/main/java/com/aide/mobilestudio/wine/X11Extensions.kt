@@ -47,6 +47,11 @@ class X11Extensions(
         const val IDX_DRI3 = 12
         const val IDX_PRESENT = 13
 
+        // XInput2 minor opcodes
+        const val XI_QUERY_VERSION = 0
+        const val XI_DEVICE_CHANGED_NOTIFY = 1
+        const val XI_LIST_DEVICES = 2
+
         // Extension names
         val EXTENSION_NAMES = listOf(
             "BIG-REQUESTS",
@@ -68,14 +73,36 @@ class X11Extensions(
             "Present"
         )
 
-        // XFixes opcodes
-        const val XFixes_CURSOR_IMAGE = 0
-        const val XFixes_CURSOR_NAME = 1
+        // XFixes opcodes (requests)
+        const val XFixes_QUERY_VERSION = 0
+        const val XFixes_CREATE_REGION = 1
+        const val XFixes_CREATE_REGION_FROM_BITMAP = 2
+        const val XFixes_CREATE_REGION_FROM_WINDOW = 3
+        const val XFixes_CREATE_REGION_FROM_GC = 4
+        const val XFixes_CREATE_REGION_FROM_PICTURE = 5
+        const val XFixes_DESTROY_REGION = 6
+        const val XFixes_SET_REGION = 7
+        const val XFixes_COPY_REGION = 8
+        const val XFixes_UNION_REGION = 9
+        const val XFixes_INTERSECT_REGION = 10
+        const val XFixes_SUBTRACT_REGION = 11
+        const val XFixes_INVERT_REGION = 12
+        const val XFixes_TRANSLATE_REGION = 13
+        const val XFixes_REGION_EXTENTS = 14
+        const val XFixes_FETCH_REGION = 15
+        const val XFixes_SET_GC_CLIP_REGION = 16
+        const val XFixes_SET_WINDOW_CLIP_REGION = 17
+        const val XFixes_SET_PICTURE_CLIP_REGION = 18
+        const val XFixes_SET_CURSOR = 19
+        const val XFixes_SET_CURSOR_NAME = 20
+        const val XFixes_GET_CURSOR_IMAGE = 21
+        const val XFixes_GET_CURSOR_NAME_AND_IMAGE = 22
+        const val XFixes_SET_CURSOR_IMAGE = 23
         const val XFixes_CURSOR_IMAGE_SIZE = 32
-        const val XFixes_SELECT_CURSOR_IMAGE_NOTIFY = 2
-        const val XFixes_GET_CURSOR_IMAGE = 3
-        const val XFixes_HIDE_CURSOR = 4
-        const val XFixes_SHOW_CURSOR = 5
+
+        // XFixes events
+        const val XFixes_CURSOR_NOTIFY = 0
+        const val XFixes_REGION_NOTIFY = 1
 
         // XRender opcodes
         const val XRender_QUERY_VERSION = 0
@@ -206,9 +233,50 @@ class X11Extensions(
     ): Boolean {
         Log.d(TAG, "XInput2 minorOpcode=$minorOpcode")
         when (minorOpcode) {
-            // XInput2 core opcodes
-            0 -> sendExtensionReply(output, opcode, true) // QueryVersion
-            1 -> sendExtensionReply(output, opcode, true) // DeviceChangedNotify
+            XI_QUERY_VERSION -> { // 0
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(2); reply.put(3) // version 2.3
+                output.write(reply.array())
+                output.flush()
+            }
+            XI_DEVICE_CHANGED_NOTIFY -> { // 1
+                sendExtensionReply(output, opcode, true)
+            }
+            XI_LIST_DEVICES -> { // 2 - List input devices (master/slave pointer/keyboard)
+                val serverRef = this.server
+                val devices = if (serverRef.inputDevices.isEmpty()) {
+                    // Register default devices if none exist
+                    serverRef.inputDevices[1] = MiniXServer.XInputDevice(1, 3, "Virtual core pointer", true)
+                    serverRef.inputDevices[2] = MiniXServer.XInputDevice(2, 4, "Virtual core keyboard", true)
+                    serverRef.inputDevices[3] = MiniXServer.XInputDevice(3, 5, "Virtual core XTEST pointer", true)
+                    serverRef.inputDevices[4] = MiniXServer.XInputDevice(4, 6, "Virtual core XTEST keyboard", true)
+                    serverRef.inputDevices
+                } else {
+                    serverRef.inputDevices
+                }
+                val reply = ByteBuffer.allocate(32 + devices.size * 24).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(devices.size.toByte()) // success, num devices
+                reply.putShort(serverRef.nextSeq().toShort())
+                reply.putInt(devices.size * 6) // length in 4-byte units
+                for ((id, dev) in devices) {
+                    reply.putInt(id.toInt()) // deviceid
+                    reply.put(dev.type.toByte()) // type
+                    reply.put(0) // flags
+                    reply.putShort(0.toShort()) // num_classes
+                    reply.putShort(0.toShort()) // num scroll
+                    reply.put(0); reply.put(0) // padding
+                    // Device name (null-terminated, padded to 4 bytes)
+                    val nameBytes = dev.name.toByteArray()
+                    val padded = (nameBytes.size + 3) / 4 * 4
+                    reply.put(nameBytes)
+                    repeat(padded - nameBytes.size) { reply.put(0) }
+                }
+                output.write(reply.array(), 0, reply.position())
+                output.flush()
+            }
             else -> sendExtensionReply(output, opcode, true)
         }
         return true
@@ -292,6 +360,10 @@ class X11Extensions(
     // XFixes extension
     // =====================================================================
 
+    // =====================================================================
+    // XFixes extension
+    // =====================================================================
+
     private fun handleXFixes(
         opcode: Int,
         minorOpcode: Int,
@@ -300,58 +372,80 @@ class X11Extensions(
     ): Boolean {
         Log.d(TAG, "XFixes minorOpcode=$minorOpcode")
         when (minorOpcode) {
+            XFixes_QUERY_VERSION -> {
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.put(1); reply.put(5) // version 1.5
+                output.write(reply.array())
+                output.flush()
+            }
             XFixes_GET_CURSOR_IMAGE -> {
-                // XFixesGetCursorImage: return current cursor image
-                val server = this.server
-                val img = server.cursorImage
+                // XFixesGetCursorImage: return current cursor image (21)
+                val serverRef = this.server
+                val img = serverRef.cursorImage
                 val w = if (img != null) XFixes_CURSOR_IMAGE_SIZE else 0
                 val h = if (img != null) XFixes_CURSOR_IMAGE_SIZE else 0
-                // Reply size: 32 (header) + w*h*4 (cursor image data)
                 val dataSize = w * h * 4
                 val reply = ByteBuffer.allocate(32 + dataSize).order(ByteOrder.LITTLE_ENDIAN)
                 reply.put(1); reply.put(0)
-                reply.putShort(server.nextSeq().toShort())
+                reply.putShort(serverRef.nextSeq().toShort())
                 reply.putInt((8 + dataSize / 4).toInt()) // length in 4-byte units
                 reply.putInt(w) // width
                 reply.putInt(h) // height
-                reply.putInt(server.cursorHotX) // xhot
-                reply.putInt(server.cursorHotY) // yhot
-                reply.putInt(server.cursorSerial) // cursor serial
+                reply.putInt(serverRef.cursorHotX) // xhot
+                reply.putInt(serverRef.cursorHotY) // yhot
+                reply.putInt(serverRef.cursorSerial) // cursor serial
                 if (img != null) {
                     reply.put(img)
                 }
                 output.write(reply.array())
                 output.flush()
             }
-            XFixes_HIDE_CURSOR -> {
-                this.server.cursorVisible = false
+            XFixes_SET_CURSOR_IMAGE -> {
+                // XFixesSetCursorImage: Wine sets a new cursor image (23)
+                // Request format: [1 byte major opcode][1 byte minor opcode]
+                // [2 bytes sequence][4 bytes length][4 bytes cursor id]
+                // [4 bytes xhot][4 bytes yhot][4 bytes width][4 bytes height]
+                // [4 bytes cursor serial][w*h*4 bytes ARGB image data]
+                val serverRef = this.server
+                val cursorId = buf.getInt(4)
+                val xhot = buf.getInt(8).toInt()
+                val yhot = buf.getInt(12).toInt()
+                val width = buf.getInt(16).toInt()
+                val height = buf.getInt(20).toInt()
+                val serial = buf.getInt(24).toInt()
+
+                val dataSize = width * height * 4
+                val imgData = if (dataSize > 0 && buf.remaining() >= dataSize) {
+                    val data = ByteArray(dataSize)
+                    buf.get(data)
+                    data
+                } else {
+                    null
+                }
+
+                serverRef.cursorImage = imgData
+                serverRef.cursorHotX = xhot
+                serverRef.cursorHotY = yhot
+                serverRef.cursorSerial = serial
+
+                Log.d(TAG, "Cursor image set: id=$cursorId ${width}x${height} hot=($xhot,$yhot) serial=$serial")
                 sendExtensionReply(output, opcode, true)
             }
-            XFixes_SHOW_CURSOR -> {
-                this.server.cursorVisible = true
+            XFixes_SET_CURSOR -> {
+                // XFixesSetCursor: set cursor for a window (19)
                 sendExtensionReply(output, opcode, true)
             }
-            XFixes_SELECT_CURSOR_IMAGE_NOTIFY -> {
-                // Enable/disable cursor image change notifications
+            XFixes_SET_CURSOR_NAME -> {
+                // XFixesSetCursorName: set cursor name (20)
                 sendExtensionReply(output, opcode, true)
             }
-            XFixes_CURSOR_IMAGE -> {
-                // Legacy: return cursor image info
-                val server = this.server
-                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
-                reply.put(1); reply.put(0)
-                reply.putShort(server.nextSeq().toShort())
-                reply.putInt(8) // length in 4-byte units
-                reply.putInt(XFixes_CURSOR_IMAGE_SIZE) // width
-                reply.putInt(XFixes_CURSOR_IMAGE_SIZE) // height
-                reply.putInt(server.cursorHotX) // xhot
-                reply.putInt(server.cursorHotY) // yhot
-                reply.putInt(server.cursorSerial) // cursor serial
-                reply.putInt(0) // cursor image data (empty placeholder)
-                output.write(reply.array())
-                output.flush()
+            else -> {
+                // Region operations (1-17) and others: reply success
+                sendExtensionReply(output, opcode, true)
             }
-            else -> sendExtensionReply(output, opcode, true)
         }
         return true
     }
@@ -500,8 +594,70 @@ class X11Extensions(
                 // Free a picture - no reply needed typically
             }
             XRender_COMPOSITE -> {
-                // Composite operation - render source picture onto destination
-                // This is the core of XRender antialiased rendering
+                // Composite operation: render source picture onto destination.
+                // This is the core of XRender antialiased text/picture rendering.
+                try {
+                    val op = buf.get().toInt() and 0xFF
+                    buf.getShort() // src x
+                    buf.getShort() // src y
+                    val srcX = buf.getShort().toInt()
+                    val srcY = buf.getShort().toInt()
+                    val maskX = buf.getShort().toInt()
+                    val maskY = buf.getShort().toInt()
+                    val dstX = buf.getShort().toInt()
+                    val dstY = buf.getShort().toInt()
+                    val width = buf.getShort().toInt() and 0xFFFF
+                    val height = buf.getShort().toInt() and 0xFFFF
+
+                    val srcId = buf.getInt()
+                    val maskId = buf.getInt()
+                    val dstId = buf.getInt()
+
+                    val serverRef = this.server
+                    val srcPic = serverRef.pictures[srcId]
+                    val dstPic = serverRef.pictures[dstId]
+                    val target = if (dstPic != null) {
+                        serverRef.targetBitmapForDrawable(dstPic.drawableId)
+                    } else {
+                        serverRef.framebuffer
+                    }
+
+                    if (target != null && width > 0 && height > 0) {
+                        // Simple Src copy from source picture's drawable
+                        if (srcPic != null) {
+                            val srcBmp = serverRef.targetBitmapForDrawable(srcPic.drawableId)
+                            if (srcBmp != null) {
+                                val canvas = android.graphics.Canvas(target)
+                                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+                                when (op) {
+                                    1 -> { // PictOp.Src
+                                        paint.xfermode = null
+                                        canvas.drawBitmap(srcBmp, srcX.toFloat(), srcY.toFloat(), paint)
+                                    }
+                                    3 -> { // PictOp.Over
+                                        paint.xfermode = null
+                                        canvas.drawBitmap(srcBmp, srcX.toFloat(), srcY.toFloat(), paint)
+                                    }
+                                    else -> { // Default: Src
+                                        paint.xfermode = null
+                                        canvas.drawBitmap(srcBmp, srcX.toFloat(), srcY.toFloat(), paint)
+                                    }
+                                }
+                                serverRef.dirtyRects.add(
+                                    MiniXServer.DirtyRect(
+                                        dstX.coerceAtLeast(0),
+                                        dstY.coerceAtLeast(0),
+                                        (dstX + width).coerceAtMost(serverRef.displayWidth),
+                                        (dstY + height).coerceAtMost(serverRef.displayHeight),
+                                    )
+                                )
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    // Ignore parse errors; keep server alive
+                }
+                sendExtensionReply(output, opcode, true)
             }
             else -> sendExtensionReply(output, opcode, true)
         }
