@@ -9,6 +9,8 @@ import android.widget.Button
 import android.widget.ListView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.aide.mobilestudio.AppLanguage
+import com.aide.mobilestudio.R
 
 /**
  * Logcat Tool Window - logcat tool window.
@@ -41,7 +43,7 @@ class LogcatToolWindow(
 
         // Header
         val titleTv = TextView(host)
-        titleTv.text = "Logcat"
+        titleTv.text = AppLanguage.string(host, R.string.tab_logcat)
         titleTv.textSize = 18f
         titleTv.setPadding(16, 16, 16, 8)
         layout.addView(titleTv)
@@ -52,7 +54,7 @@ class LogcatToolWindow(
         btnRow.setPadding(16, 8, 16, 8)
 
         val clearBtn = Button(host)
-        clearBtn.text = "Clear"
+        clearBtn.text = AppLanguage.string(host, R.string.action_clear)
         clearBtn.setOnClickListener {
             collector.clearLogs()
             adapter.notifyDataSetChanged()
