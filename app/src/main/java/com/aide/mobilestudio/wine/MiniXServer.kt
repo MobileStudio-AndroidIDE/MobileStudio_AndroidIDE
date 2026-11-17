@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import com.aide.mobilestudio.NativeHardwareBuffer
 
 /**
  * Embedded X11 server for Wine — no external app required.
@@ -596,14 +597,21 @@ class MiniXServer(
 
     /**
      * Get the file descriptor for the hardware buffer of [drawableId].
-     * Real fd export requires native code (AHardwareBuffer_getFd via JNI);
-     * this returns -1 until that is implemented.
+     * Uses JNI (libdri3_fd_export.so) to call AHardwareBuffer_getNativeHandle
+     * and extract fds[0] for DRI3 buffer sharing via SCM_RIGHTS.
      */
     fun getHardwareBufferFd(drawableId: Int): Int {
         hardwareBuffers[drawableId]?.let { info ->
             if (info.fd != -1) return info.fd
+            // Export fd via JNI from the AHardwareBuffer object
+            val fd = NativeHardwareBuffer.exportFd(info.buffer)
+            if (fd != -1) {
+                hardwareBuffers[drawableId] = info.copy(fd = fd)
+                Log.d(TAG, "Exported fd=$fd for drawable $drawableId via JNI")
+                return fd
+            }
         }
-        Log.w(TAG, "Hardware buffer fd not available for drawable $drawableId (native fd export not yet implemented)")
+        Log.w(TAG, "Hardware buffer fd not available for drawable $drawableId")
         return -1
     }
 
@@ -631,6 +639,9 @@ class MiniXServer(
 
         // Initialize EGL context manager for hardware acceleration
         MiniXServer.eglContextManager = EGLContextManager(this)
+
+        // Load DRI3 fd export native library for hardware buffer sharing
+        NativeHardwareBuffer.load()
 
         // Initialize clipboard manager from Android context
         context?.let { ctx ->

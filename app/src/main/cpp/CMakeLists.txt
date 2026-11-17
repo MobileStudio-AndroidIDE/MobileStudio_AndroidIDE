@@ -301,6 +301,12 @@ target_compile_options(terminal_pty PRIVATE -std=c11 -D_GNU_SOURCE -O2 -Wall)
 target_link_libraries(terminal_pty log)
 mobilestudio_enable_16kb_pages(terminal_pty)
 
+# --- dri3_fd_export (DRI3 buffer fd export for X11/Wine buffer sharing) ---
+add_library(dri3_fd_export SHARED dri3_fd_export.c)
+target_compile_options(dri3_fd_export PRIVATE -std=c11 -D_GNU_SOURCE -O2 -Wall)
+target_link_libraries(dri3_fd_export log dl)
+mobilestudio_enable_16kb_pages(dri3_fd_export)
+
 add_custom_command(TARGET fork_loader POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:fork_loader>" "$<TARGET_FILE_DIR:fork_loader>/libfork_loader.so"
     COMMENT "Copying fork_loader as libfork_loader.so for native lib packaging")
@@ -385,6 +391,6 @@ add_custom_command(TARGET lua POST_BUILD
     COMMENT "Packaging lua as liblua.so (arm64-v8a)")
 
 # Enable 16KB pages for all targets
-foreach(target mobilestudio gradle_exec java_launcher exec_redirect aapt2_launcher aapt2_daemon_proxy jdk_tool_proxy cwd_fix fork_loader thread_stub ai_inference terminal_pty tool_clang_launcher tool_java_launcher tool_ninja_launcher llama_android virtual_runtime mobilestudio_jli lua_game llama_runtime_jni)
+foreach(target mobilestudio gradle_exec java_launcher exec_redirect aapt2_launcher aapt2_daemon_proxy jdk_tool_proxy cwd_fix fork_loader thread_stub ai_inference terminal_pty tool_clang_launcher tool_java_launcher tool_ninja_launcher llama_android virtual_runtime mobilestudio_jli lua_game llama_runtime_jni dri3_fd_export)
     mobilestudio_enable_16kb_pages(${target})
 endforeach()
