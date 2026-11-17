@@ -2617,6 +2617,7 @@ Long press: Toggle Shell panel"""
             }
         }
         appendChildren(root, 0)
+        if (!::fileAdapter.isInitialized) return
         fileAdapter.setAllItems(items.toList())
         fileAdapter.updateItems(items)
         updateDrawerPath()
@@ -2650,6 +2651,7 @@ Long press: Toggle Shell panel"""
     }
 
     private fun toggleFolder(item: FileItem) {
+        if (!::fileAdapter.isInitialized) return
         val idx = fileAdapter.items.indexOf(item)
         if (idx < 0) return
         val newItems = fileAdapter.items.toMutableList()
@@ -3928,6 +3930,7 @@ Long press: Toggle Shell panel"""
                 rescheduleLiveDiagnostics()
             }
         }
+        if (!::fileAdapter.isInitialized) return
         fileAdapter.notifyDataSetChanged()
         showToast("Renamed in $changed file(s)")
     }
