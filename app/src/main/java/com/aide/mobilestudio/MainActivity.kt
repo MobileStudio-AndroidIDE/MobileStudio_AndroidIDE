@@ -2337,7 +2337,7 @@ Long press: Toggle Shell panel"""
     private fun updatePreviewButtonVisibility() {
         val file = currentFile
         if (file?.extension?.lowercase() == "xml") {
-            findViewById<ImageButton>(R.id.btn_preview).visibility = View.VISIBLE
+            findViewById<ImageButton>(R.id.btn_preview)?.visibility = View.VISIBLE
             return
         }
         if (file?.extension?.lowercase() == "kt") {
@@ -2345,13 +2345,13 @@ Long press: Toggle Shell panel"""
                 val hasPreview = runCatching { file.readText().contains("@Preview") }.getOrDefault(false)
                 if (currentFile == file) {
                     withContext(Dispatchers.Main) {
-                        findViewById<ImageButton>(R.id.btn_preview).visibility = if (hasPreview) View.VISIBLE else View.GONE
+                        findViewById<ImageButton>(R.id.btn_preview)?.visibility = if (hasPreview) View.VISIBLE else View.GONE
                     }
                 }
             }
             return
         }
-        findViewById<ImageButton>(R.id.btn_preview).visibility = View.GONE
+        findViewById<ImageButton>(R.id.btn_preview)?.visibility = View.GONE
     }
 
     private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
@@ -2437,7 +2437,7 @@ Long press: Toggle Shell panel"""
             projects.firstOrNull { it.absolutePath == path }
         } + projects).distinctBy { it.absolutePath }
         val show = ordered.isNotEmpty()
-        findViewById<TextView>(R.id.recent_label).visibility = if (show) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.recent_label)?.visibility = if (show) View.VISIBLE else View.GONE
         rv.visibility = if (show) View.VISIBLE else View.GONE
         rv.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             override fun onCreateViewHolder(parent: ViewGroup, vt: Int) =
