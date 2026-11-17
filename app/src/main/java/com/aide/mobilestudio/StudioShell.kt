@@ -584,7 +584,36 @@ private fun EditorPane(
             )
         }
         IdeDivider()
-        AndroidView(
+        if (host.studioTabs.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(ide.window),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Welcome to MobileStudio",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = ide.text,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Open a project or create a new file to start coding.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ide.textSoft,
+                        modifier = Modifier.padding(horizontal = 32.dp),
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IdeAction(text = "New File", onClick = { showNewFileDialog(activity) }, primary = true)
+                        IdeAction(text = "Open Project", onClick = onOpenProject)
+                    }
+                }
+            }
+        } else {
+            AndroidView(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
@@ -638,6 +667,7 @@ private fun EditorPane(
                 }
             },
         )
+        }
     }
 }
 
