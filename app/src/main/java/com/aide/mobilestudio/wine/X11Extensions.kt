@@ -28,8 +28,8 @@ class X11Extensions(
         var extBase = IntArray(8) { 0 }
 
         // Extension event/error bases
-        var extEventBase = IntArray(8) { 0 }
-        var extErrorBase = IntArray(8) { 0 }
+        var extEventBase = IntArray(14) { 0 }
+        var extErrorBase = IntArray(14) { 0 }
 
         // Extension indices
         const val IDX_BIG_REQUESTS = 0
@@ -158,9 +158,13 @@ class X11Extensions(
         extBase[IDX_DRI3] = nextBase++
         extBase[IDX_PRESENT] = nextBase++
 
-        Log.i(TAG, "Registered ${
-            EXTENSION_NAMES.size
-        } X11 extensions")
+        // Assign event bases for extensions that generate events (XFixes, etc.)
+        extEventBase[IDX_XFIXES] = nextBase++
+        extEventBase[IDX_XINPUT] = nextBase++
+        extEventBase[IDX_XRANDR] = nextBase++
+        extEventBase[IDX_XDAMAGE] = nextBase++
+
+        Log.i(TAG, "Registered ${EXTENSION_NAMES.size} X11 extensions")
     }
 
     // =====================================================================
@@ -441,6 +445,8 @@ class X11Extensions(
 
                 Log.d(TAG, "Cursor image set: id=$cursorId ${width}x${height} hot=($xhot,$yhot) serial=$serial")
                 sendExtensionReply(output, opcode, true)
+                // Notify all connected clients (including Wine) of the cursor image change
+                serverRef.broadcastCursorEvent()
             }
             XFixes_SET_CURSOR -> {
                 // XFixesSetCursor: set cursor for a window (19)
@@ -786,24 +792,28 @@ class X11Extensions(
                 val height = buf.getInt(16)
                 val stride = buf.getInt(20)
                 val format = buf.getInt(24)
-                // fd at offset 28 would be passed via SCM_RIGHTS on Unix sockets;
-                // here we record the buffer metadata for sharing.
+                // Allocate an AHardwareBuffer for DRI3 buffer sharing with Wine/GLX
+                val hwInfo = server.allocHardwareBuffer(drawableId, width, height, format)
+                // Also record the DRI3 metadata buffer
                 server.createDri3Buffer(drawableId, width, height, stride, format)
-                Log.d(TAG, "DRI3 CreatePixmapFromBuffer: pixmap=$pixmapId drawable=$drawableId ${width}x${height} stride=$stride fmt=$format")
+                // Create an EGLImage so GLX can render directly into the hardware buffer
+                if (hwInfo != null) {
+                    server.createEglImageForHardwareBuffer(drawableId)
+                }
+                Log.d(TAG, "DRI3 CreatePixmapFromBuffer: pixmap=$pixmapId drawable=$drawableId ${width}x${height} stride=$stride fmt=$format hwBuffer=${hwInfo != null}")
                 sendExtensionReply(output, opcode, true)
             }
             DRI3_BufferFromPixmap -> { // 3 - Get buffer fd from pixmap
                 val pixmapId = buf.getInt(4)
-                // Look up any drawable associated with this pixmap id
                 val info = server.dri3Buffers.values.firstOrNull { it.drawableId == pixmapId }
                     ?: server.dri3Buffers.values.firstOrNull()
-                val fd = if (info != null) 1 else -1 // dummy fd; real fd passed via SCM_RIGHTS
+                val fd = if (info != null) server.getHardwareBufferFd(info.drawableId) else -1
                 val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
                 reply.put(if (info != null) 1 else 0) // success
                 reply.put(0)
                 reply.putShort(server.nextSeq().toShort())
                 reply.putInt(0)
-                reply.putInt(fd) // buffer fd
+                reply.putInt(fd) // buffer fd (real fd via native fd export when implemented)
                 output.write(reply.array())
                 output.flush()
             }

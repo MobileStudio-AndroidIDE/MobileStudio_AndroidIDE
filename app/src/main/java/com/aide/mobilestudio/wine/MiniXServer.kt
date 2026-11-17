@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.opengl.EGL14
 import android.opengl.EGLSurface
 import android.util.Log
 import android.net.LocalServerSocket
@@ -517,7 +518,93 @@ class MiniXServer(
     /** Remove the DRI3 buffer for [drawableId]. */
     fun removeDri3Buffer(drawableId: Int) {
         dri3Buffers.remove(drawableId)
+        hardwareBuffers.remove(drawableId)
         Log.d(TAG, "DRI3 buffer removed for drawable $drawableId")
+    }
+
+    // =====================================================================
+    // AHardwareBuffer hardware buffer management (DRI3 buffer sharing)
+    // =====================================================================
+
+    /** Maps X11 drawable ID to allocated AHardwareBuffer info. */
+    val hardwareBuffers = ConcurrentHashMap<Int, HardwareBufferInfo>()
+
+    /** Hardware buffer info backing a DRI3 drawable. */
+    data class HardwareBufferInfo(
+        val drawableId: Int,
+        val buffer: Any?, // android.hardware.buffer.AHardwareBuffer instance (loaded reflectively)
+        val width: Int,
+        val height: Int,
+        val stride: Int,
+        val format: Int,
+        var fd: Int = -1, // File descriptor for buffer sharing (set by native code if available)
+        var eglImage: Long = 0L, // EGLImageKHR handle for EGL interop
+    )
+
+    /**
+     * Allocate an AHardwareBuffer for [drawableId] and record it in [hardwareBuffers].
+     * This is the Android side of DRI3 buffer sharing: Wine can later import this
+     * buffer via the fd (when native fd export is implemented) or via EGLImage.
+     * Uses reflection to load android.hardware.buffer.AHardwareBuffer at runtime to
+     * avoid compile-time dependency issues on restricted modules.
+     */
+    fun allocHardwareBuffer(
+        drawableId: Int,
+        width: Int,
+        height: Int,
+        format: Int = 1, // RGBA_8888
+        usage: Long = 0x00000001L or 0x00000008L, // GRAPHICS_RENDERER | HW_COMPOSER
+    ): HardwareBufferInfo? {
+        val buffer = try {
+            val bufferClass = Class.forName("android.hardware.buffer.AHardwareBuffer")
+            val allocMethod = bufferClass.getMethod(
+                "allocate", Int::class.java, Int::class.java, Int::class.java,
+                Int::class.java, Long::class.java,
+            )
+            allocMethod.invoke(null, width, height, format, 1, usage)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to allocate AHardwareBuffer via reflection for drawable $drawableId", e)
+            null
+        }
+        if (buffer == null) return null
+
+        val info = HardwareBufferInfo(drawableId, buffer, width, height, width * 4, format)
+        hardwareBuffers[drawableId] = info
+        Log.d(TAG, "Allocated AHardwareBuffer for drawable $drawableId: ${width}x${height} fmt=$format")
+        return info
+    }
+
+    /** Get the [HardwareBufferInfo] for [drawableId]. */
+    fun getHardwareBuffer(drawableId: Int): HardwareBufferInfo? = hardwareBuffers[drawableId]
+
+    /**
+     * Create an EGLImageKHR from the AHardwareBuffer for [drawableId], enabling
+     * EGL/GLX rendering directly into the Android hardware buffer.
+     */
+    fun createEglImageForHardwareBuffer(drawableId: Int): Long {
+        val info = hardwareBuffers[drawableId] ?: return 0L
+        if (info.buffer == null) return 0L
+        if (info.eglImage != 0L) return info.eglImage
+
+        val eglImage = eglContextManager.createImageFromHardwareBuffer(info.buffer!!)
+        if (eglImage == 0L) return 0L
+
+        hardwareBuffers[drawableId] = info.copy(eglImage = eglImage)
+        Log.d(TAG, "Created EGLImage for drawable $drawableId: image=$eglImage")
+        return eglImage
+    }
+
+    /**
+     * Get the file descriptor for the hardware buffer of [drawableId].
+     * Real fd export requires native code (AHardwareBuffer_getFd via JNI);
+     * this returns -1 until that is implemented.
+     */
+    fun getHardwareBufferFd(drawableId: Int): Int {
+        hardwareBuffers[drawableId]?.let { info ->
+            if (info.fd != -1) return info.fd
+        }
+        Log.w(TAG, "Hardware buffer fd not available for drawable $drawableId (native fd export not yet implemented)")
+        return -1
     }
 
     /** Clipboard manager for Android integration. */
@@ -636,6 +723,42 @@ class MiniXServer(
 
     /** Returns the DISPLAY string clients should use. */
     fun getDisplayString(): String = DISPLAY_STRING
+
+    // =====================================================================
+    // XFixes cursor event broadcasting (for Wine cursor image change notifications)
+    // =====================================================================
+
+    /**
+     * Broadcasts an XFixes CursorNotify event to all connected X clients.
+     * Called when Wine sets a new cursor image via XFixesSetCursorImage.
+     */
+    fun broadcastCursorEvent() {
+        val eventBase = X11Extensions.extEventBase.getOrNull(X11Extensions.IDX_XFIXES) ?: 0
+        val eventCode = (eventBase + X11Extensions.XFixes_CURSOR_NOTIFY).toByte()
+
+        val event = ByteBuffer.allocate(36).order(ByteOrder.LITTLE_ENDIAN)
+        event.put(eventCode)
+        event.put(0) // sub-code
+        event.putShort(nextSeq().toShort())
+        event.putInt(0) // timestamp
+        event.putInt(0) // cursor id
+        event.putInt(0) // name atom
+        event.putInt(cursorSerial) // cursor serial
+        event.putShort(cursorX.toShort()); event.putShort(cursorY.toShort())
+        event.putInt(X11Extensions.XFixes_CURSOR_IMAGE_SIZE) // width
+        event.putInt(X11Extensions.XFixes_CURSOR_IMAGE_SIZE) // height
+        event.putShort(cursorHotX.toShort()); event.putShort(cursorHotY.toShort())
+        event.putInt(cursorSerial) // cursor serial (again)
+
+        val bytes = event.array()
+        clientOutputs.forEach { output ->
+            runCatching {
+                output.write(bytes)
+                output.flush()
+            }
+        }
+        Log.d(TAG, "Broadcasted XFixes CursorNotify (serial=$cursorSerial, pos=($cursorX,$cursorY))")
+    }
 
     // =====================================================================
     // Client handling

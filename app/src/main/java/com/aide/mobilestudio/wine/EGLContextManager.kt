@@ -138,6 +138,31 @@ class EGLContextManager(private val server: MiniXServer) {
         return pixels
     }
 
+    /**
+     * Create an EGLImageKHR from an Android hardware buffer object, enabling EGL/GLX
+     * rendering directly into the Android hardware buffer (DRI3 buffer sharing).
+     * The [buffer] is expected to be an android.hardware.buffer.AHardwareBuffer instance
+     * (passed as Any? to avoid compile-time dependency on the hardware_buffer module).
+     */
+    fun createImageFromHardwareBuffer(buffer: Any?): Long {
+        if (!isReady() || eglDisplay == null || eglContext == null || buffer == null) return 0L
+        return try {
+            val eglExtClass = Class.forName("android.opengl.EGLExt")
+            val method = eglExtClass.getMethod(
+                "eglCreateImageKHR",
+                EGLDisplay::class.java, EGLContext::class.java, Int::class.java,
+                Any::class.java, IntArray::class.java, Int::class.java,
+            )
+            method.invoke(
+                null, eglDisplay!!, eglContext!!, 0x3140, // EGL_NATIVE_BUFFER_ANDROID
+                buffer, intArrayOf(EGL14.EGL_NONE), 0,
+            ) as Long
+        } catch (e: Exception) {
+            Log.e(TAG, "eglCreateImageKHR via reflection failed", e)
+            0L
+        }
+    }
+
     /** Release an EGL surface previously created for a GLX drawable. */
     fun destroySurface(surface: EGLSurface): Boolean {
         if (!initialized || eglDisplay == null) return false
