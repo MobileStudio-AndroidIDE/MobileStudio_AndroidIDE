@@ -13,7 +13,6 @@ import kotlin.math.max
 /**
  * Central state shared by every on-device tool downloader (JDK, Gradle, NDK,
  * CMake, LLVM) and the MobileStudio Downloader window rendered by
- * StudioMainActivity.
  *
  * Downloads used to spam the build log with hundreds of "Downloaded 4MB /
  * 1962MB" lines. They now publish one live task here instead: the UI shows the

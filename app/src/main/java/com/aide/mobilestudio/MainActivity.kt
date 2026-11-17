@@ -13,6 +13,7 @@ import android.graphics.drawable.GradientDrawable
 import java.nio.charset.Charset
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
@@ -35,6 +36,25 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
@@ -60,7 +80,7 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandler, FileOperationsHandler {
+class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandler, FileOperationsHandler, StudioHost {
     companion object {
         private const val REQ_OPEN_PROJECT_TREE = 7201
         private const val MAX_CAPTURED_BUILD_OUTPUT_CHARS = 1_200_000
@@ -107,12 +127,12 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     private lateinit var breadcrumb: LinearLayout          // path breadcrumb
 
     // Real-time analysis engine
-    private var analysisEngine: com.aide.mobilestudio.analysis.AnalysisEngine? = null
+    internal var analysisEngine: com.aide.mobilestudio.analysis.AnalysisEngine? = null
     private var freezeDetector: UiFreezeDetector? = null
 
     // State
     internal var currentProjectDir: File? = null
-    private var currentFile: File? = null
+    internal var currentFile: File? = null
     private var currentFileEncoding = "UTF-8"
     private var currentProjectKind: ProjectKind = ProjectKind.ANDROID
     private val openTabs = mutableListOf<File>()
@@ -123,6 +143,14 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     private val tabScrollPositions = mutableMapOf<String, Int>()   // file -> scroll Y
     private val tabCursorPositions = mutableMapOf<String, Int>()  // file -> cursor
     private var isBuildRunning = false
+
+    /** UI 상태 변수 (MainActivity에서 포팅) */
+    var pathText: String by mutableStateOf("")
+    var fileContent: String by mutableStateOf("")
+    val treeItems = mutableStateListOf<FileItem>()
+    var selectedTab by mutableStateOf(0)
+    var tabs: MutableList<String> = mutableListOf()
+    var editorProblems: MutableList<EditorProblem> = mutableStateListOf()
 
     /** Task names for the in-flight build, handed to extensions via onBuildStart. */
     private var activeBuildTasks: List<String> = emptyList()
@@ -138,7 +166,7 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     private var searchResultCount = 0
     private var diffSnapshotText: String? = null
     private val blockedEditorExtensions = setOf("bin", "jar", "so", "apk", "aab", "dex", "class")
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    internal val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var autoSaveJob: Job? = null
     private var liveDiagnosticsJob: Job? = null
     private var pythonDiagnosticsJob: Job? = null
@@ -156,8 +184,8 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     private var virtualWindowStart: Int = 0
     private var isVirtualScroll: Boolean = false
 
-    private lateinit var jreGradleInstaller: JreGradleInstaller
-    private lateinit var gradleRunner: GradleRunner
+    internal lateinit var jreGradleInstaller: JreGradleInstaller
+    internal lateinit var gradleRunner: GradleRunner
     private lateinit var generator: ProjectTemplateGenerator
     private lateinit var fileAdapter: FileAdapter
     private lateinit var logcatManager: LogcatManager
@@ -173,7 +201,7 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         GODOT
     }
 
-    private lateinit var autoComplete: KotlinAutoComplete
+    internal lateinit var autoComplete: KotlinAutoComplete
     private lateinit var webAutoComplete: com.aide.mobilestudio.web.WebAutoComplete
     private lateinit var problemsAdapter: ProblemsAdapter
     private val editorPairs = mapOf('(' to ')', '[' to ']', '{' to '}', '"' to '"')
@@ -220,6 +248,160 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     private var lightbulbView: View? = null
     private var lightbulbVisible = false
 
+    // ── StudioHost: bridge between the Compose IDE shell (StudioShell.kt)
+    //    and this activity's imperative machinery. ─────────────────────────
+
+    override val studioActivity: MainActivity
+        get() = this
+
+    override val studioScope: CoroutineScope
+        get() = scope
+
+    override val studioProjectDir: File?
+        get() = currentProjectDir
+
+    override val studioCurrentFile: File?
+        get() = currentFile
+
+    override val studioTabs: MutableList<String>
+        get() = tabs
+
+    override val studioSelectedTab: Int
+        get() = selectedTab
+
+    override val studioPathText: String
+        get() = pathText
+
+    override var studioFileContent: String
+        get() = fileContent
+        set(value) { fileContent = value }
+
+    override val studioTreeItems: SnapshotStateList<FileItem>
+        get() = treeItems
+
+    override val studioEditorProblems: MutableList<EditorProblem>
+        get() = editorProblems
+
+    override val studioAnalysisEngine: com.aide.mobilestudio.analysis.AnalysisEngine?
+        get() = analysisEngine
+
+    override var studioToolsPanelForResult: ToolsPanel? = null
+    override var studioNewProjectDialogVisible: Boolean = false
+    override val studioPickDir: ActivityResultLauncher<android.net.Uri?> = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let { u ->
+            contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            val resolved = resolveTreeUriDir(u)
+            if (resolved != null) {
+                openProject(resolved)
+                putLastProject(resolved.absolutePath)
+            }
+        }
+    }
+
+    override fun studioOpenProject(dir: File) { openProject(dir) }
+
+    override fun studioOpenFileInEditor(file: File) { openFile(file) }
+
+    override fun studioNewEditorTab(name: String) {
+        val root = currentProjectDir ?: filesDir
+        val file = File(root, name)
+        try {
+            file.parentFile?.mkdirs()
+            if (!file.exists()) file.writeText("")
+        } catch (_: Exception) { }
+        tabs.add(name)
+        selectedTab = tabs.lastIndex
+        pathText = name
+        fileContent = ""
+        EditorPaneState.content = ""
+        EditorPaneState.unsaved = false
+        loadFileTree(root)
+    }
+
+    override fun studioCloseEditorTab(index: Int) {
+        if (index !in tabs.indices) return
+        tabs.removeAt(index)
+        if (tabs.isEmpty()) tabs.add("MainActivity.kt")
+        selectedTab = selectedTab.coerceAtMost(tabs.lastIndex)
+        pathText = tabs[selectedTab]
+        loadFileContentForTab(tabs[selectedTab])
+    }
+
+    override fun studioSelectTab(index: Int) {
+        if (index !in tabs.indices) return
+        selectedTab = index
+        pathText = tabs[index]
+        loadFileContentForTab(tabs[index])
+    }
+
+    override fun studioSelectEditorLine(line: Int) {
+        val editor = EditorPaneState.editor ?: return
+        val textLayout = editor.layout ?: return
+        val targetLine = line.coerceIn(0, (textLayout.lineCount - 1).coerceAtLeast(0))
+        val offset = textLayout.getLineStart(targetLine)
+        editor.setSelection(offset)
+        editor.requestFocus()
+    }
+
+    override fun studioLoadFileTree(root: File) { loadFileTree(root) }
+
+    override fun studioToggleTreeFolder(dir: File) {
+        val key = dir.absolutePath
+        if (key in expandedFileTreePaths) expandedFileTreePaths.remove(key)
+        else expandedFileTreePaths.add(key)
+        currentProjectDir?.let { loadFileTree(it) }
+    }
+
+    override fun studioSaveCurrentFile() { saveCurrentFile() }
+
+    override fun studioRequestLiveDiagnostics() {
+        val file = currentFile ?: return
+        val engine = analysisEngine ?: return
+        engine.requestAnalysis(file, EditorPaneState.content)
+    }
+
+    override fun studioGetLastProject(): String? {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        return prefs.getString("last_project", null)
+    }
+
+    override fun studioPutLastProject(path: String) {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        prefs.edit().putString("last_project", path).apply()
+        addRecentProject(path)
+    }
+
+    override fun studioGetRecentProjects(): List<String> {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        val json = prefs.getString("recent_projects", "") ?: ""
+        return if (json.isBlank()) emptyList() else json.split("|").filter { it.isNotEmpty() }
+    }
+
+    override fun studioGetRecentFiles(): List<String> {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        val json = prefs.getString("recent_files", "") ?: ""
+        return if (json.isBlank()) emptyList() else json.split("|").filter { it.isNotEmpty() }
+    }
+
+    fun studioAddRecentFile(path: String) {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        val json = prefs.getString("recent_files", "") ?: ""
+        val recent = if (json.isBlank()) mutableListOf<String>() else json.split("|").filter { it.isNotEmpty() }.toMutableList()
+        recent.remove(path)
+        recent.add(0, path)
+        if (recent.size > 20) recent.removeAt(recent.size - 1)
+        prefs.edit().putString("recent_files", recent.joinToString("|")).apply()
+    }
+
+    fun studioAddRecentProject(path: String) {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        val recent = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE).getString("recent_projects", "")?.split("|")?.filter { it.isNotEmpty() }?.toMutableList() ?: mutableListOf()
+        recent.remove(path)
+        recent.add(0, path)
+        if (recent.size > 10) recent.removeAt(recent.size - 1)
+        prefs.edit().putString("recent_projects", recent.joinToString("|")).apply()
+    }
+
     private data class SymbolTarget(
         val file: File,
         val line: Int,
@@ -232,13 +414,75 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         val tasks: List<String>
     )
 
+    private fun resolveTreeUriDir(uri: Uri): File? {
+        try {
+            val docId = DocumentsContract.getTreeDocumentId(uri)
+            val parts = docId.split(":")
+            if (parts.size >= 2) {
+                val relative = parts.last()
+                val primary = Environment.getExternalStorageDirectory()
+                val f = File(primary, relative)
+                if (f.exists()) return f
+                val f2 = File(filesDir, relative)
+                if (f2.exists()) return f2
+            }
+        } catch (_: Exception) { }
+        return null
+    }
+
+    internal fun putLastProject(path: String) {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        prefs.edit().putString("last_project", path).apply()
+        val recent = getRecentProjects().toMutableList()
+        recent.remove(path)
+        recent.add(0, path)
+        if (recent.size > 10) recent.removeAt(recent.size - 1)
+        prefs.edit().putString("recent_projects", recent.joinToString("|")).apply()
+    }
+
+    private fun getLastProject(): String? = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE).getString("last_project", null)
+
+    private fun getRecentProjects(): List<String> {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        val json = prefs.getString("recent_projects", "") ?: ""
+        return if (json.isBlank()) emptyList() else json.split("|").filter { it.isNotEmpty() }
+    }
+
+    private fun getRecentFiles(): List<String> {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        val json = prefs.getString("recent_files", "") ?: ""
+        return if (json.isBlank()) emptyList() else json.split("|").filter { it.isNotEmpty() }
+    }
+
+    private fun addRecentFile(path: String) {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        val json = prefs.getString("recent_files", "") ?: ""
+        val recent = if (json.isBlank()) mutableListOf<String>() else json.split("|").filter { it.isNotEmpty() }.toMutableList()
+        recent.remove(path)
+        recent.add(0, path)
+        if (recent.size > 20) recent.removeAt(recent.size - 1)
+        prefs.edit().putString("recent_files", recent.joinToString("|")).apply()
+    }
+
+    private fun addRecentProject(path: String) {
+        val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
+        val json = prefs.getString("recent_projects", "") ?: ""
+        val recent = if (json.isBlank()) mutableListOf<String>() else json.split("|").filter { it.isNotEmpty() }.toMutableList()
+        recent.remove(path)
+        recent.add(0, path)
+        if (recent.size > 10) recent.removeAt(recent.size - 1)
+        prefs.edit().putString("recent_projects", recent.joinToString("|")).apply()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         MobileStudioCrashGuard.activityCreated(this)
 
         UiTheme.resolve(this)
         wireExtensionBridge()
-        setContentView(buildMainLayout())
+        setContent {
+            StudioApp(this)
+        }
         bindViews()
 
         jreGradleInstaller = JreGradleInstaller(
@@ -2357,7 +2601,7 @@ Long press: Toggle Shell panel"""
         })
     }
 
-    private fun loadFileTree(root: File) {
+    internal fun loadFileTree(root: File) {
         val items = mutableListOf<FileItem>()
         fun appendChildren(dir: File, depth: Int) {
             val files = dir.listFiles()
@@ -3964,6 +4208,11 @@ Long press: Toggle Shell panel"""
         codeEditor.setSelection((cursor + nextLine.length + 1).coerceAtMost(text.length))
     }
 
+    fun loadFileContentForTab(tabName: String) {
+        val f = currentProjectDir?.let { File(it, tabName) } ?: File(filesDir, tabName)
+        openFile(f)
+    }
+
     fun openFile(file: File) {
         saveCurrentFile()
         // The split preview only makes sense for XML layouts: close it when the
@@ -4532,7 +4781,7 @@ Long press: Toggle Shell panel"""
         }
     }
 
-    private fun saveCurrentFile() {
+    internal fun saveCurrentFile() {
         val file = currentFile ?: return
         if (!unsavedChanges) return
         try {
@@ -4848,6 +5097,18 @@ Long press: Toggle Shell panel"""
             }
             tabContainer.addView(tab)
             tabContainer.addView(sep)
+        }
+        // Mirror the imperative tab strip into the Compose-facing state so the
+        // Studio shell tab strip stays in sync with openTabs / currentFile.
+        tabs.clear()
+        openTabs.forEach { f ->
+            val rel = currentProjectDir?.let { runCatching { f.relativeTo(it).path }.getOrNull() ?: f.name } ?: f.name
+            tabs.add(rel)
+        }
+        val curIdx = openTabs.indexOf(currentFile)
+        if (curIdx >= 0) {
+            selectedTab = curIdx
+            pathText = tabs.getOrNull(curIdx) ?: ""
         }
         // Scroll to active tab
         val idx = openTabs.indexOf(currentFile)
@@ -7456,7 +7717,7 @@ Long press: Toggle Shell panel"""
     // Project management
     // MobileStudio comment
 
-    private fun showNewProjectDialog() {
+    internal fun showNewProjectDialog() {
         NewProjectDialog.show(this, generator) { dir, _ -> openProject(dir) }
     }
 
@@ -7464,7 +7725,7 @@ Long press: Toggle Shell panel"""
         openAiWorkspace()
     }
 
-    private fun openProject(dir: File) = openProject(dir, askConfirmation = true)
+    internal fun openProject(dir: File) = openProject(dir, askConfirmation = true)
 
     /**
      * Opens [dir] as the active project.
@@ -7477,7 +7738,7 @@ Long press: Toggle Shell panel"""
      * @param askConfirmation kept for call-site compatibility; switching no
      *   longer destroys the previous project, so there is nothing to confirm
      */
-    private fun openProject(dir: File, @Suppress("UNUSED_PARAMETER") askConfirmation: Boolean) {
+    internal fun openProject(dir: File, @Suppress("UNUSED_PARAMETER") askConfirmation: Boolean) {
         val targetDir = dir
         saveCurrentFile()
         closeCurrentProjectState()
@@ -10359,7 +10620,5 @@ AlertDialog.Builder(this)
 
 private val Int.dp get() = (this * resources.displayMetrics.density).toInt()
 }
-
-
 
 

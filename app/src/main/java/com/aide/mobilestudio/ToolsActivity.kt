@@ -95,7 +95,7 @@ class ToolsActivity : AppCompatActivity() {
     }
 }
 
-internal class ToolsPanel(
+class ToolsPanel(
     private val host: AppCompatActivity,
     private val onClose: () -> Unit,
 ) : ContextWrapper(host) {
@@ -147,7 +147,7 @@ printf("x = %d\\n", x);"""
      * cards never report "Open a project first" while an editor tab is open.
      */
     private fun currentProjectDirOrNull(): File? {
-        (host as? StudioMainActivity)?.currentProjectDir?.let { if (it.isDirectory) return it }
+        (host as? MainActivity)?.currentProjectDir?.let { if (it.isDirectory) return it }
         getSharedPreferences("ide", MODE_PRIVATE).getString("last_project_dir", null)
             ?.let { File(it).takeIf { d -> d.isDirectory } }?.let { return it }
         getSharedPreferences("mobilestudio_settings", MODE_PRIVATE).getString("last_project", null)
@@ -161,8 +161,8 @@ printf("x = %d\\n", x);"""
             toast("File not found: ${file.name}")
             return false
         }
-        val ide = host as? StudioMainActivity ?: return false
-        ide.openFileInEditor(file)
+        val ide = host as? MainActivity ?: return false
+        ide.studioOpenFileInEditor(file)
         return true
     }
 
@@ -1663,7 +1663,7 @@ fi
     }
 
     private fun currentXmlFile(): java.io.File? {
-        val file = (host as? StudioMainActivity)?.currentFile ?: return null
+        val file = (host as? MainActivity)?.currentFile ?: return null
         return file.takeIf { f -> f.isFile && f.extension.equals("xml", ignoreCase = true) }
     }
 
@@ -1705,8 +1705,8 @@ fi
                 val formatted = prettyPrintXml(text)
                 runCatching { file.writeText(formatted) }
                         .onSuccess {
-                            (host as? StudioMainActivity)?.let { ide ->
-                                ide.openFileInEditor(file)
+                            (host as? MainActivity)?.let { ide ->
+                                ide.studioOpenFileInEditor(file)
                                 EditorPaneState.content = formatted
                                 EditorPaneState.unsaved = false
                             }
@@ -2137,7 +2137,7 @@ try {
         }
 
         val layouts = projectLayoutFiles(root)
-        val current = (host as? StudioMainActivity)?.currentFile
+        val current = (host as? MainActivity)?.currentFile
             ?.takeIf { f -> f.isFile && f.parentFile?.name?.startsWith("layout") == true }
         val selected = layoutInspectorPath?.let { java.io.File(it) }?.takeIf { f: java.io.File -> f.isFile }
             ?: current

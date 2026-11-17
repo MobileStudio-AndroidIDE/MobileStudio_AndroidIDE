@@ -254,7 +254,7 @@ class FileManagerActivity : AppCompatActivity() {
             .setTitle("Open as Project")
             .setMessage("Open '${dir.absolutePath}' as the MobileStudio project?")
             .setPositiveButton("Open") { _, _ ->
-                (this as? StudioMainActivity)?.let { activity ->
+                (this as? MainActivity)?.let { activity ->
                     if (isNewProject) {
                         // New project: show project creation dialog inside selected dir
                         activity.currentProjectDir = dir
