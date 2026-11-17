@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
+import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -1068,27 +1069,43 @@ private fun TerminalPane(activity: MainActivity) {
     var shellProcess by remember { mutableStateOf<java.lang.Process?>(null) }
     var terminalText by remember { mutableStateOf("") }
     var draftInput by remember { mutableStateOf("") }
+    var shellError by remember { mutableStateOf<String?>(null) }
+    var retryKey by remember { mutableStateOf(0L) }
 
     val scrollState = rememberScrollState()
     val focusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
-        val pb = java.lang.ProcessBuilder("/system/bin/sh")
-        pb.directory(activity.studioProjectDir ?: activity.filesDir)
-        pb.redirectErrorStream(true)
-        val proc = pb.start()
-        shellProcess = proc
-        activity.studioScope.launch(Dispatchers.IO) {
-            val reader = java.io.BufferedReader(java.io.InputStreamReader(proc.inputStream, Charset.forName("UTF-8")))
-            while (proc.isAlive) {
-                val line = reader.readLine()
-                if (line == null) break
-                withContext(Dispatchers.Main) { terminalText = terminalText + (line ?: "") + "\n" }
+    LaunchedEffect(retryKey) {
+        try {
+            val pb = java.lang.ProcessBuilder("/system/bin/sh")
+            pb.directory(activity.studioProjectDir ?: activity.filesDir)
+            pb.redirectErrorStream(true)
+            val proc = pb.start()
+            shellProcess = proc
+            shellError = null
+            activity.studioScope.launch(Dispatchers.IO) {
+                val reader = java.io.BufferedReader(java.io.InputStreamReader(proc.inputStream, Charset.forName("UTF-8")))
+                while (proc.isAlive) {
+                    val line = reader.readLine()
+                    if (line == null) break
+                    withContext(Dispatchers.Main) { terminalText = terminalText + (line ?: "") + "\n" }
+                }
+                // Process exited
+                withContext(Dispatchers.Main) {
+                    if (shellError == null) shellError = "Shell process exited"
+                }
             }
+        } catch (e: Exception) {
+            shellError = "Failed to start shell: ${e.message}"
+            Log.e("TerminalPane", "Shell start failed", e)
         }
     }
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(shellProcess) {
+        if (shellProcess != null) {
+            try { focusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
 
     LaunchedEffect(terminalText) {
         if (scrollState.maxValue > 0) scrollState.scrollTo(scrollState.maxValue)
@@ -1103,7 +1120,7 @@ private fun TerminalPane(activity: MainActivity) {
             DownloadCenter.installTool(toolName, activity) { success ->
                 terminalText = terminalText + (if (success) "[OK] $toolName installed\n" else "[FAIL] $toolName install failed\n")
             }
-            focusRequester.requestFocus()
+            try { focusRequester.requestFocus() } catch (_: Exception) {}
             return true
         }
 
@@ -1118,7 +1135,7 @@ private fun TerminalPane(activity: MainActivity) {
                     terminalText = terminalText + result + (if (result.endsWith("\n")) "" else "\n")
                 }
             }
-            focusRequester.requestFocus()
+            try { focusRequester.requestFocus() } catch (_: Exception) {}
             return true
         }
 
@@ -1134,7 +1151,7 @@ private fun TerminalPane(activity: MainActivity) {
             os.write((cmd + "\n").toByteArray(Charset.forName("UTF-8")))
             os.flush()
         } catch (_: Exception) { }
-        focusRequester.requestFocus()
+        try { focusRequester.requestFocus() } catch (_: Exception) {}
     }
 
     fun sendCommand() {
@@ -1154,7 +1171,7 @@ private fun TerminalPane(activity: MainActivity) {
             os.write((cmd + "\n").toByteArray(Charset.forName("UTF-8")))
             os.flush()
         } catch (_: Exception) { }
-        focusRequester.requestFocus()
+        try { focusRequester.requestFocus() } catch (_: Exception) {}
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(ide.p.editorBg))) {
@@ -1186,13 +1203,49 @@ private fun TerminalPane(activity: MainActivity) {
                 .verticalScroll(scrollState)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            if (terminalText.isNotEmpty()) {
-                Text(
-                    text = terminalText,
-                    color = ide.synStr,
-                    style = IdeMono.terminal,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            if (shellError != null) {
+                val error = shellError!!
+                Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "⚠ Shell Error",
+                        color = ide.error,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = error,
+                        color = ide.textSoft,
+                        fontSize = 12.sp,
+                        style = IdeMono.terminal,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier
+                            .clickable { shellError = null; retryKey++ }
+                            .background(Color(ide.p.surface2), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text("Retry", color = ide.accent, fontSize = 12.sp)
+                    }
+                }
+            } else {
+                if (terminalText.isNotEmpty()) {
+                    Text(
+                        text = terminalText,
+                        color = ide.synStr,
+                        style = IdeMono.terminal,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (shellProcess == null) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("Loading shell…", color = ide.textSoft, fontSize = 12.sp, style = IdeMono.terminal)
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
@@ -1213,7 +1266,8 @@ private fun TerminalPane(activity: MainActivity) {
                     textStyle = IdeMono.terminal,
                     modifier = Modifier
                         .weight(1f)
-                        .background(Color.Transparent),
+                        .background(Color.Transparent)
+                        .focusRequester(focusRequester),
                 )
             }
         }

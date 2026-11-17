@@ -3085,7 +3085,7 @@ Long press: Toggle Shell panel"""
         }
         
         codeEditor.setGhostText("Thinking...")
-        val engine = completionEngine // initialise on the UI thread, use below
+        val engine = completionEngine // initialize on the UI thread, use below
         
         scope.launch(Dispatchers.IO) {
             val prompt = """
