@@ -2014,7 +2014,10 @@ private fun showSubMenuDialog(activity: Activity, parentLabel: String, subItems:
         .show()
 }
 
-fun showNewProjectDialog(host: StudioHost) { host.studioNewProjectDialogVisible = true }
+fun showNewProjectDialog(host: StudioHost) { 
+    android.util.Log.d("StudioShell", "showNewProjectDialog called, setting visible=true")
+    host.studioNewProjectDialogVisible = true 
+}
 
 private data class NewProjectType(val label: String, val description: String)
 

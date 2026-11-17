@@ -286,7 +286,7 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         get() = analysisEngine
 
     override var studioToolsPanelForResult: ToolsPanel? = null
-    override var studioNewProjectDialogVisible: Boolean = false
+    override var studioNewProjectDialogVisible: Boolean by mutableStateOf(false)
     override val studioPickDir: ActivityResultLauncher<android.net.Uri?> = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { u ->
             contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
@@ -4997,6 +4997,7 @@ Long press: Toggle Shell panel"""
     private fun setupTabs() {}
 
     private fun refreshTabs() {
+        if (!::tabContainer.isInitialized) return
         tabContainer.removeAllViews()
         openTabs.forEach { file ->
             val isActive = file == currentFile
@@ -5169,6 +5170,7 @@ Long press: Toggle Shell panel"""
 
     private fun doCloseTab(file: File) {
         val idx = openTabs.indexOf(file)
+        if (!::tabContainer.isInitialized) return
         // Capture the tab view + its trailing separator for a close animation
         val tabView = tabContainer.getChildAt(idx * 2)
         val sepView = tabContainer.getChildAt(idx * 2 + 1)
@@ -7753,13 +7755,13 @@ Long press: Toggle Shell panel"""
         StorageHelper.pushRecentProject(this, targetDir.absolutePath)
         if (projectTabs.none { sameFile(it, targetDir) }) projectTabs.add(targetDir)
         refreshProjectTabs()
-        tvProjectName.text = targetDir.name
-        tvDrawerTitle.text = targetDir.name
+        if (::tvProjectName.isInitialized) tvProjectName.text = targetDir.name
+        if (::tvDrawerTitle.isInitialized) tvDrawerTitle.text = targetDir.name
         updateBuildOptionLabel()
         updateProjectModeUi()
         File(targetDir, "gradlew").takeIf { it.exists() }?.setExecutable(true, false)
         loadFileTree(targetDir)
-        drawerLayout.closeDrawer(GravityCompat.START)
+        if (::drawerLayout.isInitialized) drawerLayout.closeDrawer(GravityCompat.START)
         autoComplete.setProjectDir(targetDir)
         gradleSyncNeeded = currentProjectKind != ProjectKind.GODOT
         checkProjectUpdates()
