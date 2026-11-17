@@ -2620,6 +2620,7 @@ Long press: Toggle Shell panel"""
         fileAdapter.setAllItems(items.toList())
         fileAdapter.updateItems(items)
         updateDrawerPath()
+        if (!::fileTree.isInitialized) return
         if (StudioUi.shouldAnimate(this)) {
             fileTree.post {
                 val views = (0 until fileTree.childCount.coerceAtMost(15))
@@ -4787,6 +4788,7 @@ Long press: Toggle Shell panel"""
     internal fun saveCurrentFile() {
         val file = currentFile ?: return
         if (!unsavedChanges) return
+        if (!::codeEditor.isInitialized) return
         try {
             val contentToSave = if (isVirtualScroll && virtualLines != null) {
                 mergeVirtualEdits()
@@ -7967,10 +7969,10 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         val isJar = currentProjectKind == ProjectKind.JAR
         val isGodot = currentProjectKind == ProjectKind.GODOT
         (findViewById<View>(R.id.tools_btn_run)?.parent as? View)?.visibility = View.VISIBLE
-        findViewById<TextView>(R.id.tools_build_option_label).visibility = if (isPython || isGodot) View.GONE else View.VISIBLE
-        findViewById<View>(R.id.tools_btn_clean).visibility = if (isPython || isGodot) View.GONE else View.VISIBLE
-        findViewById<View>(R.id.tools_btn_apk).visibility = if (isPython || isGodot) View.GONE else View.VISIBLE
-        findViewById<TextView>(R.id.tab_build).text = when {
+        findViewById<TextView>(R.id.tools_build_option_label)?.visibility = if (isPython || isGodot) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.tools_btn_clean)?.visibility = if (isPython || isGodot) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.tools_btn_apk)?.visibility = if (isPython || isGodot) View.GONE else View.VISIBLE
+        findViewById<TextView>(R.id.tab_build)?.text = when {
             isPython -> ui("Compile")
             currentProjectKind == ProjectKind.EXE -> ui("Build .exe")
             isJar -> ui("Build")
@@ -7981,14 +7983,16 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         findViewById<TextView>(R.id.tab_logcat)?.text = if (isPython) ui("Outputs") else ui("Logcat")
         findViewById<TextView>(R.id.tab_problems)?.text = ui("Problems")
         findViewById<TextView>(R.id.tab_shell)?.text = ui("Shell")
-        tvStatusLang.text = when (currentProjectKind) {
-            ProjectKind.PYTHON -> "Python"
-            ProjectKind.JAR -> "Java/JAR"
-            ProjectKind.EXE -> "C/C++"
-            ProjectKind.GAME -> "Game"
-            ProjectKind.ANDROID -> "Android"
-            ProjectKind.LUA_GAME -> "Lua Game"
-            ProjectKind.GODOT -> "Godot"
+        if (::tvStatusLang.isInitialized) {
+            tvStatusLang.text = when (currentProjectKind) {
+                ProjectKind.PYTHON -> "Python"
+                ProjectKind.JAR -> "Java/JAR"
+                ProjectKind.EXE -> "C/C++"
+                ProjectKind.GAME -> "Game"
+                ProjectKind.ANDROID -> "Android"
+                ProjectKind.LUA_GAME -> "Lua Game"
+                ProjectKind.GODOT -> "Godot"
+            }
         }
     }
 
@@ -8109,10 +8113,10 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         closeCurrentProjectState()
         currentProjectDir = root
         invalidateSymbolFileCache()
-        tvProjectName.text = "App data"
-        tvDrawerTitle.text = root.absolutePath
+        if (::tvProjectName.isInitialized) tvProjectName.text = "App data"
+        if (::tvDrawerTitle.isInitialized) tvDrawerTitle.text = root.absolutePath
         loadFileTree(root)
-        drawerLayout.openDrawer(GravityCompat.START)
+        if (::drawerLayout.isInitialized) drawerLayout.openDrawer(GravityCompat.START)
         setStatus("App data explorer: ${root.absolutePath}")
     }
 
