@@ -681,21 +681,21 @@ private fun EditorPane(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Welcome to MobileStudio",
+                        text = AppLanguage.string(activity, R.string.welcome_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = ide.text,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Open a project or create a new file to start coding.",
+                        text = AppLanguage.string(activity, R.string.welcome_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
                         color = ide.textSoft,
                         modifier = Modifier.padding(horizontal = 32.dp),
                     )
                     Spacer(modifier = Modifier.height(20.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IdeAction(text = "New File", onClick = { showNewFileDialog(activity) }, primary = true)
-                        IdeAction(text = "Open Project", onClick = onOpenProject)
+                        IdeAction(text = AppLanguage.string(activity, R.string.welcome_new_file), onClick = { showNewFileDialog(activity) }, primary = true)
+                        IdeAction(text = AppLanguage.string(activity, R.string.welcome_new_project), onClick = { showNewProjectDialog(host) })
                     }
                 }
             }

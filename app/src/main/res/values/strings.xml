@@ -645,4 +645,10 @@
     <string name="wrongconstant">WrongConstant</string>
     <string name="yes">Yes</string>
     <string name="your_answer">Your answer</string>
+
+    <!-- Welcome screen -->
+    <string name="welcome_title">Welcome to MobileStudio</string>
+    <string name="welcome_subtitle">Open a project or create a new file to start coding.</string>
+    <string name="welcome_new_file">New File</string>
+    <string name="welcome_new_project">New Project</string>
 </resources>
