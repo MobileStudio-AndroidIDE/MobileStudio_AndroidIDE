@@ -240,7 +240,7 @@
     <string name="tools_reset_defaults">Reset to defaults</string>
     <string name="tools_connecting">Connecting...</string>
     <string name="tools_versions_loaded">%s: %d versions loaded</string>
-    <string name="tools_update_site_failed">%s update site failed: %s</string>
+    <string name="tools_update_site_failed" formatted="false">%s update site failed: %s</string>
     <string name="tools_preparing">Preparing...</string>
     <string name="tools_language">language</string>
     <string name="tools_active_version">Active: %s</string>
@@ -651,4 +651,24 @@
     <string name="welcome_subtitle">Open a project or create a new file to start coding.</string>
     <string name="welcome_new_file">New File</string>
     <string name="welcome_new_project">New Project</string>
+
+    <!-- Shell -->
+    <string name="shell_no_build_output">No build output yet</string>
+    <string name="shell_error_title">⚠ Shell Error</string>
+    <string name="shell_prompt">$ </string>
+    <string name="downloader_title">MobileStudio Downloader</string>
+    <string name="downloader_downloading">Downloading: %s</string>
+    <string name="downloader_download_path">Download PATH</string>
+    <string name="downloader_file_name">File Name</string>
+    <string name="downloader_file_size">File size: %s</string>
+    <string name="downloader_confirm_title">Do you want to download this file?</string>
+    <string name="downloader_confirm_message">If you select No, the %s will not be downloaded and the Gradle build cannot continue.</string>
+    <string name="downloader_progress">%s MB / %s MB (%d%%)</string>
+    <string name="downloader_speed">%s MB/s</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="sidebar_no_project_open">No project open</string>
+    <string name="sidebar_no_files">No files in this project. Use Open Project to pick a folder.</string>
+    <string name="stats_title">Project Statistics</string>
+    <string name="stats_summary">Files: %d&#10;Directories: %d&#10;Lines: %d</string>
+    <string name="find_in_files_title">Find in Files</string>
 </resources>

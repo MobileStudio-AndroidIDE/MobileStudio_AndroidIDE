@@ -1011,7 +1011,7 @@ private fun BottomPanel(
                         onCollapse()
                     },
                 )
-                else -> BuildLogPane(lines = logLines)
+                else -> BuildLogPane(lines = logLines, activity = activity)
             }
         }
     }
@@ -1063,7 +1063,7 @@ private fun BottomPanelTab(
 }
 
 @Composable
-private fun BuildLogPane(lines: List<StudioLogLine>) {
+private fun BuildLogPane(lines: List<StudioLogLine>, activity: MainActivity) {
     val ide = LocalIdeColors.current
     val scrollState = rememberScrollState()
     LaunchedEffect(lines.size) { scrollState.scrollTo(Int.MAX_VALUE) }
@@ -1075,7 +1075,7 @@ private fun BuildLogPane(lines: List<StudioLogLine>) {
     ) {
         if (lines.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = "No build output yet", style = IdeMono.log, color = ide.muted)
+                Text(text = AppLanguage.string(activity, R.string.shell_no_build_output), style = IdeMono.log, color = ide.muted)
             }
         } else {
             Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
@@ -1232,7 +1232,7 @@ private fun TerminalPane(activity: MainActivity) {
                 val error = shellError!!
                 Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "⚠ Shell Error",
+                        text = AppLanguage.string(activity, R.string.shell_error_title),
                         color = ide.error,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
@@ -1276,7 +1276,7 @@ private fun TerminalPane(activity: MainActivity) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "$ ",
+                    text = AppLanguage.string(activity, R.string.shell_prompt),
                     color = ide.accent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
@@ -1353,7 +1353,7 @@ private fun DownloadManagerWindow(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(text = "MobileStudio Downloader", color = ide.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(text = AppLanguage.string(activity, R.string.downloader_title), color = ide.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     IconButton(onClick = {
                         if (t.status == DownloadCenter.Status.CONFIRM) DownloadCenter.decline()
                         else if (t.status == DownloadCenter.Status.DOWNLOADING) DownloadCenter.cancel()
@@ -1361,12 +1361,12 @@ private fun DownloadManagerWindow(
                     }) { Text("×", color = ide.textSoft, fontSize = 20.sp) }
                 }
                 Divider(color = ide.divider, modifier = Modifier.padding(vertical = 12.dp))
-                Text(text = "Downloading: ${t.label}", color = ide.info, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(text = AppLanguage.string(activity, R.string.downloader_downloading).replace("%s", t.label), color = ide.info, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(text = "DownloadPATH", color = ide.textSoft, fontSize = 11.sp)
+                Text(text = AppLanguage.string(activity, R.string.downloader_download_path), color = ide.textSoft, fontSize = 11.sp)
                 Text(text = t.downloadPath.ifBlank { "—" }, color = ide.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "FileName", color = ide.textSoft, fontSize = 11.sp)
+                Text(text = AppLanguage.string(activity, R.string.downloader_file_name), color = ide.textSoft, fontSize = 11.sp)
                 Text(text = t.fileName.ifBlank { "—" }, color = ide.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -1374,11 +1374,11 @@ private fun DownloadManagerWindow(
                     DownloadCenter.Status.CONFIRM -> {
                         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                             val totalMB = if (t.totalBytes > 0) "${(t.totalBytes / (1024 * 1024)).toString()} MB" else "Unknown size"
-                            Text(text = "File size: $totalMB", color = ide.text, fontSize = 14.sp)
+                            Text(text = AppLanguage.string(activity, R.string.downloader_file_size).replace("%s", totalMB), color = ide.text, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "Do you want to download this file?", color = ide.textSoft, fontSize = 13.sp)
+                            Text(text = AppLanguage.string(activity, R.string.downloader_confirm_title), color = ide.textSoft, fontSize = 13.sp)
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "If you select No, the ${t.label.lowercase()} will not be downloaded and the Gradle build cannot continue.", color = ide.error, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+                            Text(text = AppLanguage.string(activity, R.string.downloader_confirm_message).replace("%s", t.label.lowercase()), color = ide.error, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
                             Spacer(modifier = Modifier.height(16.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Button(onClick = { DownloadCenter.approve() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.success)) { Text("Yes", color = Color.White, fontWeight = FontWeight.Bold) }
@@ -1397,8 +1397,9 @@ private fun DownloadManagerWindow(
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "${downloadedMB} MB / ${if (totalMB > 0) "${totalMB} MB" else "?"} (${percent}%)", color = ide.text, fontSize = 12.sp)
-                                if (speedMB > 0) Text(text = "${speedMB} MB/s", color = ide.info, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                                val progressText = if (totalMB > 0) "${downloadedMB} MB / ${totalMB} MB (${percent}%)" else "${downloadedMB} MB / ? (${percent}%)"
+                                Text(text = progressText, color = ide.text, fontSize = 12.sp)
+                                if (speedMB > 0) Text(text = AppLanguage.string(activity, R.string.downloader_speed).replace("%s", "${speedMB} MB/s"), color = ide.info, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                             }
                             if (t.message.isNotBlank()) { Text(text = t.message, color = ide.textSoft, fontSize = 11.sp, modifier = Modifier.fillMaxWidth()) }
                             Spacer(modifier = Modifier.height(16.dp))
@@ -1566,7 +1567,7 @@ private fun TopMenuBar(
                     )
                     Text("  ▾", color = ide.muted, fontSize = 10.sp)
                 }
-                Text(text = "MobileStudio", color = ide.textSoft, fontSize = 10.sp, maxLines = 1)
+                Text(text = AppLanguage.string(activity, R.string.menu_mobile_studio), color = ide.textSoft, fontSize = 10.sp, maxLines = 1)
             }
             Box(
                 modifier = Modifier.size(40.dp).background(ide.success.copy(alpha = 0.14f), RoundedCornerShape(4.dp)).clickable(onClick = onRun).semantics { contentDescription = "Run build" },
@@ -1705,7 +1706,7 @@ private fun ProjectsView(
             Divider(color = ide.divider)
         } else {
             Box(modifier = Modifier.fillMaxWidth().background(Color(ide.p.surface2)).padding(horizontal = 14.dp, vertical = 14.dp)) {
-                Text(text = "No project open", color = ide.textSoft, fontSize = 13.sp)
+                Text(text = AppLanguage.string(activity, R.string.sidebar_no_project_open), color = ide.textSoft, fontSize = 13.sp)
             }
             Divider(color = ide.divider)
         }
@@ -1713,7 +1714,7 @@ private fun ProjectsView(
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             val knownProjects = getKnownProjects(activity)
             if (knownProjects.isEmpty()) {
-                Text(text = "No projects yet.\nTap 'Open Project' to add one.", color = ide.muted, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+                Text(text = "No projects yet. Tap 'Open Project' to add one.", color = ide.muted, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
             } else {
                 knownProjects.forEach { projectDir ->
                     val isCurrent = currentProjectDir != null && projectDir.absolutePath == currentProjectDir.absolutePath
@@ -2355,21 +2356,24 @@ fun showProjectStatsDialog(activity: MainActivity) {
         setPadding(dp(16), dp(16), dp(16), dp(16))
     }
     layout.addView(TextView(activity).apply {
-        text = "Project Statistics"
+        text = AppLanguage.string(activity, R.string.stats_title)
         setTextColor(0xFFE6E6E6.toInt())
         textSize = 16f
         setTypeface(Typeface.DEFAULT_BOLD)
         setPadding(0, 0, 0, dp(8))
     })
     layout.addView(TextView(activity).apply {
-        text = "Files: $fileCount\nDirectories: $dirCount\nLines: $lineCount"
+        text = AppLanguage.string(activity, R.string.stats_summary)
+            .replace("%d", fileCount.toString())
+            .replace("%d", dirCount.toString())
+            .replace("%d", lineCount.toString())
         setTextColor(0xFFE6E6E6.toInt())
         textSize = 14f
         setTypeface(Typeface.create("monospace", Typeface.NORMAL))
         setPadding(0, 0, 0, dp(8))
     })
     AlertDialog.Builder(activity)
-        .setTitle("Project Statistics")
+        .setTitle(AppLanguage.string(activity, R.string.stats_title))
         .setView(layout)
         .setPositiveButton("OK", null)
         .show()
@@ -2384,7 +2388,7 @@ fun showFindInFilesDialog(activity: MainActivity) {
         orientation = LinearLayout.VERTICAL
         setPadding(16, 16, 16, 16)
         addView(TextView(activity).apply {
-            text = "Find in Files"
+            text = AppLanguage.string(activity, R.string.find_in_files_title)
             setTextColor(0xFFE6E6E6.toInt())
             textSize = 14f
             setTypeface(Typeface.DEFAULT_BOLD)
@@ -2393,7 +2397,7 @@ fun showFindInFilesDialog(activity: MainActivity) {
         addView(queryInput)
     }
     AlertDialog.Builder(activity)
-        .setTitle("Find in Files")
+        .setTitle(AppLanguage.string(activity, R.string.find_in_files_title))
         .setView(layout)
         .setPositiveButton("Search") { _, _ ->
             val query = queryInput.text.toString().trim()

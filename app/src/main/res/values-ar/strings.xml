@@ -240,7 +240,7 @@
     <string name="tools_reset_defaults">إعادة الضبط إلى الافتراضي</string>
     <string name="tools_connecting">جارٍ الاتصال…</string>
     <string name="tools_versions_loaded">%s: تم تحميل %d إصدارات</string>
-    <string name="tools_update_site_failed">فشل موقع تحديث %s: %s</string>
+    <string name="tools_update_site_failed" formatted="false">فشل موقع تحديث %s: %s</string>
     <string name="tools_preparing">جارٍ الإعداد…</string>
     <string name="tools_language">اللغة</string>
     <string name="tools_active_version">النشط: %s</string>

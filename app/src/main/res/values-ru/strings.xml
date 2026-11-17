@@ -575,7 +575,7 @@
     <string name="tools_save">Save</string>
     <string name="tools_sdk_install">SDK Install</string>
     <string name="tools_trim_cache">Trim Cache</string>
-    <string name="tools_update_site_failed">%s update site failed: %s</string>
+    <string name="tools_update_site_failed" formatted="false">%s update site failed: %s</string>
     <string name="tools_versions_loaded">%s: %d versions loaded</string>
     <string name="tools_view_crash">View Crash</string>
     <string name="touch_to_move_the_box">Touch to move the box</string>

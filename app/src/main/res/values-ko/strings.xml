@@ -240,7 +240,7 @@
     <string name="tools_reset_defaults">기본값으로 초기화</string>
     <string name="tools_connecting">연결 중…</string>
     <string name="tools_versions_loaded">%s: %d개 버전 로드됨</string>
-    <string name="tools_update_site_failed">%s 업데이트 사이트 실패: %s</string>
+    <string name="tools_update_site_failed" formatted="false">%s 업데이트 사이트 실패: %s</string>
     <string name="tools_preparing">준비 중…</string>
     <string name="tools_language">언어</string>
     <string name="tools_active_version">활성: %s</string>

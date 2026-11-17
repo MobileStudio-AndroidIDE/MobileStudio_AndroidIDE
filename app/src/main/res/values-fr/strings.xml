@@ -240,7 +240,7 @@
     <string name="tools_reset_defaults">Réinitialiser aux valeurs par défaut</string>
     <string name="tools_connecting">Connexion…</string>
     <string name="tools_versions_loaded">%s : %d versions chargées</string>
-    <string name="tools_update_site_failed">La mise à jour du site %s a échoué : %s</string>
+    <string name="tools_update_site_failed" formatted="false">La mise à jour du site %s a échoué : %s</string>
     <string name="tools_preparing">Préparation…</string>
     <string name="tools_language">langue</string>
     <string name="tools_active_version">Actif : %s</string>

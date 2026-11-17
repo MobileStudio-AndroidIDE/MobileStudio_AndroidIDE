@@ -240,7 +240,7 @@
     <string name="tools_reset_defaults">デフォルトにリセット</string>
     <string name="tools_connecting">接続中…</string>
     <string name="tools_versions_loaded">%s: %d バージョンがロードされました</string>
-    <string name="tools_update_site_failed">%s 更新サイトでエラーが発生しました: %s</string>
+    <string name="tools_update_site_failed" formatted="false">%s 更新サイトでエラーが発生しました: %s</string>
     <string name="tools_preparing">準備中…</string>
     <string name="tools_language">言語</string>
     <string name="tools_active_version">アクティブ: %s</string>

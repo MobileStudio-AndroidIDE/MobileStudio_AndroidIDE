@@ -240,7 +240,7 @@
     <string name="tools_reset_defaults">重設為預設值</string>
     <string name="tools_connecting">連線中…</string>
     <string name="tools_versions_loaded">%s：已載入 %d 個版本</string>
-    <string name="tools_update_site_failed">%s 更新網站失敗：%s</string>
+    <string name="tools_update_site_failed" formatted="false">%s 更新網站失敗：%s</string>
     <string name="tools_preparing">準備中…</string>
     <string name="tools_language">語言</string>
     <string name="tools_active_version">啟用：%s</string>

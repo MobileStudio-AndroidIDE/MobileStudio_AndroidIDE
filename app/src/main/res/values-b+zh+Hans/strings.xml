@@ -240,7 +240,7 @@
     <string name="tools_reset_defaults">重置为默认值</string>
     <string name="tools_connecting">连接中…</string>
     <string name="tools_versions_loaded">%s：已加载 %d 个版本</string>
-    <string name="tools_update_site_failed">%s 更新站点失败：%s</string>
+    <string name="tools_update_site_failed" formatted="false">%s 更新站点失败：%s</string>
     <string name="tools_preparing">准备中…</string>
     <string name="tools_language">语言</string>
     <string name="tools_active_version">激活：%s</string>
