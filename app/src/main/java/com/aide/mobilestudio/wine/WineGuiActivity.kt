@@ -109,6 +109,14 @@ class WineGuiActivity : Activity() {
                                 }
                             }
                             canvas.drawBitmap(server.framebuffer, 0f, 0f, null)
+
+                            // Draw XFixes cursor image on top (outside dirty-rect clip)
+                            val cursorBmp = server.getCursorBitmap()
+                            if (cursorBmp != null) {
+                                val cx = server.cursorX - server.cursorHotX
+                                val cy = server.cursorY - server.cursorHotY
+                                canvas.drawBitmap(cursorBmp, cx.toFloat(), cy.toFloat(), null)
+                            }
                         } finally {
                             holder.unlockCanvasAndPost(canvas)
                         }

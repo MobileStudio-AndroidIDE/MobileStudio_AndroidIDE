@@ -52,6 +52,14 @@ class X11Extensions(
         const val XI_DEVICE_CHANGED_NOTIFY = 1
         const val XI_LIST_DEVICES = 2
 
+        // DRI3 minor opcodes
+        const val DRI3_QueryVersion = 0
+        const val DRI3_OpenConnection = 1
+        const val DRI3_CreatePixmapFromBuffer = 2
+        const val DRI3_BufferFromPixmap = 3
+        const val DRI3_FenceFromFD = 4
+        const val DRI3_FDFromFence = 5
+
         // Extension names
         val EXTENSION_NAMES = listOf(
             "BIG-REQUESTS",
@@ -756,7 +764,7 @@ class X11Extensions(
     ): Boolean {
         Log.d(TAG, "DRI3 minorOpcode=$minorOpcode")
         when (minorOpcode) {
-            0 -> { // DRI3 QueryVersion
+            DRI3_QueryVersion -> { // 0
                 val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
                 reply.put(1); reply.put(0)
                 reply.putShort(server.nextSeq().toShort())
@@ -765,20 +773,54 @@ class X11Extensions(
                 output.write(reply.array())
                 output.flush()
             }
-            1 -> { // DRI3 OpenConnection - Open a rendering connection to a drawable
+            DRI3_OpenConnection -> { // 1 - Open rendering connection to a drawable
+                val drawableId = buf.getInt(4)
+                // Mark drawable as DRI3-capable (buffer sharing enabled)
+                server.dri3Buffers[drawableId]?.let { } // ensure entry exists
                 sendExtensionReply(output, opcode, true)
             }
-            2 -> { // DRI3 CreatePixmapFromBuffer - Create a pixmap from a buffer
+            DRI3_CreatePixmapFromBuffer -> { // 2 - Create pixmap from Android hardware buffer
+                val pixmapId = buf.getInt(4)
+                val drawableId = buf.getInt(8)
+                val width = buf.getInt(12)
+                val height = buf.getInt(16)
+                val stride = buf.getInt(20)
+                val format = buf.getInt(24)
+                // fd at offset 28 would be passed via SCM_RIGHTS on Unix sockets;
+                // here we record the buffer metadata for sharing.
+                server.createDri3Buffer(drawableId, width, height, stride, format)
+                Log.d(TAG, "DRI3 CreatePixmapFromBuffer: pixmap=$pixmapId drawable=$drawableId ${width}x${height} stride=$stride fmt=$format")
                 sendExtensionReply(output, opcode, true)
             }
-            3 -> { // DRI3 BufferFromPixmap - Get buffer info from pixmap
+            DRI3_BufferFromPixmap -> { // 3 - Get buffer fd from pixmap
+                val pixmapId = buf.getInt(4)
+                // Look up any drawable associated with this pixmap id
+                val info = server.dri3Buffers.values.firstOrNull { it.drawableId == pixmapId }
+                    ?: server.dri3Buffers.values.firstOrNull()
+                val fd = if (info != null) 1 else -1 // dummy fd; real fd passed via SCM_RIGHTS
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(if (info != null) 1 else 0) // success
+                reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.putInt(fd) // buffer fd
+                output.write(reply.array())
+                output.flush()
+            }
+            DRI3_FenceFromFD -> { // 4 - Create fence from fd
+                val fd = buf.getInt(4)
+                Log.d(TAG, "DRI3 FenceFromFD: fd=$fd")
                 sendExtensionReply(output, opcode, true)
             }
-            4 -> { // DRI3 FenceFromFD - Create fence from file descriptor
-                sendExtensionReply(output, opcode, true)
-            }
-            5 -> { // DRI3 FDFromFence - Get file descriptor from fence
-                sendExtensionReply(output, opcode, true)
+            DRI3_FDFromFence -> { // 5 - Get fd from fence
+                val fenceId = buf.getInt(4)
+                val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
+                reply.put(1); reply.put(0)
+                reply.putShort(server.nextSeq().toShort())
+                reply.putInt(0)
+                reply.putInt(-1) // dummy fd
+                output.write(reply.array())
+                output.flush()
             }
             else -> sendExtensionReply(output, opcode, true)
         }

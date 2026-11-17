@@ -415,6 +415,33 @@ class MiniXServer(
     var focusedWindowId: Int = 0
 
     // =====================================================================
+    // Cursor position state (for WineGuiActivity rendering)
+    // =====================================================================
+
+    /** Current cursor X position (updated by pointer motion events). */
+    var cursorX: Int = 0
+
+    /** Current cursor Y position (updated by pointer motion events). */
+    var cursorY: Int = 0
+
+    // =====================================================================
+    // DRI3 buffer sharing state (Android SurfaceTexture <-> X11 drawable)
+    // =====================================================================
+
+    /** Maps X11 drawable/pixmap ID to DRI3 buffer info (width, height, stride, format). */
+    val dri3Buffers = ConcurrentHashMap<Int, Dri3BufferInfo>()
+
+    /** DRI3 buffer info for sharing with Android graphics. */
+    data class Dri3BufferInfo(
+        val drawableId: Int,
+        val width: Int,
+        val height: Int,
+        val stride: Int,
+        val format: Int, // 0=ARGB_8888
+        var bufferId: Int = 0, // Android hardware buffer id (if mapped)
+    )
+
+    // =====================================================================
     // Cursor state (XFixes)
     // =====================================================================
 
@@ -433,8 +460,65 @@ class MiniXServer(
     /** Current cursor serial (incremented on change). */
     var cursorSerial: Int = 0
 
+    /** Cached Bitmap for cursor rendering (rebuilt when cursorSerial changes). */
+    @Volatile private var cursorBitmapCache: Bitmap? = null
+    @Volatile private var cursorBitmapSerial: Int = -1
+
+    /** Get cursor image as a Bitmap, rebuilding when the image changes. */
+    fun getCursorBitmap(): Bitmap? {
+        if (!cursorVisible || cursorImage == null) return null
+        if (cursorBitmapCache != null && cursorBitmapSerial == cursorSerial) {
+            return cursorBitmapCache
+        }
+        val img = cursorImage!!
+        val size = X11Extensions.XFixes_CURSOR_IMAGE_SIZE
+        val intPixels = IntArray(size * size)
+        for (i in 0 until size * size) {
+            val base = i * 4
+            val r = img[base].toInt() and 0xFF
+            val g = img[base + 1].toInt() and 0xFF
+            val b = img[base + 2].toInt() and 0xFF
+            val a = img[base + 3].toInt() and 0xFF
+            intPixels[i] = (a shl 24) or (r shl 16) or (g shl 8) or b
+        }
+        cursorBitmapCache = Bitmap.createBitmap(intPixels, size, size, Bitmap.Config.ARGB_8888)
+        cursorBitmapSerial = cursorSerial
+        return cursorBitmapCache
+    }
+
     /** Callback when the framebuffer changes. */
     var onFrameChanged: (() -> Unit)? = null
+
+    // =====================================================================
+    // DRI3 buffer management (Android SurfaceTexture <-> X11 drawable sharing)
+    // =====================================================================
+
+    /**
+     * Create or update a DRI3 buffer for [drawableId].
+     * This maps an Android graphics buffer (or software bitmap) to an X11
+     * drawable so Wine/GLX can share buffers with the Android compositor.
+     */
+    fun createDri3Buffer(
+        drawableId: Int,
+        width: Int,
+        height: Int,
+        stride: Int,
+        format: Int,
+    ): Dri3BufferInfo {
+        val info = Dri3BufferInfo(drawableId, width, height, stride, format)
+        dri3Buffers[drawableId] = info
+        Log.d(TAG, "DRI3 buffer created for drawable $drawableId: ${width}x${height} stride=$stride fmt=$format")
+        return info
+    }
+
+    /** Get the DRI3 buffer info for [drawableId], if any. */
+    fun getDri3Buffer(drawableId: Int): Dri3BufferInfo? = dri3Buffers[drawableId]
+
+    /** Remove the DRI3 buffer for [drawableId]. */
+    fun removeDri3Buffer(drawableId: Int) {
+        dri3Buffers.remove(drawableId)
+        Log.d(TAG, "DRI3 buffer removed for drawable $drawableId")
+    }
 
     /** Clipboard manager for Android integration. */
     private var clipboardManager: ClipboardManager? = null
@@ -1686,6 +1770,12 @@ class MiniXServer(
     // =====================================================================
 
     fun injectPointerEvent(type: Int, x: Int, y: Int, button: Int) {
+        // Track cursor position for rendering (MotionNotify = 6)
+        if (type == 6) {
+            cursorX = x
+            cursorY = y
+        }
+
         // Find the topmost window at (x, y)
         val target = windows.values.filter { it.mapped }
             .filter { x >= it.x && x < it.x + it.width && y >= it.y && y < it.y + it.height }

@@ -538,6 +538,41 @@ private fun EditorPane(
 ) {
     val activity = host.studioActivity
     val ide = LocalIdeColors.current
+    var searchQuery by remember { mutableStateOf("") }
+    var replaceQuery by remember { mutableStateOf("") }
+    var searchVisible by remember { mutableStateOf(false) }
+    var replaceVisible by remember { mutableStateOf(false) }
+
+    fun findNext(forward: Boolean) {
+        val editor = EditorPaneState.editor ?: return
+        val text = editor.text ?: return
+        val q = searchQuery.trim()
+        if (q.isEmpty()) return
+        val current = editor.selectionStart
+        val idx = if (forward) {
+            text.subSequence(current + 1, text.length).toString().indexOf(q)
+        } else {
+            text.subSequence(0, current.coerceAtLeast(0)).toString().lastIndexOf(q)
+        }
+        if (idx >= 0) {
+            val absIdx = if (forward) current + 1 + idx else idx
+            editor.setSelection(absIdx, absIdx + q.length)
+            editor.requestFocus()
+        }
+    }
+
+    fun replaceAll() {
+        val editor = EditorPaneState.editor ?: return
+        val text = editor.text ?: return
+        val q = searchQuery.trim()
+        val r = replaceQuery
+        if (q.isEmpty()) return
+        val newText = text.toString().replace(q, r, ignoreCase = true)
+        editor.setText(newText)
+        onContentChange(newText)
+        Toast.makeText(activity, "Replaced all occurrences", Toast.LENGTH_SHORT).show()
+    }
+
     Column(modifier = modifier.fillMaxSize().background(ide.window)) {
         Row(
             modifier = Modifier
@@ -581,6 +616,57 @@ private fun EditorPane(
                 color = ide.textSoft,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable { searchVisible = true; replaceVisible = false }
+                    .semantics { contentDescription = "Find" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("🔍", color = ide.textSoft, fontSize = 14.sp)
+            }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable { replaceVisible = true; searchVisible = false }
+                    .semantics { contentDescription = "Find & Replace" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("🔄", color = ide.textSoft, fontSize = 14.sp)
+            }
+        }
+        IdeDivider()
+        if (searchVisible || replaceVisible) {
+            FindReplaceToolbar(
+                searchQuery = searchQuery,
+                replaceQuery = replaceQuery,
+                searchVisible = searchVisible,
+                replaceVisible = replaceVisible,
+                onSearchChange = { searchQuery = it },
+                onReplaceChange = { replaceQuery = it },
+                onFindNext = { findNext(true) },
+                onFindPrev = { findNext(false) },
+                onReplace = {
+                    val editor = EditorPaneState.editor
+                    val text = editor?.text
+                    val q = searchQuery.trim()
+                    val r = replaceQuery
+                    if (editor != null && text != null && q.isNotEmpty()) {
+                        val selStart = editor.selectionStart
+                        val selEnd = editor.selectionEnd
+                        val startIdx = text.subSequence(0, selStart).toString().lastIndexOf(q)
+                        if (startIdx >= 0) {
+                            editor.setSelection(startIdx, startIdx + q.length)
+                            val editable = editor.text as android.text.Editable
+                            editable.replace(selStart, selEnd, r)
+                            Toast.makeText(activity, "Replaced", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onReplaceAll = { replaceAll() },
+                onClose = { searchVisible = false; replaceVisible = false },
             )
         }
         IdeDivider()
@@ -667,6 +753,96 @@ private fun EditorPane(
                 }
             },
         )
+        }
+    }
+}
+
+/** Find / Replace toolbar shown below the editor tab bar. */
+@Composable
+private fun FindReplaceToolbar(
+    searchQuery: String,
+    replaceQuery: String,
+    searchVisible: Boolean,
+    replaceVisible: Boolean,
+    onSearchChange: (String) -> Unit,
+    onReplaceChange: (String) -> Unit,
+    onFindNext: () -> Unit,
+    onFindPrev: () -> Unit,
+    onReplace: () -> Unit,
+    onReplaceAll: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val ide = LocalIdeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(ide.p.surface))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        if (searchVisible) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Find", color = ide.textSoft, fontSize = 11.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchChange,
+                    maxLines = 1,
+                    modifier = Modifier.background(Color(ide.p.editorBg)).weight(1f),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier.size(26.dp).clickable(onClick = onFindNext),
+                    contentAlignment = Alignment.Center,
+                ) { Text("↓", color = ide.text, fontSize = 12.sp) }
+                Box(
+                    modifier = Modifier.size(26.dp).clickable(onClick = onFindPrev),
+                    contentAlignment = Alignment.Center,
+                ) { Text("↑", color = ide.text, fontSize = 12.sp) }
+                Box(
+                    modifier = Modifier.size(26.dp).clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center,
+                ) { Text("✕", color = ide.muted, fontSize = 12.sp) }
+            }
+        }
+        if (replaceVisible) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Replace", color = ide.textSoft, fontSize = 11.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchChange,
+                    maxLines = 1,
+                    modifier = Modifier.background(Color(ide.p.editorBg)).weight(1f),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("with", color = ide.textSoft, fontSize = 11.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                BasicTextField(
+                    value = replaceQuery,
+                    onValueChange = onReplaceChange,
+                    maxLines = 1,
+                    modifier = Modifier.background(Color(ide.p.editorBg)).weight(1f),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier.size(26.dp).clickable(onClick = onReplace),
+                    contentAlignment = Alignment.Center,
+                ) { Text("✓", color = ide.success, fontSize = 12.sp) }
+                Box(
+                    modifier = Modifier.size(26.dp).clickable(onClick = onReplaceAll),
+                    contentAlignment = Alignment.Center,
+                ) { Text("✓✓", color = ide.success, fontSize = 10.sp) }
+                Box(
+                    modifier = Modifier.size(26.dp).clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center,
+                ) { Text("✕", color = ide.muted, fontSize = 12.sp) }
+            }
         }
     }
 }
