@@ -67,14 +67,17 @@ object MobileStudioCrashGuard {
                 }
             } else {
                 runCatching {
-Handler(Looper.getMainLooper()).post {
-                    val isKo = AppLanguage.isKorean(application)
-                    ErrorLogDialog.show(
-                        application,
-                        if (isKo) "앱 복구됨" else "App Recovered",
-                        "MobileStudio recovered from an error. Crash log saved."
-                    )
-                }
+                    Handler(Looper.getMainLooper()).post {
+                        val activity = currentActivityRef
+                        if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
+                            val isKo = AppLanguage.isKorean(application)
+                            ErrorLogDialog.show(
+                                activity,
+                                if (isKo) "앱 복구됨" else "App Recovered",
+                                "MobileStudio recovered from an error. Crash log saved."
+                            )
+                        }
+                    }
                 }
             }
             if (throwable is VirtualMachineError) {
