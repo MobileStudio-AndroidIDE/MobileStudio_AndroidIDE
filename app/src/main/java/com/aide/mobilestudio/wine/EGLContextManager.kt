@@ -5,6 +5,7 @@ import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLSurface
+import android.opengl.GLES20
 import android.util.Log
 
 /**
@@ -122,6 +123,19 @@ class EGLContextManager(private val server: MiniXServer) {
     fun swapBuffers(surface: EGLSurface?): Boolean {
         if (!initialized || eglDisplay == null) return false
         return EGL14.eglSwapBuffers(eglDisplay, surface ?: EGL14.EGL_NO_SURFACE)
+    }
+
+    /**
+     * Read pixels from an EGL surface (pbuffer) into a RGBA byte array.
+     * Used to copy hardware-accelerated EGL rendering back to the X11
+     * software framebuffer so it can be displayed on screen.
+     */
+    fun readPixels(surface: EGLSurface, width: Int, height: Int): ByteArray? {
+        if (!initialized || eglDisplay == null || eglContext == null) return null
+        if (!makeCurrent(surface)) return null
+        val pixels = ByteArray(width * height * 4)
+        GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, java.nio.ByteBuffer.wrap(pixels))
+        return pixels
     }
 
     /** Release an EGL surface previously created for a GLX drawable. */

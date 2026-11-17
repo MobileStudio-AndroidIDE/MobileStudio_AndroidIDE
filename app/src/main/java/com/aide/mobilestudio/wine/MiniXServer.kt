@@ -287,12 +287,16 @@ class MiniXServer(
     /** Maps X11 drawable IDs to EGLSurface objects */
     val drawableToEglSurface = ConcurrentHashMap<Int, EGLSurface>()
 
+    /** Tracks each EGL surface's size so we can recreate on window resize. */
+    val eglSurfaceSize = ConcurrentHashMap<EGLSurface, Pair<Int, Int>>()
+
     /** Create an EGL pbuffer surface and bind it to an X11 drawable ID */
     fun createEGLSurfaceForDrawable(drawableId: Int, width: Int, height: Int): EGLSurface? {
         val surface = eglContextManager.createPbufferSurface(width, height)
         if (surface != null) {
             eglSurfaceToDrawable[surface] = drawableId
             drawableToEglSurface[drawableId] = surface
+            eglSurfaceSize[surface] = width to height
             Log.d(TAG, "EGL surface created for drawable $drawableId: ${width}x${height}")
         }
         return surface
@@ -301,6 +305,56 @@ class MiniXServer(
     /** Get the EGLSurface bound to an X11 drawable ID */
     fun getEGLSurfaceForDrawable(drawableId: Int): EGLSurface? {
         return drawableToEglSurface[drawableId]
+    }
+
+    /**
+     * Present an EGL pbuffer's rendered content back to an X11 drawable's
+     * software bitmap so it becomes visible on screen. This bridges
+     * hardware-accelerated EGL rendering (e.g. Wine GLX) into the X11
+     * framebuffer that WineGuiActivity displays.
+     */
+    fun presentDrawable(drawableId: Int) {
+        val window = windows[drawableId] ?: return
+        val w = window.width.coerceAtLeast(1)
+        val h = window.height.coerceAtLeast(1)
+
+        var surface = drawableToEglSurface[drawableId]
+        val existingSize = surface?.let { eglSurfaceSize[it] }
+        // Recreate the surface if the drawable was resized
+        if (surface == null || existingSize == null || existingSize.first != w || existingSize.second != h) {
+            surface?.let {
+                eglContextManager.destroySurface(it)
+                eglSurfaceToDrawable.remove(it)
+                eglSurfaceSize.remove(it)
+            }
+            drawableToEglSurface.remove(drawableId)
+            surface = eglContextManager.createPbufferSurface(w, h) ?: return
+            drawableToEglSurface[drawableId] = surface
+            eglSurfaceToDrawable[surface] = drawableId
+            eglSurfaceSize[surface] = w to h
+            Log.d(TAG, "EGL present surface recreated for drawable $drawableId: ${w}x${h}")
+        }
+
+        val pixels = eglContextManager.readPixels(surface, w, h) ?: return
+        val target = getTargetBitmap(drawableId) ?: return
+
+        // Convert RGBA bytes (GL read order) to Android ARGB_8888 ints
+        val intPixels = IntArray(w * h)
+        for (i in 0 until w * h) {
+            val base = i * 4
+            val r = pixels[base].toInt() and 0xFF
+            val g = pixels[base + 1].toInt() and 0xFF
+            val b = pixels[base + 2].toInt() and 0xFF
+            val a = pixels[base + 3].toInt() and 0xFF
+            intPixels[i] = (a shl 24) or (r shl 16) or (g shl 8) or b
+        }
+        target.setPixels(intPixels, 0, w, 0, 0, w, h)
+        dirtyRects.add(DirtyRect(0, 0, w.coerceAtMost(displayWidth), h.coerceAtMost(displayHeight)))
+    }
+
+    /** Present the root window's EGL content to the visible framebuffer. */
+    fun presentRoot() {
+        presentDrawable(rootWindowId)
     }
 
     /** The main framebuffer that the UI layer reads and displays. */
@@ -731,6 +785,7 @@ class MiniXServer(
         val surface = drawableToEglSurface.remove(windowId)
         if (surface != null) {
             eglSurfaceToDrawable.remove(surface)
+            eglSurfaceSize.remove(surface)
             eglContextManager.destroySurface(surface)
             Log.d(TAG, "Released EGL surface for destroyed window $windowId")
         }

@@ -92,6 +92,11 @@ class WineGuiActivity : Activity() {
             override fun run() {
                 val holder = surfaceView.holder
                 if (!holder.isCreating && holder.surface.isValid) {
+                    // Present EGL-accelerated content (Wine GLX pbuffer) into the
+                    // X11 software framebuffer before drawing to screen
+                    server?.let { s ->
+                        if (s.eglContextManager.isReady()) s.presentRoot()
+                    }
                     val canvas = holder.lockCanvas()
                     if (canvas != null) {
                         try {
