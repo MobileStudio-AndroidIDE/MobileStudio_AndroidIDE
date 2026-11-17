@@ -7767,7 +7767,7 @@ Long press: Toggle Shell panel"""
         File(targetDir, "gradlew").takeIf { it.exists() }?.setExecutable(true, false)
         loadFileTree(targetDir)
         if (::drawerLayout.isInitialized) drawerLayout.closeDrawer(GravityCompat.START)
-        autoComplete.setProjectDir(targetDir)
+        if (::autoComplete.isInitialized) autoComplete.setProjectDir(targetDir)
         gradleSyncNeeded = currentProjectKind != ProjectKind.GODOT
         checkProjectUpdates()
 
@@ -7783,12 +7783,12 @@ Long press: Toggle Shell panel"""
             if (currentProjectKind != ProjectKind.GODOT) {
                 if (currentProjectKind == ProjectKind.PYTHON) {
                     schedulePythonDiagnostics(changedFiles)
-                } else {
+                } else if (::buildScheduler.isInitialized) {
                     buildScheduler.schedule(changedFiles)
                 }
             }
         }.also { it.start() }
-        if (currentProjectKind != ProjectKind.GODOT) {
+        if (currentProjectKind != ProjectKind.GODOT && ::buildScheduler.isInitialized && fileWatcher != null) {
             buildScheduler.attachTo(fileWatcher!!, targetDir)
             scheduleInitialProjectDiagnostics(targetDir)
         }
