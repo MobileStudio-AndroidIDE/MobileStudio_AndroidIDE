@@ -1233,7 +1233,8 @@ private fun TerminalPane(activity: MainActivity) {
                 if (terminalText.isNotEmpty()) {
                     Text(
                         text = terminalText,
-                        color = ide.synStr,
+                        color = ide.text,
+                        fontSize = 12.sp,
                         style = IdeMono.terminal,
                         modifier = Modifier.fillMaxWidth(),
                     )

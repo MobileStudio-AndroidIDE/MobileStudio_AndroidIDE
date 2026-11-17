@@ -75,7 +75,7 @@
     <string name="tab_problems">문제</string>
     <string name="tab_search">검색</string>
     <string name="tab_pip">PIP</string>
-    <string name="tab_shell">셸</string>
+    <string name="tab_shell">쉘</string>
     <string name="tab_preview">미리보기</string>
     <string name="tab_source">소스</string>
     <string name="tab_outline">개요</string>

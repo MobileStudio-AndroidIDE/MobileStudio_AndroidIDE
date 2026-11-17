@@ -3454,6 +3454,116 @@ internal class SettingsController(
             RowItem.Chk("labs_enabled", "Enable Studio Labs features", def = false),
         )
 
+        // Tools > Terminal
+        "terminal" -> listOf(
+            RowItem.Sec("Shell"),
+            RowItem.Chk("term_confirm_exit", "Confirm on exit", def = true),
+            RowItem.Chk("term_copy_on_select", "Copy on selection", def = false),
+            RowItem.Chk("term_paste_on_middle", "Paste on middle click", def = false),
+            RowItem.Sec("Appearance"),
+            RowItem.Cbo("term_scheme", "Color scheme:",
+                listOf("Darcula", "Dark", "Light"), "Darcula"),
+            RowItem.Cbo("term_font_size", "Font size:",
+                listOf("10sp", "12sp", "14sp", "16sp", "18sp"), "14sp"),
+            RowItem.Chk("term_scrollback", "Save scrollback", def = true),
+        )
+
+        // Tools > Logcat
+        "logcat" -> listOf(
+            RowItem.Chk("logcat_show_timestamp", "Show timestamps", def = true),
+            RowItem.Chk("logcat_show_level", "Show log level", def = true),
+            RowItem.Cbo("logcat_level", "Minimum level:",
+                listOf("Verbose", "Debug", "Info", "Warn", "Error"), "Verbose"),
+            RowItem.Chk("logcat_filter_app", "Filter by app", def = true),
+            RowItem.Txt("logcat_filter_text", "Filter text:", def = ""),
+        )
+
+        // Tools > Emulator
+        "emulator" -> listOf(
+            RowItem.Chk("emu_quick_boot", "Quick boot", def = true),
+            RowItem.Chk("emu_snapshot", "Save snapshots", def = true),
+            RowItem.Cbo("emu_network", "Network:",
+                listOf("NAT", "Bridged", "Host-only"), "NAT"),
+            RowItem.Txt("emu_avd", "Default AVD:", def = ""),
+        )
+
+        // Tools > Database Inspector
+        "database_inspector" -> listOf(
+            RowItem.Chk("db_auto_connect", "Auto-connect on open", def = true),
+            RowItem.Chk("db_show_system", "Show system tables", def = false),
+            RowItem.Cbo("db_limit", "Row limit:",
+                listOf("100", "500", "1000", "5000"), "500"),
+        )
+
+        // Tools > Layout Inspector
+        "layout_inspector" -> listOf(
+            RowItem.Chk("li_live_updates", "Live updates", def = true),
+            RowItem.Chk("li_show_attrs", "Show attributes", def = true),
+            RowItem.Chk("li_show_ids", "Show resource IDs", def = false),
+        )
+
+        // Tools > Diff & Merge
+        "diff_merge" -> listOf(
+            RowItem.Cbo("diff_tool", "External diff tool:",
+                listOf("Internal", "Meld", "KDiff3", "WinMerge"), "Internal"),
+            RowItem.Chk("diff_ignore_ws", "Ignore whitespace", def = false),
+            RowItem.Chk("diff_ignore_case", "Ignore case", def = false),
+        )
+
+        // Tools > CSV Formats
+        "csv_formats" -> listOf(
+            RowItem.Cbo("csv_separator", "Separator:",
+                listOf("Comma", "Tab", "Semicolon", "Space"), "Comma"),
+            RowItem.Cbo("csv_quote", "Quote character:",
+                listOf("\"", "'", "None"), "\""),
+            RowItem.Chk("csv_first_row_header", "First row is header", def = true),
+        )
+
+        // Tools > Actions on Save
+        "actions_on_save" -> listOf(
+            RowItem.Chk("aos_reformat", "Reformat code", def = false),
+            RowItem.Chk("aos_optimize_imports", "Optimize imports", def = false),
+            RowItem.Chk("aos_run_inspections", "Run inspections", def = false),
+        )
+
+        // Tools > App Links Assistant
+        "app_links" -> listOf(
+            RowItem.Chk("al_auto_verify", "Auto-verify links", def = true),
+            RowItem.Txt("al_domain", "Domain:", def = ""),
+            RowItem.Txt("al_path", "Path prefix:", def = ""),
+        )
+
+        // Tools > Google Accounts
+        "google_accounts" -> listOf(
+            RowItem.Nte("Google accounts for cloud services and publishing."),
+            RowItem.Chk("ga_sync", "Sync with Google", def = false),
+            RowItem.Txt("ga_account", "Account email:", def = ""),
+        )
+
+        // Tools > Gradle Declarative Focus
+        "gradle_decl_focus" -> listOf(
+            RowItem.Chk("gdf_enabled", "Enable declarative focus", def = true),
+            RowItem.Cbo("gdf_scope", "Focus scope:",
+                listOf("Project", "Module", "File"), "Project"),
+        )
+
+        // Tools > Screenshots & Screen Recordings
+        "screenshots_recordings" -> listOf(
+            RowItem.Cbo("sr_format", "Screenshot format:",
+                listOf("PNG", "JPEG", "WebP"), "PNG"),
+            RowItem.Cbo("sr_quality", "Quality:",
+                listOf("Low", "Medium", "High", "Lossless"), "High"),
+            RowItem.Chk("sr_show_cursor", "Show cursor", def = false),
+        )
+
+        // Languages & Frameworks > Data Editor
+        "data_editor" -> listOf(
+            RowItem.Chk("de_auto_save", "Auto-save changes", def = false),
+            RowItem.Chk("de_show_null", "Show null values", def = true),
+            RowItem.Cbo("de_page_size", "Page size:",
+                listOf("50", "100", "200", "500"), "100"),
+        )
+
         else -> listOf(
             RowItem.Nte(
                 "This page has no configurable options in this build. Settings for it are " +
