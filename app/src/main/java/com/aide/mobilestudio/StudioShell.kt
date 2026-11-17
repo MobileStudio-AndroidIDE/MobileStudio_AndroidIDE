@@ -382,6 +382,24 @@ fun StudioApp(host: StudioHost) {
                 .setMessage("MobileStudio IDE\nAIDE-style Android IDE rebuilt with Jetpack Compose.\n\nEditor, Gradle build, terminal, file tree and AI assistant are wired in.")
                 .setPositiveButton("OK", null)
                 .show()
+            "crash_report" -> {
+                val crashLogs = com.aide.mobilestudio.MobileStudioCrashGuard.getCrashLogs(activity)
+                val latestText = if (crashLogs.isEmpty()) {
+                    "No crash logs found."
+                } else {
+                    com.aide.mobilestudio.MobileStudioCrashGuard.latestCrashText(activity)
+                }
+                AlertDialog.Builder(activity)
+                    .setTitle("Crash Report")
+                    .setMessage(latestText)
+                    .setPositiveButton("Copy") { _, _ ->
+                        val clipboard = activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("crash_report", latestText))
+                        android.widget.Toast.makeText(activity, "Crash report copied", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            }
             else -> Toast.makeText(context, action, Toast.LENGTH_SHORT).show()
         }
     }
@@ -1508,7 +1526,10 @@ private fun TopMenuBar(
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Download Manager", "downloads"),
             )),
-            StudioMenu("Help", listOf(StudioMenuItem("About MobileStudio", "about"))),
+            StudioMenu("Help", listOf(
+                StudioMenuItem("About MobileStudio", "about"),
+                StudioMenuItem("Crash Report", "crash_report"),
+            )),
         )
     }
     var openMenu by remember { mutableStateOf<String?>(null) }
