@@ -14,23 +14,23 @@ import kotlinx.coroutines.*
 
 object KotlinHighlighter {
 
-    private fun colorKw() = StudioUi.palette.synKw
-    private fun colorStr() = StudioUi.palette.synStr
-    private fun colorComment() = StudioUi.palette.synComment
-    private fun colorDoc() = StudioUi.palette.synDoc
-    private fun colorNum() = StudioUi.palette.synNum
-    private fun colorAnnotation() = StudioUi.palette.synAnnotation
-    private fun colorClass() = StudioUi.palette.synType
-    private fun colorFunction() = StudioUi.palette.synFunc
-    private fun colorIdent() = StudioUi.palette.synIdent
-    private fun colorVariable() = StudioUi.palette.synField
-    private fun colorOperator() = StudioUi.palette.synOperator
-    private fun colorBoolean() = StudioUi.palette.synBoolean
-    private fun colorConst() = StudioUi.palette.synConst
-    private fun colorGeneric() = StudioUi.palette.synGeneric
-    private fun colorLabel() = StudioUi.palette.synLabel
-    private fun colorImport() = StudioUi.palette.synImport
-    private fun colorParam() = StudioUi.palette.synParam
+    private fun colorKw() = 0xFF569CD6.toInt()    // Bright blue for keywords
+    private fun colorStr() = 0xFFCE9178.toInt()    // Sand color for strings
+    private fun colorComment() = 0xFF6A9955.toInt() // Green for comments
+    private fun colorDoc() = 0xFF8BC34A.toInt()     // Light green for doc comments
+    private fun colorNum() = 0xFFB5CEA8.toInt()     // Light sage for numbers
+    private fun colorAnnotation() = 0xFFC586C0.toInt() // Purple for annotations
+    private fun colorClass() = 0xFF4EC9B0.toInt()    // Teal for classes
+    private fun colorFunction() = 0xFFDCDCAA.toInt() // Yellow-white for functions
+    private fun colorIdent() = 0xFF9CDCFE.toInt()    // Light blue for identifiers
+    private fun colorVariable() = 0xFF9CDCFE.toInt() // Light blue for variables
+    private fun colorOperator() = 0xFFD4D4D4.toInt() // Light gray for operators
+    private fun colorBoolean() = 0xFF569CD6.toInt()  // Blue for booleans
+    private fun colorConst() = 0xFF4FC1FF.toInt()    // Cyan for constants
+    private fun colorGeneric() = 0xFFC586C0.toInt()  // Purple for generics
+    private fun colorLabel() = 0xFF9CDCFE.toInt()    // Light blue for labels
+    private fun colorImport() = 0xFFC586C0.toInt()   // Purple for imports
+    private fun colorParam() = 0xFF9CDCFE.toInt()    // Light blue for params
 
     private val keywords by lazy { setOf(
         "abstract", "actual", "annotation", "as", "break", "by", "catch",
