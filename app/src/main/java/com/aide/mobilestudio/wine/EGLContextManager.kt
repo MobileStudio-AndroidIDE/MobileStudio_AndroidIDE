@@ -124,6 +124,12 @@ class EGLContextManager(private val server: MiniXServer) {
         return EGL14.eglSwapBuffers(eglDisplay, surface ?: EGL14.EGL_NO_SURFACE)
     }
 
+    /** Release an EGL surface previously created for a GLX drawable. */
+    fun destroySurface(surface: EGLSurface): Boolean {
+        if (!initialized || eglDisplay == null) return false
+        return EGL14.eglDestroySurface(eglDisplay!!, surface)
+    }
+
     /** Release EGL resources. */
     fun release() {
         if (eglDisplay != null) {

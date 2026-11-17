@@ -726,6 +726,14 @@ class MiniXServer(
 
     private fun handleDestroyWindow(buf: ByteBuffer) {
         val windowId = buf.getInt(4)
+        // Release any EGL pbuffer surface bound to this drawable before the
+        // window record is dropped, so GLX windows cannot leak surfaces.
+        val surface = drawableToEglSurface.remove(windowId)
+        if (surface != null) {
+            eglSurfaceToDrawable.remove(surface)
+            eglContextManager.destroySurface(surface)
+            Log.d(TAG, "Released EGL surface for destroyed window $windowId")
+        }
         windows.remove(windowId)
     }
 
