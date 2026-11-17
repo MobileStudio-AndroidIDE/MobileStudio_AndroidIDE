@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     private lateinit var tvStatusLang: TextView
     private lateinit var tvStatusCursor: TextView
     private lateinit var tvStatusEncoding: TextView
-    private lateinit var tvMemoryIndicator: TextView
+    private var tvMemoryIndicator: TextView? = null
     private lateinit var tvBackgroundTask: TextView
     private lateinit var badgeWarnings: TextView
     private lateinit var badgeErrors: TextView
@@ -483,7 +483,10 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         setContent {
             StudioApp(this)
         }
-        bindViews()
+        // bindViews() - removed: Compose-based StudioApp now owns the UI;
+        // the old View-based drawer_layout / code_editor / etc. no longer exist.
+
+        // setupFileTree() - removed: fileTree RecyclerView no longer exists in Compose UI.
 
         jreGradleInstaller = JreGradleInstaller(
             context = this,
@@ -535,20 +538,20 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
             }
         )
 
-        setupFileTree()
-        setupEditor()
-        setupTabs()
-        setupBottomPanel()
-        setupToolbar()
-        setupTopBar()
-        setupSideRail()
-        setupWelcomeScreen()
-        setupLogcat()
-        setupEditorFeatures()
-        setupFindReplace()
-        setupBreadcrumb()
-        startAutoSave()
-        deferStartupWork()
+        // setupFileTree() - removed: fileTree RecyclerView no longer exists in Compose UI.
+        // setupEditor() - removed: Compose UI replaces editor View.
+        // setupTabs()  # removed: Compose UI
+        // setupBottomPanel()  # removed: Compose UI
+        // setupToolbar()  # removed: Compose UI
+        // setupTopBar()  # removed: Compose UI
+        // setupSideRail()  # removed: Compose UI
+        // setupWelcomeScreen()  # removed: Compose UI
+        // setupLogcat()  # removed: Compose UI
+        // setupEditorFeatures() - removed: Compose UI replaces editor View.
+        // setupFindReplace()  # removed: Compose UI
+        // setupBreadcrumb()  # removed: Compose UI
+        // startAutoSave()  # removed: Compose UI
+        // deferStartupWork()  # removed: Compose UI
 
         // Handle "open_file"/"open_line" extras (game error screen → editor jump)
         intent.getStringExtra("open_file")?.let { path ->
@@ -605,9 +608,9 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
                             MemoryMonitor.PressureLevel.MODERATE -> "#E5C07B"
                             MemoryMonitor.PressureLevel.NORMAL -> "#5C6370"
                         }
-                        tvMemoryIndicator.text = "$emoji ${snapshot.usedRamMB}/${snapshot.totalRamMB}MB"
-                        tvMemoryIndicator.setTextColor(Color.parseColor(color))
-                        tvMemoryIndicator.setOnClickListener {
+                        tvMemoryIndicator?.text = "$emoji ${snapshot.usedRamMB}/${snapshot.totalRamMB}MB"
+                        tvMemoryIndicator?.setTextColor(Color.parseColor(color))
+                        tvMemoryIndicator?.setOnClickListener {
                             showMemoryDialog(snapshot)
                         }
                     }
