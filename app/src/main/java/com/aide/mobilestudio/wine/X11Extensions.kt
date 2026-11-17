@@ -1,6 +1,7 @@
 package com.aide.mobilestudio.wine
 
 import android.util.Log
+import com.aide.mobilestudio.NativeSocketFdSender
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ConcurrentHashMap
@@ -808,12 +809,23 @@ class X11Extensions(
                 val info = server.dri3Buffers.values.firstOrNull { it.drawableId == pixmapId }
                     ?: server.dri3Buffers.values.firstOrNull()
                 val fd = if (info != null) server.getHardwareBufferFd(info.drawableId) else -1
+
+                // Pass the fd to the connected Wine client via SCM_RIGHTS on the
+                // Unix domain socket, so it can mmap the Android hardware buffer.
+                val clientSocket = server.currentClientSocket.get()
+                if (clientSocket != null && fd >= 0) {
+                    val sendResult = NativeSocketFdSender.sendFd(clientSocket, fd)
+                    Log.d(TAG, "DRI3 BufferFromPixmap: sent fd=$fd via SCM_RIGHTS result=$sendResult")
+                } else if (fd >= 0) {
+                    Log.w(TAG, "DRI3 BufferFromPixmap: have fd=$fd but no client socket to send over")
+                }
+
                 val reply = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
                 reply.put(if (info != null) 1 else 0) // success
                 reply.put(0)
                 reply.putShort(server.nextSeq().toShort())
                 reply.putInt(0)
-                reply.putInt(fd) // buffer fd (real fd via native fd export when implemented)
+                reply.putInt(fd) // buffer fd (also embedded in reply for legacy clients)
                 output.write(reply.array())
                 output.flush()
             }

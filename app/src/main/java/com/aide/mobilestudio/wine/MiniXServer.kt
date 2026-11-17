@@ -28,6 +28,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import com.aide.mobilestudio.NativeHardwareBuffer
+import com.aide.mobilestudio.NativeSocketFdSender
 
 /**
  * Embedded X11 server for Wine — no external app required.
@@ -390,6 +391,9 @@ class MiniXServer(
     private var nextResourceId = AtomicInteger(0x00400000)
     private var nextSequence = AtomicInteger(0)
 
+    /** The X client socket currently being handled (per-thread), for SCM_RIGHTS fd pass-over. */
+    val currentClientSocket = ThreadLocal<Socket?>()
+
     val windows = ConcurrentHashMap<Int, XWindow>()
     val gcs = ConcurrentHashMap<Int, XGC>()
     val pixmaps = ConcurrentHashMap<Int, XPixmap>()
@@ -643,6 +647,9 @@ class MiniXServer(
         // Load DRI3 fd export native library for hardware buffer sharing
         NativeHardwareBuffer.load()
 
+        // Load DRI3 fd send native library for SCM_RIGHTS fd pass-over
+        NativeSocketFdSender.load()
+
         // Initialize clipboard manager from Android context
         context?.let { ctx ->
             clipboardManager = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager?
@@ -776,6 +783,11 @@ class MiniXServer(
     // =====================================================================
 
     private fun handleClient(inputStream: java.io.InputStream, outputStream: java.io.OutputStream, closeable: java.io.Closeable?) {
+        // Track this client's socket object so DRI3 can pass buffers via SCM_RIGHTS
+        currentClientSocket.set(closeable as? Socket)
+        if (closeable is Socket) {
+            Log.d(TAG, "Client connected with socket object")
+        }
         try {
             val input = DataInputStream(inputStream)
             val output = DataOutputStream(outputStream)
@@ -802,6 +814,7 @@ class MiniXServer(
         } catch (e: Exception) {
             Log.d(TAG, "Client disconnected: ${e.message}")
         } finally {
+            currentClientSocket.remove()
             clientOutputs.removeIf { runCatching { it.write(0); true }.getOrDefault(false) }
             runCatching { closeable?.close() }
         }
