@@ -113,7 +113,7 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     private lateinit var logcatContainer: View
     private lateinit var logcatText: AutoScrollLogView
     private lateinit var problemsContainer: View
-    private lateinit var problemsRecycler: RecyclerView
+    private var problemsRecycler: RecyclerView? = null
     private lateinit var buildProgress: ProgressBar
     private lateinit var fileTree: RecyclerView
     private lateinit var tvDrawerTitle: TextView
@@ -5698,12 +5698,12 @@ Long press: Toggle Shell panel"""
             }
         }
 
-        problemsRecycler.layoutManager = LinearLayoutManager(this).apply {
+        problemsRecycler?.layoutManager = LinearLayoutManager(this).apply {
             isItemPrefetchEnabled = true
         }
-        problemsRecycler.setItemViewCacheSize(20)
-        problemsRecycler.isDrawingCacheEnabled = true
-        problemsRecycler.setOnLongClickListener {
+        problemsRecycler?.setItemViewCacheSize(20)
+        problemsRecycler?.isDrawingCacheEnabled = true
+        problemsRecycler?.setOnLongClickListener {
             copyProblemsToClipboard()
             true
         }
@@ -8601,12 +8601,12 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
                 showProblemActionsDialog(problem)
             }
         )
-        problemsRecycler.adapter = problemsAdapter
+        problemsRecycler?.adapter = problemsAdapter
 
         // The empty view follows the adapter rather than the places that fill
         // it, so it stays correct however problems arrive - from a build, from
         // a lint run, or from the editor's own analysis.
-        val problemsParent = problemsRecycler.parent as? LinearLayout
+        val problemsParent = problemsRecycler?.parent as? LinearLayout
         val problemsEmpty = StudioUi.emptyState(
             this,
             glyph = "\u2705",
@@ -8634,7 +8634,7 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         fun syncProblemsEmpty() {
             val empty = problemsAdapter.itemCount == 0
             problemsEmpty.visibility = if (empty) View.VISIBLE else View.GONE
-            problemsRecycler.visibility = if (empty) View.GONE else View.VISIBLE
+            problemsRecycler?.visibility = if (empty) View.GONE else View.VISIBLE
             syncProblemsTab(problemsAdapter.itemCount)
         }
         problemsAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
@@ -8674,12 +8674,12 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         }
 
         // Problems: navigate to line.
-        problemsRecycler.addOnChildAttachStateChangeListener(
+        problemsRecycler?.addOnChildAttachStateChangeListener(
             object : RecyclerView.OnChildAttachStateChangeListener {
                 override fun onChildViewAttachedToWindow(view: View) {
                     view.setOnClickListener {
-                        val pos = problemsRecycler.getChildAdapterPosition(view)
-                        val err = problemsAdapter.getItem(pos) ?: return@setOnClickListener
+                        val pos = problemsRecycler?.getChildAdapterPosition(view)
+                        val err = problemsAdapter.getItem(pos ?: -1) ?: return@setOnClickListener
                         if (err.line <= 0) {
                             showToast("No source location for this problem")
                             return@setOnClickListener
@@ -8688,8 +8688,8 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
                         codeEditor.post { navigateToLine(err.line) }
                     }
                     view.setOnLongClickListener {
-                        val pos = problemsRecycler.getChildAdapterPosition(view)
-                        val err = problemsAdapter.getItem(pos) ?: return@setOnLongClickListener true
+                        val pos = problemsRecycler?.getChildAdapterPosition(view)
+                        val err = problemsAdapter.getItem(pos ?: -1) ?: return@setOnLongClickListener true
                         showProblemActions(err)
                         true
                     }
@@ -9146,7 +9146,7 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         }
         if (problemsRefreshScheduled) return
         problemsRefreshScheduled = true
-        problemsRecycler.postDelayed({
+        problemsRecycler?.postDelayed({
             problemsRefreshScheduled = false
             renderProblems()
         }, 120L)
