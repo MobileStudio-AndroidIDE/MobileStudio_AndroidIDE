@@ -59,6 +59,12 @@ interface StudioHost {
     /** Launcher used to pick a project directory through SAF. */
     val studioPickDir: ActivityResultLauncher<android.net.Uri?>
 
+    /** Launcher used to pick a NEW PROJECT parent folder (does not open it). */
+    val studioPickNewProjectDir: ActivityResultLauncher<android.net.Uri?>
+
+    /** Callback invoked with the chosen new-project parent path. */
+    var studioOnNewProjectDirPicked: ((String) -> Unit)?
+
     // ── Actions ──────────────────────────────────────────────────────────
 
     /** Opens [dir] as the active project. */
@@ -141,6 +147,9 @@ interface StudioHost {
  * editor helpers (find/replace, auto-complete, formatting).
  */
 object EditorPaneState {
+    /** Monotonic revision bumped whenever the active project is (re)opened. */
+    val projectRevision = androidx.compose.runtime.mutableStateOf(0)
+
     /** Current editor text. */
     var content: String = ""
 

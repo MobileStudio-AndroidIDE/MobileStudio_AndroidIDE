@@ -298,6 +298,22 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         }
     }
 
+    override var studioOnNewProjectDirPicked: ((String) -> Unit)? = null
+
+    override val studioPickNewProjectDir: ActivityResultLauncher<android.net.Uri?> =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            uri?.let { u ->
+                runCatching {
+                    contentResolver.takePersistableUriPermission(
+                        u,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                }
+                val resolved = resolveTreeUriDir(u)
+                if (resolved != null) studioOnNewProjectDirPicked?.invoke(resolved.absolutePath)
+            }
+        }
+
     override fun studioOpenProject(dir: File) { openProject(dir) }
 
     override fun studioOpenFileInEditor(file: File) { openFile(file) }
@@ -7798,6 +7814,7 @@ Long press: Toggle Shell panel"""
         saveCurrentFile()
         closeCurrentProjectState()
         currentProjectDir = targetDir
+        EditorPaneState.projectRevision.value += 1
         com.aide.mobilestudio.ai.agent.ToolRegistry.setCurrentProjectDir(targetDir)
         invalidateSymbolFileCache()
         currentProjectKind = detectProjectKind(targetDir)

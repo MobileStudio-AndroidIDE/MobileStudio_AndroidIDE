@@ -145,6 +145,9 @@ fun StudioApp(host: StudioHost) {
     val activity = host.studioActivity
     val context: Context = LocalContext.current
     val ide = LocalIdeColors.current
+    // Observe imperative project/tab changes so the shell recomposes when the
+    // activity opens a project or switches tabs (those live in plain vars).
+    val projectRevision by EditorPaneState.projectRevision
 
     var centerPane by remember { mutableStateOf("editor") }
     var drawerOpen by remember { mutableStateOf(false) }
@@ -158,6 +161,9 @@ fun StudioApp(host: StudioHost) {
     var toolsInitialTab by remember { mutableStateOf("sdk_manager") }
     var settingsInitialPage by remember { mutableStateOf<String?>(null) }
     val logLines = remember { mutableStateListOf<StudioLogLine>() }
+    // Reading projectRevision here forces recomposition after openProject().
+    @Suppress("UNUSED_VARIABLE") val projectRevRead = projectRevision
+    val currentProjectName = host.studioProjectDir?.name ?: "MobileStudio"
 
     DisposableEffect(Unit) {
         DownloadCenter.attach()
@@ -526,7 +532,7 @@ fun StudioApp(host: StudioHost) {
         Column(modifier = Modifier.fillMaxSize().background(ide.window)) {
             TopMenuBar(
                 activity = context as Activity,
-                projectName = host.studioProjectDir?.name ?: "MobileStudio",
+                projectName = currentProjectName,
                 onOpenDrawer = {
                     drawerMode = if (host.studioProjectDir != null) "files" else "projects"
                     drawerOpen = true
@@ -599,7 +605,7 @@ fun StudioApp(host: StudioHost) {
             }
             StudioStatusBar(
                 host = host,
-                projectName = host.studioProjectDir?.name ?: "MobileStudio",
+                projectName = currentProjectName,
                 problems = host.studioEditorProblems.size,
                 onShowProblems = { centerPane = "problems"; bottomPanelOpen = true },
             )
@@ -2347,8 +2353,15 @@ private fun NewProjectDialog(
     val ide = LocalIdeColors.current
     var selectedType by remember { mutableStateOf(0) }  // 0=Android, 1=Java, 2=Kotlin, 3=EXE
     var projectName by remember { mutableStateOf("") }
-    var projectLocation by remember { mutableStateOf(host.studioGetLastProject() ?: StorageHelper.projectsRoot(activity).absolutePath) }
+    // Default to the projects root, NOT the last opened project folder —
+    // otherwise the new project is created *inside* the last project.
+    var projectLocation by remember { mutableStateOf(StorageHelper.projectsRoot(activity).absolutePath) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(host) {
+        host.studioOnNewProjectDirPicked = { path -> projectLocation = path; errorMessage = null }
+        onDispose { host.studioOnNewProjectDirPicked = null }
+    }
 
     val projectTypes = remember {
         listOf(
@@ -2409,7 +2422,7 @@ private fun NewProjectDialog(
             val projectDir = generator.create(config)
             // Ensure the essential Android skeleton is present even if a
             // template path skipped a file — guarantees a basic Android project.
-            ensureAndroidSkeleton(projectDir, name, "com.example.$safePkg")
+            ensureAndroidSkeleton(projectDir, name, "com.example.$safePkg", useJava = (template == ProjectTemplateGenerator.Template.EMPTY_JAVA_ACTIVITY))
             activity.studioOpenProject(projectDir)
             activity.studioPutLastProject(projectDir.absolutePath)
             onDismiss()
@@ -2462,13 +2475,24 @@ private fun NewProjectDialog(
                 Spacer(Modifier.height(12.dp))
                 Text(text = AppLanguage.string(activity, R.string.newproject_path_label), color = ide.textSoft, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(6.dp))
-                IdeFilterField(
-                    value = projectLocation,
-                    onValueChange = { projectLocation = it; errorMessage = null },
-                    placeholder = AppLanguage.string(activity, R.string.newproject_placeholder_folder),
-                    modifier = Modifier.fillMaxWidth(),
-                    imeAction = ImeAction.Done,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IdeFilterField(
+                        value = projectLocation,
+                        onValueChange = { projectLocation = it; errorMessage = null },
+                        placeholder = AppLanguage.string(activity, R.string.newproject_placeholder_folder),
+                        modifier = Modifier.weight(1f),
+                        imeAction = ImeAction.Done,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .height(40.dp)
+                            .background(Color(ide.p.surface2), RoundedCornerShape(4.dp))
+                            .clickable { host.studioPickNewProjectDir.launch(null) }
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("Browse", color = ide.accent, fontSize = 12.sp, fontWeight = FontWeight.Medium) }
+                }
                 if (previewPath.isNotEmpty()) {
                     Spacer(Modifier.height(6.dp))
                     Text(text = previewPath, color = ide.muted, style = IdeMono.path, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -2514,7 +2538,7 @@ private fun NewProjectTypeOption(type: NewProjectType, selected: Boolean, onClic
  * Android project files. Called after the template generator; it only fills
  * in files that are missing, so a complete template is left untouched.
  */
-private fun ensureAndroidSkeleton(projectDir: File, appName: String, packageName: String) {
+private fun ensureAndroidSkeleton(projectDir: File, appName: String, packageName: String, useJava: Boolean = false) {
     fun writeIfMissing(rel: String, content: String) {
         val f = File(projectDir, rel)
         if (f.exists()) return
@@ -2584,19 +2608,23 @@ private fun ensureAndroidSkeleton(projectDir: File, appName: String, packageName
             </application>
         </manifest>
     """)
-    // MainActivity (Kotlin)
-    writeIfMissing("app/src/main/kotlin/$pkgPath/MainActivity.kt", """
-        package $packageName
+    // MainActivity — only generate Kotlin one when there is no Java source
+    // already created by the template (otherwise duplicate class -> build fails).
+    val hasJavaActivity = File(projectDir, "app/src/main/java/$pkgPath/MainActivity.java").exists()
+    if (!useJava && !hasJavaActivity) {
+        writeIfMissing("app/src/main/kotlin/$pkgPath/MainActivity.kt", """
+            package $packageName
 
-        import android.os.Bundle
-        import androidx.appcompat.app.AppCompatActivity
+            import android.os.Bundle
+            import androidx.appcompat.app.AppCompatActivity
 
-        class MainActivity : AppCompatActivity() {
-            override fun onCreate(savedInstanceState: Bundle?) {
-                super.onCreate(savedInstanceState)
+            class MainActivity : AppCompatActivity() {
+                override fun onCreate(savedInstanceState: Bundle?) {
+                    super.onCreate(savedInstanceState)
+                }
             }
-        }
-    """)
+        """)
+    }
     // Basic resources
     writeIfMissing("app/src/main/res/values/strings.xml", """
         <resources>
