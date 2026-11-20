@@ -2428,6 +2428,9 @@ private fun NewProjectDialog(
             onDismiss()
             Toast.makeText(activity, AppLanguage.string(activity, R.string.projects_created).replace("%s", projectDir.toString()), Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
+            // Surface the full failure to logcat with ERROR tag so it can be
+            // diagnosed with `adb logcat *:E` in addition to the on-screen text.
+            Log.e("ProjectCreation", "Failed to create project '$name' at '$location'", e)
             errorMessage = AppLanguage.string(activity, R.string.projects_create_failed).replace("%s", e.message ?: "")
         }
     }

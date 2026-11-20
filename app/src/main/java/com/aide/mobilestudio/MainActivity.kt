@@ -10610,7 +10610,7 @@ AlertDialog.Builder(this)
 
     private fun checkProjectUpdates() {
         val root = currentProjectDir ?: return
-        val bannerContainer = findViewById<LinearLayout>(R.id.banner_container)
+        val bannerContainer = findViewById<LinearLayout>(R.id.banner_container) ?: return
         bannerContainer.removeAllViews()
         bannerContainer.visibility = View.GONE
 
@@ -10630,7 +10630,7 @@ AlertDialog.Builder(this)
     }
 
     private fun showUpgradeBanner(newVersion: String) {
-        val bannerContainer = findViewById<LinearLayout>(R.id.banner_container)
+        val bannerContainer = findViewById<LinearLayout>(R.id.banner_container) ?: return
         bannerContainer.removeAllViews()
         bannerContainer.visibility = View.VISIBLE
 
