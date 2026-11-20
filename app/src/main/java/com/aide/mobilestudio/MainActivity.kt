@@ -7765,7 +7765,7 @@ Long press: Toggle Shell panel"""
         updateBuildOptionLabel()
         updateProjectModeUi()
         File(targetDir, "gradlew").takeIf { it.exists() }?.setExecutable(true, false)
-        loadFileTree(targetDir)
+        if (::fileAdapter.isInitialized) loadFileTree(targetDir)
         if (::drawerLayout.isInitialized) drawerLayout.closeDrawer(GravityCompat.START)
         if (::autoComplete.isInitialized) autoComplete.setProjectDir(targetDir)
         gradleSyncNeeded = currentProjectKind != ProjectKind.GODOT

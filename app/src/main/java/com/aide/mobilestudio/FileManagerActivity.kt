@@ -656,8 +656,7 @@ class FileManagerActivity : AppCompatActivity() {
         if (requestCode == REQ_STORAGE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             navigateTo(Environment.getExternalStorageDirectory())
         } else {
-            Toast.makeText(this, "Storage permission required", Toast.LENGTH_LONG).show()
-            finish()
+            navigateTo(Environment.getExternalStorageDirectory())
         }
     }
 
