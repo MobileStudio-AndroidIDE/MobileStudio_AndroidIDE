@@ -192,11 +192,11 @@
     <string name="newproject_type_android">Android App</string>
     <string name="newproject_type_android_desc">Gradle-based Android app</string>
     <string name="newproject_type_java">Java Application</string>
-    <string name="newproject_type_java_desc">Standalone Java application</string>
+    <string name="newproject_type_java_desc">Android app with Java sources</string>
     <string name="newproject_type_kotlin">Kotlin Application</string>
-    <string name="newproject_type_kotlin_desc">Standalone Kotlin application</string>
-    <string name="newproject_type_exe">EXE / Native Binary</string>
-    <string name="newproject_type_exe_desc">C++ native project</string>
+    <string name="newproject_type_kotlin_desc">Android app with Kotlin sources</string>
+    <string name="newproject_type_exe">Native C++ (Android + JNI)</string>
+    <string name="newproject_type_exe_desc">Android app with native C++ layer</string>
     <string name="newproject_type_godot">Godot</string>
     <string name="newproject_project_type_label">Project type</string>
     <string name="newproject_enter_location">Enter a project location.</string>

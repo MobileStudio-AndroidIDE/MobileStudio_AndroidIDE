@@ -2383,21 +2383,33 @@ private fun NewProjectDialog(
             return
         }
         val generator = ProjectTemplateGenerator(activity)
+        // Every option produces a complete, buildable Android project skeleton
+        // (settings.gradle.kts, root/app build files, Gradle wrapper, manifest,
+        // MainActivity, resources). The selected type only changes the source
+        // language / native layer:
+        //   0 Android (Kotlin) -> EMPTY_ACTIVITY
+        //   1 Java source      -> EMPTY_JAVA_ACTIVITY
+        //   2 Kotlin source    -> EMPTY_ACTIVITY
+        //   3 Native (C++/JNI) -> NATIVE_CPP (Android skeleton + native layer)
         val template = when (selectedType) {
             1 -> ProjectTemplateGenerator.Template.EMPTY_JAVA_ACTIVITY
-            2 -> ProjectTemplateGenerator.Template.EMPTY_ACTIVITY
-            3 -> ProjectTemplateGenerator.Template.WINDOWS_EXE
+            3 -> ProjectTemplateGenerator.Template.NATIVE_CPP
             else -> ProjectTemplateGenerator.Template.EMPTY_ACTIVITY
         }
-        // Java/Kotlin/EXE templates still produce Gradle-based projects via the
-        // full generator so wrapper + root build files are always present.
+        val safePkg = name.lowercase()
+            .replace(Regex("[^a-z0-9]"), "")
+            .ifEmpty { "myapp" }
         val config = ProjectTemplateGenerator.ProjectConfig(
             appName = name,
+            packageName = "com.example.$safePkg",
             template = template,
             projectRoot = File(location),
         )
         try {
             val projectDir = generator.create(config)
+            // Ensure the essential Android skeleton is present even if a
+            // template path skipped a file — guarantees a basic Android project.
+            ensureAndroidSkeleton(projectDir, name, "com.example.$safePkg")
             activity.studioOpenProject(projectDir)
             activity.studioPutLastProject(projectDir.absolutePath)
             onDismiss()
@@ -2495,6 +2507,107 @@ private fun NewProjectTypeOption(type: NewProjectType, selected: Boolean, onClic
         Spacer(Modifier.height(5.dp))
         Text(text = type.description, color = ide.textSoft, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
+}
+
+/**
+ * Guarantees that a newly created project always contains the minimal set of
+ * Android project files. Called after the template generator; it only fills
+ * in files that are missing, so a complete template is left untouched.
+ */
+private fun ensureAndroidSkeleton(projectDir: File, appName: String, packageName: String) {
+    fun writeIfMissing(rel: String, content: String) {
+        val f = File(projectDir, rel)
+        if (f.exists()) return
+        f.parentFile?.mkdirs()
+        f.writeText(content.trimIndent())
+    }
+    val pkgPath = packageName.replace('.', '/')
+    // Gradle build structure
+    writeIfMissing("settings.gradle.kts", """
+        pluginManagement {
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
+        }
+        rootProject.name = "$appName"
+        include(":app")
+    """)
+    writeIfMissing("build.gradle.kts", """
+        plugins {
+            id("com.android.application") version "8.13.0" apply false
+            id("org.jetbrains.kotlin.android") version "2.0.20" apply false
+        }
+    """)
+    writeIfMissing("gradle.properties", """
+        android.useAndroidX=true
+        android.nonTransitiveRClass=true
+        org.gradle.jvmargs=-Xmx1536m
+    """)
+    writeIfMissing("app/build.gradle.kts", """
+        plugins {
+            id("com.android.application")
+            id("org.jetbrains.kotlin.android")
+        }
+        android {
+            namespace = "$packageName"
+            compileSdk = 34
+            defaultConfig {
+                applicationId = "$packageName"
+                minSdk = 24
+                targetSdk = 34
+                versionCode = 1
+                versionName = "1.0"
+            }
+        }
+        dependencies {
+            implementation("androidx.core:core-ktx:1.12.0")
+            implementation("androidx.appcompat:appcompat:1.6.1")
+            implementation("com.google.android.material:material:1.11.0")
+        }
+    """)
+    // Android manifest
+    writeIfMissing("app/src/main/AndroidManifest.xml", """
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application
+                android:allowBackup="true"
+                android:label="$appName"
+                android:theme="@style/Theme.$appName">
+                <activity android:name=".MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+    """)
+    // MainActivity (Kotlin)
+    writeIfMissing("app/src/main/kotlin/$pkgPath/MainActivity.kt", """
+        package $packageName
+
+        import android.os.Bundle
+        import androidx.appcompat.app.AppCompatActivity
+
+        class MainActivity : AppCompatActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+            }
+        }
+    """)
+    // Basic resources
+    writeIfMissing("app/src/main/res/values/strings.xml", """
+        <resources>
+            <string name="app_name">$appName</string>
+        </resources>
+    """)
+    writeIfMissing("app/src/main/res/values/themes.xml", """
+        <resources>
+            <style name="Theme.$appName" parent="Theme.MaterialComponents.DayNight.DarkActionBar" />
+        </resources>
+    """)
 }
 
 private fun createProjectFiles(projectDir: File, projectName: String, projectType: String) {
