@@ -645,4 +645,32 @@
     <string name="wrongconstant">WrongConstant</string>
     <string name="yes">Yes</string>
     <string name="your_answer">Your answer</string>
+    <string name="downloader_confirm_message" formatted="false">Si vous choisissez Non, le fichier %s ne sera pas téléchargé et la compilation Gradle ne pourra pas continuer.</string>
+    <string name="downloader_confirm_title">Voulez-vous télécharger ce fichier ?</string>
+    <string name="downloader_download_path">Chemin de téléchargement</string>
+    <string name="downloader_downloading" formatted="false">Téléchargement : %s</string>
+    <string name="downloader_file_name">Nom du fichier</string>
+    <string name="downloader_file_size" formatted="false">Taille du fichier : %s</string>
+    <string name="downloader_speed" formatted="false">%s Mo/s</string>
+    <string name="downloader_title">Téléchargeur MobileStudio</string>
+    <string name="find_in_files_title">Rechercher dans les fichiers</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ Erreur du shell</string>
+    <string name="shell_no_build_output">Aucune sortie de compilation pour l’instant</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">Aucun projet ouvert</string>
+    <string name="stats_summary" formatted="false">Fichiers : %d&#10;Dossiers : %d&#10;Lignes : %d</string>
+    <string name="stats_title">Statistiques du projet</string>
+    <string name="welcome_new_file">Nouveau fichier</string>
+    <string name="welcome_new_project">Nouveau projet</string>
+    <string name="welcome_subtitle">Ouvrez un projet ou créez un nouveau fichier pour commencer à coder.</string>
+    <string name="welcome_title">Bienvenue sur MobileStudio</string>
+    <string name="build_already_running">Une compilation est déjà en cours</string>
+    <string name="action_new_file">Nouveau fichier</string>
+    <string name="action_open_project">Ouvrir un projet</string>
+    <string name="no">Non</string>
+    <string name="menu_build">Compilation</string>
+    <string name="menu_vcs">VCS</string>
+    <string name="menu_window">Fenêtre</string>
+    <string name="menu_help">Aide</string>
 </resources>

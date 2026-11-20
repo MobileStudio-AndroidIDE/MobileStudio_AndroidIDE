@@ -597,4 +597,32 @@
     <string name="wrongconstant">WrongConstant</string>
     <string name="yes">Yes</string>
     <string name="your_answer">Your answer</string>
+    <string name="downloader_confirm_message" formatted="false">Se si sceglie No, il file %s non verrà scaricato e la build Gradle non potrà continuare.</string>
+    <string name="downloader_confirm_title">Scaricare questo file?</string>
+    <string name="downloader_download_path">Percorso di download</string>
+    <string name="downloader_downloading" formatted="false">Download di: %s</string>
+    <string name="downloader_file_name">Nome file</string>
+    <string name="downloader_file_size" formatted="false">Dimensione file: %s</string>
+    <string name="downloader_speed" formatted="false">%s MB/s</string>
+    <string name="downloader_title">Downloader di MobileStudio</string>
+    <string name="find_in_files_title">Trova nei file</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ Errore shell</string>
+    <string name="shell_no_build_output">Nessun output di build</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">Nessun progetto aperto</string>
+    <string name="stats_summary" formatted="false">File: %d&#10;Cartelle: %d&#10;Righe: %d</string>
+    <string name="stats_title">Statistiche del progetto</string>
+    <string name="welcome_new_file">Nuovo file</string>
+    <string name="welcome_new_project">Nuovo progetto</string>
+    <string name="welcome_subtitle">Apri un progetto o crea un nuovo file per iniziare a programmare.</string>
+    <string name="welcome_title">Benvenuto in MobileStudio</string>
+    <string name="build_already_running">Una build è già in corso</string>
+    <string name="action_new_file">Nuovo file</string>
+    <string name="action_open_project">Apri progetto</string>
+    <string name="no">No</string>
+    <string name="menu_build">Build</string>
+    <string name="menu_vcs">VCS</string>
+    <string name="menu_window">Finestra</string>
+    <string name="menu_help">Aiuto</string>
 </resources>

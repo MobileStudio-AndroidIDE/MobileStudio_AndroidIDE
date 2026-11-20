@@ -29,7 +29,7 @@ enum class DeployTarget(val label: String) {
  * Run Configurations Tool Window - shows and manages run/debug configurations.
  */
 class RunConfigurationsToolWindow(
-    private val configurations: List<RunConfiguration> = emptyList()
+    private val configurations: MutableList<RunConfiguration> = mutableListOf()
 ) {
 
     companion object {
@@ -84,10 +84,32 @@ class RunConfigurationsToolWindow(
             layout.addView(row)
         }
 
-        // Add button
+        // Add button — prompts for a name and appends a new configuration
         val addBtn = Button(context)
         addBtn.text = "Add Configuration"
         addBtn.setPadding(16, 8, 16, 8)
+        addBtn.setOnClickListener {
+            val input = android.widget.EditText(context).apply { hint = "Configuration name" }
+            androidx.appcompat.app.AlertDialog.Builder(context)
+                .setTitle("New Run Configuration")
+                .setView(input)
+                .setPositiveButton("Add") { _, _ ->
+                    val name = input.text.toString().trim().ifBlank { "Unnamed" }
+                    configurations.add(RunConfiguration(
+                        id = "cfg_${System.currentTimeMillis()}",
+                        name = name,
+                        type = "ANDROID_APP",
+                    ))
+                    // Rebuild the content to show the new entry.
+                    (layout.parent as? ViewGroup)?.let { parent ->
+                        val idx = parent.indexOfChild(layout)
+                        parent.removeView(layout)
+                        parent.addView(createContent(context), idx)
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
         layout.addView(addBtn)
 
         return layout

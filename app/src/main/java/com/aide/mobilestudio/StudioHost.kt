@@ -102,6 +102,38 @@ interface StudioHost {
 
     /** Recently opened files, most recent first. */
     fun studioGetRecentFiles(): List<String>
+
+    // ── New: Compose shell infrastructure hooks ──────────────────────────
+
+    /** File encoding of the file shown in the editor. */
+    val studioFileEncoding: String
+
+    /** Whether a Gradle build is currently running (for shell stop / run buttons). */
+    val studioIsBuildRunning: Boolean
+
+    /** Whether the currently open tab has unsaved modifications. */
+    val studioTabDirty: Boolean
+
+    /** Currently checked out git branch (null when not in a repo). */
+    val studioGitBranch: String?
+
+    /** Serial of the first connected adb device, or null when none. */
+    val studioConnectedDevice: String?
+
+    /** Application id the IDE would launch after a build. */
+    val studioPackageName: String?
+
+    /** Debounced persistence hook wired into the Compose editor buffer. */
+    fun studioScheduleAutosave()
+
+    /** Cancels an in-flight Gradle build. */
+    fun studioStopBuild()
+
+    /** Runs the full run pipeline: assemble → install → launch. */
+    fun studioInstallAndLaunchLatest()
+
+    /** Opens [file] and moves the caret to 1-based [line]. */
+    fun studioOpenFileAt(file: File, line: Int)
 }
 
 /**
@@ -117,4 +149,13 @@ object EditorPaneState {
 
     /** The live [LineNumberEditText] instance, if the editor is mounted. */
     var editor: LineNumberEditText? = null
+
+    /** Absolute/relative path of the file currently shown in the editor. */
+    var currentFilePath: String = ""
+
+    /** 1-based caret line, published by the editor for the IDE status bar. */
+    val caretLine = androidx.compose.runtime.mutableStateOf(0)
+
+    /** 1-based caret column, published by the editor for the IDE status bar. */
+    val caretColumn = androidx.compose.runtime.mutableStateOf(0)
 }

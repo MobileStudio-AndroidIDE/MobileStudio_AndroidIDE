@@ -383,6 +383,49 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         return if (json.isBlank()) emptyList() else json.split("|").filter { it.isNotEmpty() }
     }
 
+    // ── New StudioHost hooks for the Compose shell ──────────────────────
+
+    override val studioFileEncoding: String
+        get() = currentFileEncoding
+
+    override val studioIsBuildRunning: Boolean
+        get() = isBuildRunning
+
+    override val studioTabDirty: Boolean
+        get() = unsavedChanges
+
+    override val studioGitBranch: String?
+        get() = currentProjectDir?.let { GitManager(this).getStatus(it).currentBranch.takeIf { it.isNotBlank() } }
+
+    override val studioConnectedDevice: String?
+        get() {
+            return runCatching {
+                AdbDeviceManager.listDevices().firstOrNull()?.serial
+            }.getOrNull()
+        }
+
+    override val studioPackageName: String?
+        get() = packageName
+
+    override fun studioScheduleAutosave() {
+        rescheduleAutoSave()
+    }
+
+    override fun studioStopBuild() {
+        stopBuild()
+    }
+
+    override fun studioInstallAndLaunchLatest() {
+        installLatestApk()
+    }
+
+    override fun studioOpenFileAt(file: File, line: Int) {
+        openFile(file)
+        Handler(Looper.getMainLooper()).postDelayed({
+            studioSelectEditorLine(line)
+        }, 150)
+    }
+
     fun studioAddRecentFile(path: String) {
         val prefs = getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
         val json = prefs.getString("recent_files", "") ?: ""
@@ -481,7 +524,9 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         UiTheme.resolve(this)
         wireExtensionBridge()
         setContent {
-            StudioApp(this)
+            ThemeManager.ProvideTheme {
+                StudioApp(this@MainActivity)
+            }
         }
         // bindViews() - removed: Compose-based StudioApp now owns the UI;
         // the old View-based drawer_layout / code_editor / etc. no longer exist.

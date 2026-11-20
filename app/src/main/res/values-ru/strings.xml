@@ -597,4 +597,32 @@
     <string name="wrongconstant">WrongConstant</string>
     <string name="yes">Yes</string>
     <string name="your_answer">Your answer</string>
+    <string name="downloader_confirm_message" formatted="false">Если выбрать Нет, файл %s не будет загружен и сборка Gradle не сможет продолжиться.</string>
+    <string name="downloader_confirm_title">Загрузить этот файл?</string>
+    <string name="downloader_download_path">Путь загрузки</string>
+    <string name="downloader_downloading" formatted="false">Загрузка: %s</string>
+    <string name="downloader_file_name">Имя файла</string>
+    <string name="downloader_file_size" formatted="false">Размер файла: %s</string>
+    <string name="downloader_speed" formatted="false">%s МБ/с</string>
+    <string name="downloader_title">Загрузчик MobileStudio</string>
+    <string name="find_in_files_title">Поиск по файлам</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ Ошибка оболочки</string>
+    <string name="shell_no_build_output">Вывод сборки пока отсутствует</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">Проект не открыт</string>
+    <string name="stats_summary" formatted="false">Файлы: %d&#10;Папки: %d&#10;Строки: %d</string>
+    <string name="stats_title">Статистика проекта</string>
+    <string name="welcome_new_file">Новый файл</string>
+    <string name="welcome_new_project">Новый проект</string>
+    <string name="welcome_subtitle">Откройте проект или создайте новый файл, чтобы начать программировать.</string>
+    <string name="welcome_title">Добро пожаловать в MobileStudio</string>
+    <string name="build_already_running">Сборка уже выполняется</string>
+    <string name="action_new_file">Новый файл</string>
+    <string name="action_open_project">Открыть проект</string>
+    <string name="no">Нет</string>
+    <string name="menu_build">Сборка</string>
+    <string name="menu_vcs">VCS</string>
+    <string name="menu_window">Окно</string>
+    <string name="menu_help">Справка</string>
 </resources>

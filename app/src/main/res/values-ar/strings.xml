@@ -645,4 +645,32 @@
     <string name="wrongconstant">WrongConstant</string>
     <string name="yes">Yes</string>
     <string name="your_answer">Your answer</string>
+    <string name="downloader_confirm_message" formatted="false">إذا اخترت لا، لن يتم تنزيل الملف %s ولن تتمكن عملية بناء Gradle من المتابعة.</string>
+    <string name="downloader_confirm_title">هل تريد تنزيل هذا الملف؟</string>
+    <string name="downloader_download_path">مسار التنزيل</string>
+    <string name="downloader_downloading" formatted="false">جارٍ التنزيل: %s</string>
+    <string name="downloader_file_name">اسم الملف</string>
+    <string name="downloader_file_size" formatted="false">حجم الملف: %s</string>
+    <string name="downloader_speed" formatted="false">%s ميجابايت/ث</string>
+    <string name="downloader_title">مُنزّل MobileStudio</string>
+    <string name="find_in_files_title">بحث في الملفات</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ خطأ في Shell</string>
+    <string name="shell_no_build_output">لا يوجد إخراج للبناء بعد</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">لا يوجد مشروع مفتوح</string>
+    <string name="stats_summary" formatted="false">الملفات: %d&#10;المجلدات: %d&#10;الأسطر: %d</string>
+    <string name="stats_title">إحصائيات المشروع</string>
+    <string name="welcome_new_file">ملف جديد</string>
+    <string name="welcome_new_project">مشروع جديد</string>
+    <string name="welcome_subtitle">افتح مشروعًا أو أنشئ ملفًا جديدًا للبدء في البرمجة.</string>
+    <string name="welcome_title">مرحبًا بك في MobileStudio</string>
+    <string name="build_already_running">عملية البناء قيد التشغيل بالفعل</string>
+    <string name="action_new_file">ملف جديد</string>
+    <string name="action_open_project">فتح مشروع</string>
+    <string name="no">لا</string>
+    <string name="menu_build">البناء</string>
+    <string name="menu_vcs">التحكم بالإصدارات</string>
+    <string name="menu_window">نافذة</string>
+    <string name="menu_help">مساعدة</string>
 </resources>

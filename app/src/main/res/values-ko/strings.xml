@@ -428,4 +428,31 @@
     <string name="view">보기</string>
     <string name="warning">경고</string>
     <string name="yes">예</string>
+    <string name="downloader_confirm_message" formatted="false">선택한 파일 %s을(를) 다운로드하지 않으면 Gradle 빌드를 계속할 수 없습니다.</string>
+    <string name="downloader_confirm_title">이 파일을 다운로드하시겠습니까?</string>
+    <string name="downloader_download_path">다운로드 경로</string>
+    <string name="downloader_downloading" formatted="false">다운로드 중: %s</string>
+    <string name="downloader_file_name">파일 이름</string>
+    <string name="downloader_file_size" formatted="false">파일 크기: %s</string>
+    <string name="downloader_speed" formatted="false">%s MB/초</string>
+    <string name="downloader_title">MobileStudio 다운로더</string>
+    <string name="find_in_files_title">파일에서 찾기</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ 셸 오류</string>
+    <string name="shell_no_build_output">아직 빌드 출력이 없습니다</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">열린 프로젝트가 없습니다</string>
+    <string name="stats_summary" formatted="false">파일: %d&#10;디렉터리: %d&#10;줄: %d</string>
+    <string name="stats_title">프로젝트 통계</string>
+    <string name="welcome_new_file">새 파일</string>
+    <string name="welcome_new_project">새 프로젝트</string>
+    <string name="welcome_subtitle">프로젝트를 열거나 새 파일을 만들어 코딩을 시작하세요.</string>
+    <string name="welcome_title">MobileStudio에 오신 것을 환영합니다</string>
+    <string name="build_already_running">빌드가 이미 실행 중입니다</string>
+    <string name="action_new_file">새 파일</string>
+    <string name="action_open_project">프로젝트 열기</string>
+    <string name="menu_build">빌드</string>
+    <string name="menu_vcs">버전 관리</string>
+    <string name="menu_window">창</string>
+    <string name="menu_help">도움말</string>
 </resources>

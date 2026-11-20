@@ -337,5 +337,6 @@
             android:name=".MTManagerActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
+        <activity android:name=".agpupgrade.AgpUpgradeToolWindow$AgpUpgradeToolWindowActivity" android:exported="false" android:label="AGP Upgrade Assistant" />
     </application>
 </manifest>

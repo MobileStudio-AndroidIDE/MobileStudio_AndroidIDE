@@ -330,4 +330,32 @@
 
     <!-- GitHub OAuth -->
     <string name="github_oauth_client_id" translatable="false"></string>
+    <string name="downloader_confirm_message" formatted="false">如果選擇否，將不會下載所選檔案 %s，Gradle 建置無法繼續。</string>
+    <string name="downloader_confirm_title">是否下載此檔案？</string>
+    <string name="downloader_download_path">下載路徑</string>
+    <string name="downloader_downloading" formatted="false">正在下載：%s</string>
+    <string name="downloader_file_name">檔案名稱</string>
+    <string name="downloader_file_size" formatted="false">檔案大小：%s</string>
+    <string name="downloader_speed" formatted="false">%s MB/秒</string>
+    <string name="downloader_title">MobileStudio 下載器</string>
+    <string name="find_in_files_title">在檔案中尋找</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ Shell 錯誤</string>
+    <string name="shell_no_build_output">尚無建置輸出</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">未開啟專案</string>
+    <string name="stats_summary" formatted="false">檔案：%d&#10;目錄：%d&#10;行數：%d</string>
+    <string name="stats_title">專案統計</string>
+    <string name="welcome_new_file">新增檔案</string>
+    <string name="welcome_new_project">新增專案</string>
+    <string name="welcome_subtitle">開啟專案或建立新檔案以開始編寫程式碼。</string>
+    <string name="welcome_title">歡迎使用 MobileStudio</string>
+    <string name="build_already_running">建置已在執行中</string>
+    <string name="action_new_file">新增檔案</string>
+    <string name="action_open_project">開啟專案</string>
+    <string name="no">否</string>
+    <string name="menu_build">建置</string>
+    <string name="menu_vcs">版本控制</string>
+    <string name="menu_window">視窗</string>
+    <string name="menu_help">說明</string>
 </resources>

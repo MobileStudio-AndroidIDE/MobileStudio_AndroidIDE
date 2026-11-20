@@ -2537,9 +2537,9 @@ try {
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(primaryButton("Launch Logcat Tool Window") {
-                val logcatWindow = com.aide.mobilestudio.logcat.LogcatToolWindow(host)
-                val view = logcatWindow.createView()
-                // Could add to a dialog or layout here
+                // Open the real logcat viewer instead of building a view and discarding it.
+                val pkg = input.text.toString().trim().ifBlank { host.packageName }
+                LogcatActivity.start(host, pkg)
             })
             addView(secondaryButton("Open Logcat (Legacy)") {
                 val pkg = input.text.toString().trim().ifBlank { host.packageName }

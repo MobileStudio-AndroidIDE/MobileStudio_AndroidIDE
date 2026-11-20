@@ -671,4 +671,12 @@
     <string name="stats_title">Project Statistics</string>
     <string name="stats_summary">Files: %d&#10;Directories: %d&#10;Lines: %d</string>
     <string name="find_in_files_title">Find in Files</string>
+    <string name="build_already_running">A build is already running</string>
+    <string name="action_new_file">New File</string>
+    <string name="action_open_project">Open Project</string>
+    <string name="no">No</string>
+    <string name="menu_build">Build</string>
+    <string name="menu_vcs">VCS</string>
+    <string name="menu_window">Window</string>
+    <string name="menu_help">Help</string>
 </resources>

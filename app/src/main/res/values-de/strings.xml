@@ -597,4 +597,32 @@
     <string name="wrongconstant">WrongConstant</string>
     <string name="yes">Yes</string>
     <string name="your_answer">Your answer</string>
+    <string name="downloader_confirm_message" formatted="false">Wenn Sie Nein wählen, wird die Datei %s nicht heruntergeladen und der Gradle-Build kann nicht fortgesetzt werden.</string>
+    <string name="downloader_confirm_title">Möchten Sie diese Datei herunterladen?</string>
+    <string name="downloader_download_path">Download-Pfad</string>
+    <string name="downloader_downloading" formatted="false">Wird heruntergeladen: %s</string>
+    <string name="downloader_file_name">Dateiname</string>
+    <string name="downloader_file_size" formatted="false">Dateigröße: %s</string>
+    <string name="downloader_speed" formatted="false">%s MB/s</string>
+    <string name="downloader_title">MobileStudio-Downloader</string>
+    <string name="find_in_files_title">In Dateien suchen</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ Shell-Fehler</string>
+    <string name="shell_no_build_output">Noch keine Build-Ausgabe</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">Kein Projekt geöffnet</string>
+    <string name="stats_summary" formatted="false">Dateien: %d&#10;Verzeichnisse: %d&#10;Zeilen: %d</string>
+    <string name="stats_title">Projektstatistik</string>
+    <string name="welcome_new_file">Neue Datei</string>
+    <string name="welcome_new_project">Neues Projekt</string>
+    <string name="welcome_subtitle">Öffnen Sie ein Projekt oder erstellen Sie eine neue Datei, um mit dem Programmieren zu beginnen.</string>
+    <string name="welcome_title">Willkommen bei MobileStudio</string>
+    <string name="build_already_running">Ein Build läuft bereits</string>
+    <string name="action_new_file">Neue Datei</string>
+    <string name="action_open_project">Projekt öffnen</string>
+    <string name="no">Nein</string>
+    <string name="menu_build">Build</string>
+    <string name="menu_vcs">VCS</string>
+    <string name="menu_window">Fenster</string>
+    <string name="menu_help">Hilfe</string>
 </resources>

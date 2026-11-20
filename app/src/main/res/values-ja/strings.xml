@@ -645,4 +645,32 @@
     <string name="wrongconstant">WrongConstant</string>
     <string name="yes">Yes</string>
     <string name="your_answer">Your answer</string>
+    <string name="downloader_confirm_message" formatted="false">選択したファイル %s をダウンロードしないと、Gradleビルドを続行できません。</string>
+    <string name="downloader_confirm_title">このファイルをダウンロードしますか？</string>
+    <string name="downloader_download_path">ダウンロード先</string>
+    <string name="downloader_downloading" formatted="false">ダウンロード中: %s</string>
+    <string name="downloader_file_name">ファイル名</string>
+    <string name="downloader_file_size" formatted="false">ファイルサイズ: %s</string>
+    <string name="downloader_speed" formatted="false">%s MB/秒</string>
+    <string name="downloader_title">MobileStudio ダウンローダー</string>
+    <string name="find_in_files_title">ファイル内を検索</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ シェルエラー</string>
+    <string name="shell_no_build_output">ビルド出力はまだありません</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">プロジェクトが開かれていません</string>
+    <string name="stats_summary" formatted="false">ファイル: %d&#10;ディレクトリ: %d&#10;行数: %d</string>
+    <string name="stats_title">プロジェクト統計</string>
+    <string name="welcome_new_file">新しいファイル</string>
+    <string name="welcome_new_project">新しいプロジェクト</string>
+    <string name="welcome_subtitle">プロジェクトを開くか新しいファイルを作成してコーディングを始めましょう。</string>
+    <string name="welcome_title">MobileStudioへようこそ</string>
+    <string name="build_already_running">ビルドは既に実行中です</string>
+    <string name="action_new_file">新しいファイル</string>
+    <string name="action_open_project">プロジェクトを開く</string>
+    <string name="no">いいえ</string>
+    <string name="menu_build">ビルド</string>
+    <string name="menu_vcs">VCS</string>
+    <string name="menu_window">ウィンドウ</string>
+    <string name="menu_help">ヘルプ</string>
 </resources>

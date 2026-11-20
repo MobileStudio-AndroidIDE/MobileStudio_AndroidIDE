@@ -199,6 +199,21 @@ internal class SettingsController(
                         ideOpts.putFloat(k, v.removeSuffix("sp").toFloatOrNull() ?: 14f)
                     }
                 }
+                "ed_show_line_numbers" -> {
+                    if (v is Boolean) ideOpts.putBoolean(k, v)
+                }
+                "ed_highlight_current" -> {
+                    if (v is Boolean) ideOpts.putBoolean(k, v)
+                }
+                "ed_soft_wrap" -> {
+                    if (v is Boolean) ideOpts.putBoolean(k, v)
+                }
+                "uit_minimap" -> {
+                    if (v is Boolean) ideOpts.putBoolean(k, v)
+                }
+                "uit_breadcrumbs" -> {
+                    if (v is Boolean) ideOpts.putBoolean(k, v)
+                }
             }
         }
         ideOpts.apply()
@@ -209,6 +224,12 @@ internal class SettingsController(
             when (k) {
                 "verbose_build_logs" -> {
                     if (v is Boolean) idePrefs.putBoolean(k, v)
+                }
+                "build_theme" -> {
+                    if (v is String) idePrefs.putString(k, v)
+                }
+                "build_verbosity" -> {
+                    if (v is String) idePrefs.putString(k, v)
                 }
             }
         }
@@ -3673,8 +3694,38 @@ internal class SettingsController(
 // ------------------------------------------------------------
 @Composable
 internal fun MobileStudioTheme(content: @Composable () -> Unit) {
+    // Re-resolve the shared palette on every composition (the theme revision is
+    // observed by ThemeManager.ProvideTheme wrapping this screen) so the
+    // settings window follows the user's selected Light/Dracula/Nord theme.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.remember(ThemeManager.themeRevision()) {
+        val p = UiTheme.resolve(context)
+        Palette.bg = Color(p.bg)
+        Palette.panel = Color(p.surface)
+        Palette.titleBar = Color(p.surface2)
+        Palette.titleText = Color(p.textSoft)
+        Palette.fieldBg = Color(p.surface2)
+        Palette.border = Color(p.border)
+        Palette.divider = Color(p.divider)
+        Palette.selection = Color(p.selection)
+        Palette.link = Color(p.accent)
+        Palette.okBlue = Color(p.info)
+        Palette.text = Color(p.text)
+        Palette.dimText = Color(p.muted)
+        Palette.desc = Color(p.textSoft)
+        Palette.disabledText = Color(p.disabled)
+        Palette.success = Color(p.success)
+        Palette.error = Color(p.error)
+    }
     MaterialTheme(
-        colorScheme = darkColorScheme(
+        colorScheme = if (UiTheme.resolve(context).isDark) darkColorScheme(
+            primary = Palette.link,
+            onPrimary = Color.White,
+            surface = Palette.bg,
+            background = Palette.bg,
+            onSurface = Palette.text,
+            onBackground = Palette.text,
+        ) else lightColorScheme(
             primary = Palette.link,
             onPrimary = Color.White,
             surface = Palette.bg,
@@ -3690,22 +3741,22 @@ internal fun MobileStudioTheme(content: @Composable () -> Unit) {
 // Palette (fixed dark theme matching the reference screenshots)
 // ------------------------------------------------------------
 internal object Palette {
-    val bg = Color(0xFF2B2B2B)
-    val panel = Color(0xFF3C3F41)
-    val titleBar = Color(0xFF3C3F41)
-    val titleText = Color(0xFFBBBBBB)
-    val fieldBg = Color(0xFF45494A)
-    val border = Color(0xFF5E6060)
-    val divider = Color(0xFF5A5A5A)
-    val selection = Color(0xFF2F6CC4)
-    val link = Color(0xFF6BA5F0)
-    val okBlue = Color(0xFF3B78C9)
-    val text = Color(0xFFDDDDDD)
-    val dimText = Color(0xFF9A9A9A)
-    val desc = Color(0xFFB0B0B0)
-    val disabledText = Color(0xFF777777)
-    val success = Color(0xFF57965C)
-    val error = Color(0xFFF75464)
+    var bg = Color(0xFF2B2B2B)
+    var panel = Color(0xFF3C3F41)
+    var titleBar = Color(0xFF3C3F41)
+    var titleText = Color(0xFFBBBBBB)
+    var fieldBg = Color(0xFF45494A)
+    var border = Color(0xFF5E6060)
+    var divider = Color(0xFF5A5A5A)
+    var selection = Color(0xFF2F6CC4)
+    var link = Color(0xFF6BA5F0)
+    var okBlue = Color(0xFF3B78C9)
+    var text = Color(0xFFDDDDDD)
+    var dimText = Color(0xFF9A9A9A)
+    var desc = Color(0xFFB0B0B0)
+    var disabledText = Color(0xFF777777)
+    var success = Color(0xFF57965C)
+    var error = Color(0xFFF75464)
 }
 
 /** Preference key holding the last visited settings page. */

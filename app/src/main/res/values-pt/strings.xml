@@ -597,4 +597,32 @@
     <string name="wrongconstant">WrongConstant</string>
     <string name="yes">Yes</string>
     <string name="your_answer">Your answer</string>
+    <string name="downloader_confirm_message" formatted="false">Se selecionar Não, o arquivo %s não será baixado e a compilação Gradle não poderá continuar.</string>
+    <string name="downloader_confirm_title">Deseja baixar este arquivo?</string>
+    <string name="downloader_download_path">Caminho de download</string>
+    <string name="downloader_downloading" formatted="false">Baixando: %s</string>
+    <string name="downloader_file_name">Nome do arquivo</string>
+    <string name="downloader_file_size" formatted="false">Tamanho do arquivo: %s</string>
+    <string name="downloader_speed" formatted="false">%s MB/s</string>
+    <string name="downloader_title">Downloader do MobileStudio</string>
+    <string name="find_in_files_title">Localizar em arquivos</string>
+    <string name="menu_mobile_studio">MobileStudio</string>
+    <string name="shell_error_title">⚠ Erro do shell</string>
+    <string name="shell_no_build_output">Ainda não há saída de compilação</string>
+    <string name="shell_prompt">$ </string>
+    <string name="sidebar_no_project_open">Nenhum projeto aberto</string>
+    <string name="stats_summary" formatted="false">Arquivos: %d&#10;Diretórios: %d&#10;Linhas: %d</string>
+    <string name="stats_title">Estatísticas do projeto</string>
+    <string name="welcome_new_file">Novo arquivo</string>
+    <string name="welcome_new_project">Novo projeto</string>
+    <string name="welcome_subtitle">Abra um projeto ou crie um novo arquivo para começar a programar.</string>
+    <string name="welcome_title">Bem-vindo ao MobileStudio</string>
+    <string name="build_already_running">Uma compilação já está em andamento</string>
+    <string name="action_new_file">Novo arquivo</string>
+    <string name="action_open_project">Abrir projeto</string>
+    <string name="no">Não</string>
+    <string name="menu_build">Compilar</string>
+    <string name="menu_vcs">VCS</string>
+    <string name="menu_window">Janela</string>
+    <string name="menu_help">Ajuda</string>
 </resources>

@@ -613,6 +613,17 @@ class LineNumberEditText @JvmOverloads constructor(
         })
     }
 
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        val pos = selStart.coerceAtLeast(0)
+        val lyt = layout
+        val textLen = text?.length ?: 0
+        val line = if (lyt != null) lyt.getLineForOffset(pos.coerceAtMost(textLen)) else 0
+        val lineStart = if (lyt != null) lyt.getLineStart(line) else 0
+        com.aide.mobilestudio.EditorPaneState.caretLine.value = line + 1
+        com.aide.mobilestudio.EditorPaneState.caretColumn.value = (pos - lineStart) + 1
+    }
+
     fun undo() {
         val snapshot = undoStack.pollFirst() ?: return
         redoStack.push(EditSnapshot(text?.toString() ?: "", selectionStart.coerceAtLeast(0)))

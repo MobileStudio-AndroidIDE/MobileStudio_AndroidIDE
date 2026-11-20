@@ -30,19 +30,29 @@ class SwapManager(private val context: Context) {
     private val swapDir: File get() = File(context.filesDir, SWAP_DIR)
     private val swapFilePath: File get() = File(swapDir, "swapfile.dat")
 
+    /** True only when a real `su` binary is present (stock devices: false). */
+    private fun rootAvailable(): Boolean =
+        listOf("/system/bin/su", "/system/xbin/su", "/sbin/su").any { File(it).exists() }
+
     fun start(swapSizeGB: Int = 5) {
         stop()
 
-        // 1) Try kernel zram
-        if (tryZram(swapSizeGB)) {
-            Log.i(TAG, "zram enabled: ${swapSizeGB}GB")
-            return
-        }
+        // On non-rooted physical devices skip the privileged attempts entirely
+        // and go straight to the no-root MappedByteBuffer fallback below.
+        if (rootAvailable()) {
+            // 1) Try kernel zram
+            if (tryZram(swapSizeGB)) {
+                Log.i(TAG, "zram enabled: ${swapSizeGB}GB")
+                return
+            }
 
-        // 2) Try swap file via swapon (root)
-        if (trySwapFile(swapSizeGB)) {
-            Log.i(TAG, "swap file enabled: ${swapSizeGB}GB")
-            return
+            // 2) Try swap file via swapon (root)
+            if (trySwapFile(swapSizeGB)) {
+                Log.i(TAG, "swap file enabled: ${swapSizeGB}GB")
+                return
+            }
+        } else {
+            Log.i(TAG, "no root binary: using no-root mmap swap fallback")
         }
 
         // 3) Fallback: MappedByteBuffer (no root, limited effect)

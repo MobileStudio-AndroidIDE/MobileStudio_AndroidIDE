@@ -442,8 +442,17 @@ class MTManagerActivity : AppCompatActivity() {
 
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
+    private val logFile: java.io.File
+        get() = java.io.File(cacheDir, "mt_manager.log")
+
     private fun appendLog(text: String) {
-        // No-op for now; could write to a log file
+        val line = "[${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}] $text\n"
+        try {
+            logFile.parentFile?.mkdirs()
+            logFile.appendText(line)
+        } catch (_: Exception) {
+            android.util.Log.d("MTManager", text)
+        }
     }
 
     // ============================================================

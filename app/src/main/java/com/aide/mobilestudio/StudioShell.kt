@@ -16,7 +16,19 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.spring
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +48,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -45,6 +58,13 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -134,6 +154,7 @@ fun StudioApp(host: StudioHost) {
     var bottomPanelHeight by remember { mutableStateOf(220.dp) }
     var showSettingsOverlay by remember { mutableStateOf(false) }
     var showToolsOverlay by remember { mutableStateOf(false) }
+    var showCommandPalette by remember { mutableStateOf(false) }
     var toolsInitialTab by remember { mutableStateOf("sdk_manager") }
     var settingsInitialPage by remember { mutableStateOf<String?>(null) }
     val logLines = remember { mutableStateListOf<StudioLogLine>() }
@@ -153,7 +174,11 @@ fun StudioApp(host: StudioHost) {
         }
     }
 
-    fun startBuild() {
+    fun startBuild(installAndRun: Boolean = false) {
+        if (host.studioIsBuildRunning) {
+            Toast.makeText(context, AppLanguage.string(activity, R.string.build_already_running), Toast.LENGTH_SHORT).show()
+            return
+        }
         centerPane = "buildlog"
         bottomPanelOpen = true
         logLines.add(StudioLogLine("> Running :app:assembleDebug ...", ide.p.text))
@@ -170,6 +195,31 @@ fun StudioApp(host: StudioHost) {
                         if (result.success) ide.p.success else ide.p.error,
                     ),
                 )
+                if (result.success && installAndRun) {
+                    logLines.add(StudioLogLine("> Installing and launching on device…", ide.p.info))
+                    host.studioInstallAndLaunchLatest()
+                }
+            },
+        )
+    }
+
+    fun runGradleTasks(tasks: List<String>, label: String) {
+        if (host.studioIsBuildRunning) {
+            Toast.makeText(context, AppLanguage.string(activity, R.string.build_already_running), Toast.LENGTH_SHORT).show()
+            return
+        }
+        centerPane = "buildlog"
+        bottomPanelOpen = true
+        logLines.add(StudioLogLine("> $label: ${tasks.joinToString(" ")}", ide.p.text))
+        activity.gradleRunner.run(
+            projectDir = host.studioProjectDir ?: activity.filesDir,
+            tasks = tasks,
+            onLine = { line, level ->
+                logLines.add(StudioLogLine(line, if (level == LineLevel.ERROR) ide.p.error else ide.p.text))
+            },
+            onDone = { result ->
+                logLines.add(StudioLogLine("$label ${if (result.success) "OK" else "FAILED"} (${result.durationMs}ms)",
+                    if (result.success) ide.p.success else ide.p.error))
             },
         )
     }
@@ -262,8 +312,19 @@ fun StudioApp(host: StudioHost) {
             "new_folder" -> showNewFolderDialog(activity)
             "open_project" -> FileManagerActivity.start(context, projectMode = true)
             "save", "save_all" -> saveCurrent()
-            "close_tab" -> { host.studioCloseEditorTab(host.studioSelectedTab); centerPane = "editor" }
+            "close_tab" -> {
+                if (host.studioTabDirty) {
+                    AlertDialog.Builder(context)
+                        .setTitle(AppLanguage.string(activity, R.string.close))
+                        .setMessage("This file has unsaved changes. Save before closing?")
+                        .setPositiveButton(AppLanguage.string(activity, R.string.action_save)) { _, _ -> saveCurrent(); host.studioCloseEditorTab(host.studioSelectedTab); centerPane = "editor" }
+                        .setNegativeButton("Discard") { _, _ -> host.studioCloseEditorTab(host.studioSelectedTab); centerPane = "editor" }
+                        .setNeutralButton(AppLanguage.string(activity, R.string.action_cancel), null)
+                        .show()
+                } else { host.studioCloseEditorTab(host.studioSelectedTab); centerPane = "editor" }
+            }
             "close_all_tabs" -> {
+                if (host.studioTabDirty) saveCurrent()
                 host.studioTabs.clear()
                 centerPane = "editor"
                 Toast.makeText(context, "All tabs closed", Toast.LENGTH_SHORT).show()
@@ -281,6 +342,9 @@ fun StudioApp(host: StudioHost) {
             "pane_editor" -> { centerPane = "editor"; bottomPanelOpen = false }
             "pane_buildlog" -> { centerPane = "buildlog"; bottomPanelOpen = true }
             "pane_terminal" -> { centerPane = "terminal"; bottomPanelOpen = true }
+            "pane_problems" -> { centerPane = "problems"; bottomPanelOpen = true }
+            "pane_logcat" -> { centerPane = "logcat"; bottomPanelOpen = true }
+            "pane_search" -> { centerPane = "search"; bottomPanelOpen = true }
             "drawer" -> drawerOpen = true
             "next_tab" -> {
                 if (host.studioTabs.isNotEmpty()) {
@@ -336,7 +400,33 @@ fun StudioApp(host: StudioHost) {
                     } else Toast.makeText(context, "No unused imports", Toast.LENGTH_SHORT).show()
                 }
             }
-            "run" -> startBuild()
+            "run" -> startBuild(installAndRun = true)
+            "build" -> startBuild()
+            "rebuild" -> runGradleTasks(listOf("clean", "assembleDebug"), "Rebuild")
+            "clean" -> runGradleTasks(listOf("clean"), "Clean")
+            "build_apk" -> runGradleTasks(listOf("assembleDebug"), "Build APK")
+            "stop_build" -> { host.studioStopBuild(); logLines.add(StudioLogLine("> Build stopped", ide.p.warning)) }
+            "install_apk" -> {
+                logLines.add(StudioLogLine("> Installing latest APK…", ide.p.info))
+                host.studioInstallAndLaunchLatest()
+            }
+            "sync_project" -> runGradleTasks(listOf("gradleSync"), "Sync Project")
+            "command_palette" -> { showCommandPalette = true }
+            "quick_open" -> showQuickOpenDialog(activity)
+            "project_stats" -> showProjectStatsDialog(activity)
+            "documentation" -> HtmlViewerActivity.openAsset(activity, "index.html", "Documentation")
+            "keyboard_shortcuts" -> AlertDialog.Builder(context)
+                .setTitle("Keyboard Shortcuts")
+                .setMessage(
+                    "Ctrl+S — Save\nCtrl+F — Find\nCtrl+Shift+F — Find in Files\nCtrl+W — Close Tab\nCtrl+G — Go to Line\nCtrl+N — New File\nCtrl+Shift+P — Command Palette\nAlt+Left/Right — Navigate back/forward"
+                )
+                .setPositiveButton("OK", null).show()
+            "todo" -> TodoExplorer.show(activity, host.studioProjectDir) { file, line -> host.studioOpenFileAt(file, line) }
+            "structure" -> SymbolOutline.show(
+                activity,
+                EditorPaneState.content,
+                host.studioCurrentFile?.name,
+            ) { line -> host.studioSelectEditorLine(line) }
             "downloads" -> { showDownloadManager = true; DownloadCenter.showIdleWindow() }
             "device_manager" -> openTool("device_manager")
             "sdk_manager" -> openTool("sdk_manager")
@@ -404,10 +494,35 @@ fun StudioApp(host: StudioHost) {
         }
     }
 
-    BackHandler(enabled = drawerOpen) { drawerOpen = false }
+    // A single top-level back handler, priorities from topmost overlay down.
+    // This avoids multiple enabled handlers racing when several layers are open.
+    BackHandler(enabled = showCommandPalette) { showCommandPalette = false }
     BackHandler(enabled = host.studioNewProjectDialogVisible) { host.studioNewProjectDialogVisible = false }
+    BackHandler(enabled = showDownloadManager) { showDownloadManager = false; DownloadCenter.dismiss() }
+    BackHandler(enabled = showSettingsOverlay) { showSettingsOverlay = false }
+    BackHandler(enabled = showToolsOverlay) { showToolsOverlay = false }
+    BackHandler(enabled = drawerOpen) { drawerOpen = false }
 
-    Box(modifier = Modifier.fillMaxSize().background(ide.window)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ide.window)
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val ctrl = event.isCtrlPressed
+                val shift = event.isShiftPressed
+                when {
+                    ctrl && event.key == Key.S -> { performAction("save"); true }
+                    ctrl && event.key == Key.W -> { performAction("close_tab"); true }
+                    ctrl && event.key == Key.F -> { performAction("find"); true }
+                    ctrl && shift && event.key == Key.F -> { performAction("find_in_files"); true }
+                    ctrl && event.key == Key.G -> { performAction("goto_line"); true }
+                    ctrl && event.key == Key.N -> { performAction("new_tab"); true }
+                    ctrl && shift && event.key == Key.P -> { showCommandPalette = true; true }
+                    else -> false
+                }
+            },
+    ) {
         Column(modifier = Modifier.fillMaxSize().background(ide.window)) {
             TopMenuBar(
                 activity = context as Activity,
@@ -451,7 +566,7 @@ fun StudioApp(host: StudioHost) {
                             host.studioFileContent = it
                             EditorPaneState.content = it
                             EditorPaneState.unsaved = true
-                            host.studioSaveCurrentFile()
+                            host.studioScheduleAutosave()
                             host.studioRequestLiveDiagnostics()
                         },
                         onNewTab = { name -> host.studioNewEditorTab(name); centerPane = "editor" },
@@ -460,29 +575,47 @@ fun StudioApp(host: StudioHost) {
                         onSaveCurrent = { saveCurrent() },
                         modifier = Modifier.weight(1f),
                     )
-                    if (bottomPanelOpen) {
-                        IdeDivider()
-                        BottomPanel(
-                            host = host,
-                            pane = centerPane,
-                            logLines = logLines,
-                            problems = host.studioEditorProblems,
-                            height = bottomPanelHeight,
-                            onHeightChange = { bottomPanelHeight = it },
-                            onPaneChange = { centerPane = it },
-                            onCollapse = { bottomPanelOpen = false },
-                        )
+                    AnimatedVisibility(
+                        visible = bottomPanelOpen,
+                        enter = expandVertically(expandFrom = Alignment.Bottom, animationSpec = tween(durationMillis = 200, easing = LinearOutSlowInEasing)) + fadeIn(animationSpec = tween(durationMillis = 200)),
+                        exit = fadeOut(animationSpec = tween(durationMillis = 160)),
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            IdeDivider()
+                            BottomPanel(
+                                host = host,
+                                pane = centerPane,
+                                logLines = logLines,
+                                problems = host.studioEditorProblems,
+                                height = bottomPanelHeight,
+                                onHeightChange = { bottomPanelHeight = it },
+                                onPaneChange = { centerPane = it },
+                                onCollapse = { bottomPanelOpen = false },
+                                onClearLog = { logLines.clear() },
+                            )
+                        }
                     }
                 }
             }
             StudioStatusBar(
+                host = host,
                 projectName = host.studioProjectDir?.name ?: "MobileStudio",
                 problems = host.studioEditorProblems.size,
                 onShowProblems = { centerPane = "problems"; bottomPanelOpen = true },
             )
         }
 
-        if (drawerOpen) {
+        AnimatedVisibility(
+            visible = drawerOpen,
+            enter = slideInHorizontally(
+                initialOffsetX = { -it },
+                animationSpec = tween(durationMillis = 220, easing = LinearOutSlowInEasing),
+            ) + fadeIn(animationSpec = tween(durationMillis = 220, easing = LinearOutSlowInEasing)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { -it },
+                animationSpec = tween(durationMillis = 160, easing = LinearOutSlowInEasing),
+            ) + fadeOut(animationSpec = tween(durationMillis = 160, easing = LinearOutSlowInEasing)),
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -510,21 +643,33 @@ fun StudioApp(host: StudioHost) {
             )
         }
 
-        if (showDownloadManager) {
+        AnimatedVisibility(
+            visible = showDownloadManager,
+            enter = scaleIn(initialScale = 0.94f) + fadeIn(animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)),
+            exit = scaleOut(targetScale = 0.96f) + fadeOut(animationSpec = tween(durationMillis = 120, easing = LinearOutSlowInEasing)),
+        ) {
             DownloadManagerWindow(
                 activity = activity,
-                onDismiss = { showDownloadManager = false },
+                onDismiss = { showDownloadManager = false; DownloadCenter.dismiss() },
             )
         }
 
-        if (showToolsOverlay) {
+        AnimatedVisibility(
+            visible = showToolsOverlay,
+            enter = scaleIn(initialScale = 0.94f) + fadeIn(animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)),
+            exit = scaleOut(targetScale = 0.96f) + fadeOut(animationSpec = tween(durationMillis = 120, easing = LinearOutSlowInEasing)),
+        ) {
             ToolsWindowOverlay(
                 host = host,
                 initialTab = toolsInitialTab,
                 onClose = { showToolsOverlay = false },
             )
         }
-        if (showSettingsOverlay) {
+        AnimatedVisibility(
+            visible = showSettingsOverlay,
+            enter = scaleIn(initialScale = 0.94f) + fadeIn(animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)),
+            exit = scaleOut(targetScale = 0.96f) + fadeOut(animationSpec = tween(durationMillis = 120, easing = LinearOutSlowInEasing)),
+        ) {
             SettingsWindowOverlay(
                 activity = activity,
                 initialPageId = settingsInitialPage,
@@ -535,6 +680,17 @@ fun StudioApp(host: StudioHost) {
             NewProjectDialog(
                 activity = activity,
                 onDismiss = { host.studioNewProjectDialogVisible = false },
+            )
+        }
+        AnimatedVisibility(
+            visible = showCommandPalette,
+            enter = fadeIn(animationSpec = tween(140)) + scaleIn(initialScale = 0.97f),
+            exit = fadeOut(animationSpec = tween(100)),
+        ) {
+            CommandPaletteOverlay(
+                activity = activity,
+                onRun = { action -> showCommandPalette = false; performAction(action) },
+                onDismiss = { showCommandPalette = false },
             )
         }
     }
@@ -561,21 +717,29 @@ private fun EditorPane(
     var replaceQuery by remember { mutableStateOf("") }
     var searchVisible by remember { mutableStateOf(false) }
     var replaceVisible by remember { mutableStateOf(false) }
+    var matchCase by remember { mutableStateOf(false) }
 
     fun findNext(forward: Boolean) {
         val editor = EditorPaneState.editor ?: return
-        val text = editor.text ?: return
+        val content = editor.text?.toString() ?: return
         val q = searchQuery.trim()
         if (q.isEmpty()) return
-        val current = editor.selectionStart
-        val idx = if (forward) {
-            text.subSequence(current + 1, text.length).toString().indexOf(q)
+        val len = content.length
+        val current = editor.selectionStart.coerceIn(0, len)
+        val haystack = if (matchCase) content else content.lowercase()
+        val needle = if (matchCase) q else q.lowercase()
+        var abs = -1
+        if (forward) {
+            val from = (current + 1).coerceAtMost(len)
+            val idx = haystack.indexOf(needle, from)
+            abs = if (idx >= 0) idx else haystack.indexOf(needle) // wrap around
         } else {
-            text.subSequence(0, current.coerceAtLeast(0)).toString().lastIndexOf(q)
+            val from = (current - 1).coerceAtLeast(0)
+            val idx = haystack.lastIndexOf(needle, from)
+            abs = if (idx >= 0) idx else haystack.lastIndexOf(needle)
         }
-        if (idx >= 0) {
-            val absIdx = if (forward) current + 1 + idx else idx
-            editor.setSelection(absIdx, absIdx + q.length)
+        if (abs >= 0) {
+            editor.setSelection(abs, (abs + q.length).coerceAtMost(len))
             editor.requestFocus()
         }
     }
@@ -586,9 +750,8 @@ private fun EditorPane(
         val q = searchQuery.trim()
         val r = replaceQuery
         if (q.isEmpty()) return
-        val newText = text.toString().replace(q, r, ignoreCase = true)
-        editor.setText(newText)
-        onContentChange(newText)
+        val newText = text.toString().replace(q, r, ignoreCase = !matchCase)
+        editor.setText(newText) // TextWatcher publishes content + autosave
         Toast.makeText(activity, "Replaced all occurrences", Toast.LENGTH_SHORT).show()
     }
 
@@ -605,6 +768,7 @@ private fun EditorPane(
                 EditorTab(
                     title = title,
                     active = selectedTab == index,
+                    dirty = selectedTab == index && host.studioTabDirty,
                     onClick = { onTabChange(index) },
                     onClose = { onCloseTab(index) },
                 )
@@ -673,19 +837,22 @@ private fun EditorPane(
                     val q = searchQuery.trim()
                     val r = replaceQuery
                     if (editor != null && text != null && q.isNotEmpty()) {
-                        val selStart = editor.selectionStart
-                        val selEnd = editor.selectionEnd
-                        val startIdx = text.subSequence(0, selStart).toString().lastIndexOf(q)
-                        if (startIdx >= 0) {
-                            editor.setSelection(startIdx, startIdx + q.length)
-                            val editable = editor.text as android.text.Editable
-                            editable.replace(selStart, selEnd, r)
+                        val s = editor.selectionStart.coerceAtLeast(0)
+                        val e = editor.selectionEnd.coerceAtLeast(0)
+                        val selected = if (e > s) text.subSequence(s, e).toString() else ""
+                        val matches = if (matchCase) selected == q else selected.equals(q, ignoreCase = true)
+                        if (matches) {
+                            (editor.text as android.text.Editable).replace(s, e, r)
                             Toast.makeText(activity, "Replaced", Toast.LENGTH_SHORT).show()
+                        } else {
+                            findNext(true) // jump to next match instead of replacing wrong range
                         }
                     }
                 },
                 onReplaceAll = { replaceAll() },
                 onClose = { searchVisible = false; replaceVisible = false },
+                matchCase = matchCase,
+                onToggleMatchCase = { matchCase = !matchCase },
             )
         }
         IdeDivider()
@@ -726,6 +893,7 @@ private fun EditorPane(
             factory = { context ->
                 LineNumberEditText(context).apply {
                     EditorPaneState.editor = this
+                    EditorPaneState.currentFilePath = pathText
                     activity.autoComplete = KotlinAutoComplete(activity, this).apply {
                         host.studioProjectDir?.let { setProjectDir(it) }
                         setCurrentFile(host.studioCurrentFile ?: File(activity.filesDir, pathText))
@@ -738,7 +906,7 @@ private fun EditorPane(
                     tag = "editor"
                     text?.let { KotlinHighlighter.highlight(it, pathText) }
                     KotlinHighlighter.attachTo(this, pathText, suppressCheck = { tag == "loading" }) { errors ->
-                        val ext = pathText.substringAfterLast('.', "").lowercase()
+                        val ext = EditorPaneState.currentFilePath.substringAfterLast('.', "").lowercase()
                         if (host.studioAnalysisEngine != null && ext in CompilerCheckedExtensions) {
                             return@attachTo
                         }
@@ -769,6 +937,9 @@ private fun EditorPane(
                 }
             },
             update = { view: android.widget.EditText ->
+                // Keep autocomplete + diagnostics pointed at the newly selected file.
+                EditorPaneState.currentFilePath = pathText
+                activity.autoComplete?.setCurrentFile(host.studioCurrentFile ?: File(activity.filesDir, pathText))
                 if (view.text.toString() != fileContent) {
                     view.tag = "loading"
                     view.setText(fileContent)
@@ -797,6 +968,8 @@ private fun FindReplaceToolbar(
     onReplace: () -> Unit,
     onReplaceAll: () -> Unit,
     onClose: () -> Unit,
+    matchCase: Boolean = false,
+    onToggleMatchCase: () -> Unit = {},
 ) {
     val ide = LocalIdeColors.current
     Column(
@@ -810,12 +983,17 @@ private fun FindReplaceToolbar(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Text("Aa", color = if (matchCase) ide.accent else ide.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable(onClick = onToggleMatchCase).padding(4.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text("Find", color = ide.textSoft, fontSize = 11.sp)
                 Spacer(modifier = Modifier.width(6.dp))
                 BasicTextField(
                     value = searchQuery,
                     onValueChange = onSearchChange,
                     maxLines = 1,
+                    cursorBrush = SolidColor(ide.accent),
+                    textStyle = TextStyle(color = ide.text, fontSize = 12.sp),
                     modifier = Modifier.background(Color(ide.p.editorBg)).weight(1f),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -844,6 +1022,8 @@ private fun FindReplaceToolbar(
                     value = searchQuery,
                     onValueChange = onSearchChange,
                     maxLines = 1,
+                    cursorBrush = SolidColor(ide.accent),
+                    textStyle = TextStyle(color = ide.text, fontSize = 12.sp),
                     modifier = Modifier.background(Color(ide.p.editorBg)).weight(1f),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -853,6 +1033,8 @@ private fun FindReplaceToolbar(
                     value = replaceQuery,
                     onValueChange = onReplaceChange,
                     maxLines = 1,
+                    cursorBrush = SolidColor(ide.accent),
+                    textStyle = TextStyle(color = ide.text, fontSize = 12.sp),
                     modifier = Modifier.background(Color(ide.p.editorBg)).weight(1f),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -874,7 +1056,7 @@ private fun FindReplaceToolbar(
 }
 
 @Composable
-private fun EditorTab(title: String, active: Boolean, onClick: () -> Unit, onClose: () -> Unit) {
+private fun EditorTab(title: String, active: Boolean, dirty: Boolean = false, onClick: () -> Unit, onClose: () -> Unit) {
     val ide = LocalIdeColors.current
     Column(
         modifier = Modifier
@@ -898,6 +1080,10 @@ private fun EditorTab(title: String, active: Boolean, onClick: () -> Unit, onClo
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (dirty) {
+                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(ide.warning))
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -927,6 +1113,7 @@ private fun BottomPanel(
     onHeightChange: (Dp) -> Unit,
     onPaneChange: (String) -> Unit,
     onCollapse: () -> Unit,
+    onClearLog: () -> Unit,
 ) {
     val activity = host.studioActivity
     val ide = LocalIdeColors.current
@@ -984,6 +1171,11 @@ private fun BottomPanel(
                 active = pane == "terminal",
                 onClick = { onPaneChange("terminal") },
             )
+            BottomPanelTab(
+                label = AppLanguage.string(activity, R.string.tab_logcat),
+                active = pane == "logcat",
+                onClick = { onPaneChange("logcat") },
+            )
             Spacer(modifier = Modifier.weight(1f))
             Box(
                 modifier = Modifier
@@ -1011,7 +1203,8 @@ private fun BottomPanel(
                         onCollapse()
                     },
                 )
-                else -> BuildLogPane(lines = logLines, activity = activity)
+                "logcat" -> LogcatPane(activity = activity)
+                else -> BuildLogPane(lines = logLines, activity = activity, host = host, onClear = onClearLog)
             }
         }
     }
@@ -1063,23 +1256,50 @@ private fun BottomPanelTab(
 }
 
 @Composable
-private fun BuildLogPane(lines: List<StudioLogLine>, activity: MainActivity) {
+private fun BuildLogPane(lines: List<StudioLogLine>, activity: MainActivity, host: StudioHost, onClear: () -> Unit) {
     val ide = LocalIdeColors.current
+    var errorsOnly by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
-    LaunchedEffect(lines.size) { scrollState.scrollTo(Int.MAX_VALUE) }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(ide.p.editorBg))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-    ) {
-        if (lines.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = AppLanguage.string(activity, R.string.shell_no_build_output), style = IdeMono.log, color = ide.muted)
+    val visible = if (errorsOnly) lines.filter { it.color == ide.p.error } else lines
+    LaunchedEffect(visible.size) { scrollState.animateScrollTo(scrollState.maxValue) }
+    Column(modifier = Modifier.fillMaxSize().background(Color(ide.p.editorBg))) {
+        // Toolbar: build state + copy + clear + stop + errors filter
+        Row(
+            modifier = Modifier.fillMaxWidth().height(34.dp).background(Color(ide.p.surface)).padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (host.studioIsBuildRunning) {
+                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(ide.warning))
+                Spacer(Modifier.width(6.dp))
+                Text("Building…", color = ide.warning, fontSize = 10.sp)
+            } else {
+                Text("Idle", color = ide.muted, fontSize = 10.sp)
             }
-        } else {
-            Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
-                lines.forEach { line ->
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Errors only", color = if (errorsOnly) ide.error else ide.textSoft, fontSize = 10.sp,
+                modifier = Modifier.clickable { errorsOnly = !errorsOnly }.padding(6.dp))
+            Text("Copy", color = ide.textSoft, fontSize = 10.sp, modifier = Modifier.clickable {
+                val text = visible.joinToString("\n") { it.text }
+                val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("build_log", text))
+                Toast.makeText(activity, "Build log copied", Toast.LENGTH_SHORT).show()
+            }.padding(6.dp))
+            Text("Clear", color = ide.textSoft, fontSize = 10.sp, modifier = Modifier.clickable(onClick = onClear).padding(6.dp))
+            if (host.studioIsBuildRunning) {
+                Text("Stop", color = ide.error, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { host.studioStopBuild() }.padding(6.dp))
+            }
+        }
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 12.dp, vertical = 8.dp)) {
+            if (visible.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (host.studioIsBuildRunning) "Build in progress…" else AppLanguage.string(activity, R.string.shell_no_build_output),
+                        style = IdeMono.log, color = ide.muted,
+                    )
+                }
+            } else {
+                visible.forEach { line ->
                     Text(text = line.text, color = Color(line.color), style = IdeMono.log)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1100,6 +1320,15 @@ private fun TerminalPane(activity: MainActivity) {
     val scrollState = rememberScrollState()
     val focusRequester = remember { FocusRequester() }
 
+    // Kill any previous shell before (re)starting so Retry never leaves orphans.
+    DisposableEffect(retryKey) {
+        shellProcess?.let { runCatching { it.destroy() } }
+        onDispose {
+            // Destroy the shell when the pane leaves composition / the panel collapses.
+            shellProcess?.let { runCatching { it.destroy() } }
+        }
+    }
+
     LaunchedEffect(retryKey) {
         try {
             val pb = java.lang.ProcessBuilder("/system/bin/sh")
@@ -1111,11 +1340,9 @@ private fun TerminalPane(activity: MainActivity) {
             activity.studioScope.launch(Dispatchers.IO) {
                 val reader = java.io.BufferedReader(java.io.InputStreamReader(proc.inputStream, Charset.forName("UTF-8")))
                 while (proc.isAlive) {
-                    val line = reader.readLine()
-                    if (line == null) break
-                    withContext(Dispatchers.Main) { terminalText = terminalText + (line ?: "") + "\n" }
+                    val line = reader.readLine() ?: break
+                    withContext(Dispatchers.Main) { terminalText = terminalText + line + "\n" }
                 }
-                // Process exited
                 withContext(Dispatchers.Main) {
                     if (shellError == null) shellError = "Shell process exited"
                 }
@@ -1331,7 +1558,11 @@ private fun DownloadManagerWindow(
     onDismiss: () -> Unit,
 ) {
     val task = DownloadCenter.state.value
-    if (task == null) { onDismiss(); return }
+    // Never write state during composition: defer dismissal to an effect.
+    LaunchedEffect(task) {
+        if (task == null) onDismiss()
+    }
+    if (task == null) return
 
     val context: Context = LocalContext.current
     val ide = LocalIdeColors.current
@@ -1381,8 +1612,8 @@ private fun DownloadManagerWindow(
                             Text(text = AppLanguage.string(activity, R.string.downloader_confirm_message).replace("%s", t.label.lowercase()), color = ide.error, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
                             Spacer(modifier = Modifier.height(16.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Button(onClick = { DownloadCenter.approve() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.success)) { Text("Yes", color = Color.White, fontWeight = FontWeight.Bold) }
-                                Button(onClick = { DownloadCenter.decline(); onDismiss() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text("No", color = Color.White, fontWeight = FontWeight.Bold) }
+                                Button(onClick = { DownloadCenter.approve() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.success)) { Text(AppLanguage.string(activity, R.string.yes), color = Color.White, fontWeight = FontWeight.Bold) }
+                                Button(onClick = { DownloadCenter.decline(); onDismiss() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text(AppLanguage.string(activity, R.string.no), color = Color.White, fontWeight = FontWeight.Bold) }
                             }
                         }
                     }
@@ -1403,7 +1634,7 @@ private fun DownloadManagerWindow(
                             }
                             if (t.message.isNotBlank()) { Text(text = t.message, color = ide.textSoft, fontSize = 11.sp, modifier = Modifier.fillMaxWidth()) }
                             Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { DownloadCenter.cancel() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text("Cancel", color = Color.White, fontWeight = FontWeight.Bold) }
+                            Button(onClick = { DownloadCenter.cancel() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text(AppLanguage.string(activity, R.string.action_cancel), color = Color.White, fontWeight = FontWeight.Bold) }
                         }
                     }
                     DownloadCenter.Status.DONE, DownloadCenter.Status.FAILED, DownloadCenter.Status.CANCELLED -> {
@@ -1411,18 +1642,18 @@ private fun DownloadManagerWindow(
                         val iconColor: Color
                         val title: String
                         when (t.status) {
-                            DownloadCenter.Status.DONE -> { iconText = "✓"; iconColor = Color(0xFF43A047); title = "Download Complete" }
-                            DownloadCenter.Status.FAILED -> { iconText = "✗"; iconColor = Color(0xFFEF5350); title = "Download Failed" }
-                            else -> { iconText = "⊘"; iconColor = Color(0xFFBBBBBB); title = "Download Cancelled" }
+                            DownloadCenter.Status.DONE -> { iconText = "✓"; iconColor = ide.success; title = "Download Complete" }
+                            DownloadCenter.Status.FAILED -> { iconText = "✗"; iconColor = ide.error; title = "Download Failed" }
+                            else -> { iconText = "⊘"; iconColor = ide.muted; title = "Download Cancelled" }
                         }
                         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = iconText, color = iconColor, fontSize = 48.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(text = title, color = iconColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
-                            if (t.message.isNotBlank()) { Text(text = t.message, color = Color(0xFFBBBBBB), fontSize = 13.sp, textAlign = TextAlign.Center) }
+                            if (t.message.isNotBlank()) { Text(text = t.message, color = ide.muted, fontSize = 13.sp, textAlign = TextAlign.Center) }
                             Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { onDismiss() }, modifier = Modifier.width(120.dp)) { Text("Close", color = Color.White) }
+                            Button(onClick = { onDismiss() }, modifier = Modifier.width(120.dp)) { Text(AppLanguage.string(activity, R.string.close), color = Color.White) }
                         }
                     }
                 }
@@ -1443,9 +1674,10 @@ private fun TopMenuBar(
     onOpenSettings: () -> Unit,
     onAction: (String) -> Unit,
 ) {
-    val menus = remember {
+    val menus = remember(activity) {
+        val tr = { key: Int -> AppLanguage.string(activity, key) }
         listOf(
-            StudioMenu("File", listOf(
+            StudioMenu(tr(R.string.menu_file), listOf(
                 StudioMenuItem("New", "", subItems = listOf(
                     StudioMenuItem("Project...", "new_project"),
                     StudioMenuItem("File...", "new_file"),
@@ -1461,9 +1693,11 @@ private fun TopMenuBar(
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Settings...", "settings", "Ctrl+Alt+S"),
                 StudioMenuItem("", divider = true),
+                StudioMenuItem("", divider = true),
+                StudioMenuItem("Project Statistics", "project_stats"),
                 StudioMenuItem("Exit", "exit"),
             )),
-            StudioMenu("Edit", listOf(
+            StudioMenu(tr(R.string.menu_edit), listOf(
                 StudioMenuItem("Undo", "undo", "Ctrl+Z"),
                 StudioMenuItem("Redo", "redo", "Ctrl+Shift+Z"),
                 StudioMenuItem("", divider = true),
@@ -1478,7 +1712,7 @@ private fun TopMenuBar(
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Close All Tabs", "close_all_tabs"),
             )),
-            StudioMenu("View", listOf(
+            StudioMenu(tr(R.string.menu_view), listOf(
                 StudioMenuItem("Editor", "pane_editor"),
                 StudioMenuItem("Build Log", "pane_buildlog"),
                 StudioMenuItem("Terminal", "pane_terminal"),
@@ -1486,19 +1720,35 @@ private fun TopMenuBar(
                 StudioMenuItem("Design Preview", "preview_design"),
                 StudioMenuItem("Project Files Drawer", "drawer"),
             )),
-            StudioMenu("Navigate", listOf(
+            StudioMenu(tr(R.string.menu_navigate), listOf(
                 StudioMenuItem("Next Tab", "next_tab", "Ctrl+Tab"),
                 StudioMenuItem("Previous Tab", "prev_tab", "Ctrl+Shift+Tab"),
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Go to Line...", "goto_line", "Ctrl+G"),
+                StudioMenuItem("Quick Open (Go to File)...", "quick_open", "Ctrl+Shift+N"),
+                StudioMenuItem("Search Everywhere...", "command_palette", "Ctrl+Shift+P"),
+                StudioMenuItem("Structure / Outline", "structure"),
+                StudioMenuItem("TODO / FIXME", "todo"),
             )),
-            StudioMenu("Code", listOf(
+            StudioMenu(tr(R.string.menu_code), listOf(
                 StudioMenuItem("Comment / Uncomment", "comment", "Ctrl+/"),
                 StudioMenuItem("Reformat Code", "reformat", "Ctrl+Alt+L"),
                 StudioMenuItem("Optimize Imports", "optimize", "Ctrl+Alt+O"),
             )),
-            StudioMenu("Run", listOf(StudioMenuItem("Run 'app'", "run", "Shift+F10"))),
-            StudioMenu("Tools", listOf(
+            StudioMenu(tr(R.string.menu_build), listOf(
+                StudioMenuItem("Build APK", "build_apk"),
+                StudioMenuItem("Rebuild Project", "rebuild"),
+                StudioMenuItem("Clean Project", "clean"),
+                StudioMenuItem("Sync Project", "sync_project"),
+                StudioMenuItem("", divider = true),
+                StudioMenuItem("Stop Build", "stop_build"),
+            )),
+            StudioMenu(tr(R.string.menu_run), listOf(
+                StudioMenuItem("Run 'app'", "run", "Shift+F10"),
+                StudioMenuItem("Install APK", "install_apk"),
+                StudioMenuItem("Stop Build", "stop_build"),
+            )),
+            StudioMenu(tr(R.string.menu_tools), listOf(
                 StudioMenuItem("Terminal", "terminal", "Alt+F12"),
                 StudioMenuItem("AI Assistant", "assistant"),
                 StudioMenuItem("", divider = true),
@@ -1525,8 +1775,8 @@ private fun TopMenuBar(
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Download Manager", "downloads"),
             )),
-            StudioMenu("VCS", listOf(StudioMenuItem("Git...", "git"), StudioMenuItem("File Manager", "file_manager"))),
-            StudioMenu("Window", listOf(
+            StudioMenu(tr(R.string.menu_vcs), listOf(StudioMenuItem("Git...", "git"), StudioMenuItem("File Manager", "file_manager"))),
+            StudioMenu(tr(R.string.menu_window), listOf(
                 StudioMenuItem("Editor", "pane_editor"),
                 StudioMenuItem("Build Log", "pane_buildlog"),
                 StudioMenuItem("Terminal", "pane_terminal"),
@@ -1534,7 +1784,9 @@ private fun TopMenuBar(
                 StudioMenuItem("", divider = true),
                 StudioMenuItem("Download Manager", "downloads"),
             )),
-            StudioMenu("Help", listOf(
+            StudioMenu(tr(R.string.menu_help), listOf(
+                StudioMenuItem("Documentation", "documentation"),
+                StudioMenuItem("Keyboard Shortcuts", "keyboard_shortcuts"),
                 StudioMenuItem("About MobileStudio", "about"),
                 StudioMenuItem("Crash Report", "crash_report"),
             )),
@@ -1754,10 +2006,10 @@ private fun FilesView(
             modifier = Modifier.fillMaxWidth().background(Color(ide.p.surface2)).padding(horizontal = 14.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("‹", color = ide.textSoft, fontSize = 19.sp, modifier = Modifier.clickable { onSwitchToProjects() }.padding(end = 8.dp))
+            Text("‹", color = ide.textSoft, fontSize = 19.sp, modifier = Modifier.size(40.dp).clickable { onSwitchToProjects() }.semantics { contentDescription = "Back to projects" })
             Text("Files", color = ide.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.weight(1f))
-            Text("×", color = ide.textSoft, fontSize = 16.sp, modifier = Modifier.clickable { onClose() }.padding(4.dp))
+            Text("×", color = ide.textSoft, fontSize = 16.sp, modifier = Modifier.size(40.dp).clickable { onClose() }.semantics { contentDescription = "Close drawer" })
         }
         Row(modifier = Modifier.fillMaxWidth().clickable { onRefresh() }.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             FolderIcon(modifier = Modifier.size(15.dp))
@@ -1802,23 +2054,76 @@ private fun DrawerButton(label: String, onClick: () -> Unit, primary: Boolean = 
 }
 
 @Composable
-private fun StudioStatusBar(projectName: String, problems: Int, onShowProblems: () -> Unit) {
+private fun StudioStatusBar(host: StudioHost, projectName: String, problems: Int, onShowProblems: () -> Unit) {
     val ide = LocalIdeColors.current
+    val activity = host.studioActivity
+    // Caret position is published by LineNumberEditText into this shared state.
+    val caretLine by EditorPaneState.caretLine
+    val caretColumn by EditorPaneState.caretColumn
+    // Language / encoding / device / git branch come from the host hooks.
+    val currentFile = host.studioCurrentFile
+    val language = currentFile?.extension?.lowercase().orEmpty()
+    val langLabel = when (language) {
+        "kt", "kts" -> "Kotlin"
+        "java" -> "Java"
+        "xml" -> "XML"
+        "gradle" -> "Gradle"
+        "py" -> "Python"
+        "c", "h" -> "C"
+        "cpp", "hpp" -> "C++"
+        "json" -> "JSON"
+        "md" -> "Markdown"
+        else -> if (language.isBlank()) "--" else language
+    }
+    val encoding = host.studioFileEncoding
+    val branch = host.studioGitBranch
+    val device = host.studioConnectedDevice
+    val problemsAlpha by animateFloatAsState(targetValue = if (problems > 0) 1f else 0f, animationSpec = tween(180), label = "problems-alpha")
     Row(
-        modifier = Modifier.fillMaxWidth().height(24.dp).background(Color(ide.p.surface)),
+        modifier = Modifier.fillMaxWidth().height(26.dp).background(Color(ide.p.surface)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Project name (left)
         Text(
             text = projectName,
             color = ide.textSoft,
             fontSize = 10.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(start = 10.dp),
+            modifier = Modifier.padding(start = 10.dp).weight(1f, fill = false),
         )
-        if (problems > 0) {
+        Spacer(modifier = Modifier.width(8.dp))
+        // Git branch chip
+        if (!branch.isNullOrBlank()) {
+            StatusChip(text = branch, ide = ide, color = ide.info)
+            Spacer(modifier = Modifier.width(6.dp))
+        }
+        // Device chip
+        if (!device.isNullOrBlank()) {
+            StatusChip(text = device, ide = ide, color = ide.success)
+            Spacer(modifier = Modifier.width(6.dp))
+        }
+        // Caret position
+        if (caretLine > 0) {
+            Text(text = "Ln $caretLine, Col $caretColumn", color = ide.textSoft, fontSize = 9.sp, maxLines = 1)
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        // Language
+        Text(text = langLabel, color = ide.textSoft, fontSize = 9.sp, maxLines = 1)
+        Spacer(modifier = Modifier.width(8.dp))
+        // Encoding
+        Text(text = encoding, color = ide.muted, fontSize = 9.sp, maxLines = 1)
+        Spacer(modifier = Modifier.width(8.dp))
+        // Problems badge (animated alpha)
+        if (problemsAlpha > 0.01f) {
             Row(
-                modifier = Modifier.clip(RoundedCornerShape(3.dp)).background(ide.error.copy(alpha = 0.16f)).clickable(onClick = onShowProblems).semantics { contentDescription = "$problems problems" }.padding(horizontal = 6.dp, vertical = 2.dp),
+                modifier = Modifier
+                    .alpha(problemsAlpha)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(ide.error.copy(alpha = 0.16f))
+                    .clickable(onClick = onShowProblems)
+                    .semantics { contentDescription = "$problems problems" }
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("!", color = ide.error, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -1827,6 +2132,19 @@ private fun StudioStatusBar(projectName: String, problems: Int, onShowProblems: 
             }
             Spacer(modifier = Modifier.width(10.dp))
         }
+    }
+}
+
+@Composable
+private fun StatusChip(text: String, ide: com.aide.mobilestudio.ui.ide.IdeColors, color: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = text, color = color, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -1968,7 +2286,6 @@ private fun SettingsWindowOverlay(
     initialPageId: String? = null,
     onClose: () -> Unit,
 ) {
-    BackHandler { onClose() }
     val close by rememberUpdatedState(onClose)
     val controller = remember(activity) { SettingsController(activity, onClose = { close() }, initialPageId = initialPageId) }
     MobileStudioTheme {
@@ -1986,7 +2303,6 @@ private fun ToolsWindowOverlay(
     initialTab: String,
     onClose: () -> Unit,
 ) {
-    BackHandler { onClose() }
     val close by rememberUpdatedState(onClose)
     val panel = remember(host) { ToolsPanel(host.studioActivity) { close() } }
     DisposableEffect(panel) {
@@ -2029,7 +2345,7 @@ private fun NewProjectDialog(
 ) {
     val host = activity as StudioHost
     val ide = LocalIdeColors.current
-    var selectedType by remember { mutableStateOf("Android Application") }
+    var selectedType by remember { mutableStateOf(0) }  // 0=Android, 1=Java, 2=Kotlin, 3=EXE
     var projectName by remember { mutableStateOf("") }
     var projectLocation by remember { mutableStateOf(host.studioGetLastProject() ?: StorageHelper.projectsRoot(activity).absolutePath) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -2061,9 +2377,27 @@ private fun NewProjectDialog(
             else -> null
         }
         if (errorMessage != null) return
-        val projectDir = File(location, name)
+        // Validate project name: must be a valid identifier for package/derivePackage
+        if (!name.matches(Regex("^[A-Za-z][A-Za-z0-9_ -]*$"))) {
+            errorMessage = AppLanguage.string(activity, R.string.projects_create_failed).replace("%s", "Invalid project name")
+            return
+        }
+        val generator = ProjectTemplateGenerator(activity)
+        val template = when (selectedType) {
+            1 -> ProjectTemplateGenerator.Template.EMPTY_JAVA_ACTIVITY
+            2 -> ProjectTemplateGenerator.Template.EMPTY_ACTIVITY
+            3 -> ProjectTemplateGenerator.Template.WINDOWS_EXE
+            else -> ProjectTemplateGenerator.Template.EMPTY_ACTIVITY
+        }
+        // Java/Kotlin/EXE templates still produce Gradle-based projects via the
+        // full generator so wrapper + root build files are always present.
+        val config = ProjectTemplateGenerator.ProjectConfig(
+            appName = name,
+            template = template,
+            projectRoot = File(location),
+        )
         try {
-            createProjectFiles(projectDir, name, selectedType)
+            val projectDir = generator.create(config)
             activity.studioOpenProject(projectDir)
             activity.studioPutLastProject(projectDir.absolutePath)
             onDismiss()
@@ -2089,13 +2423,14 @@ private fun NewProjectDialog(
             Column(modifier = Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(16.dp)) {
                 Text(text = AppLanguage.string(activity, R.string.newproject_project_type_label), color = ide.muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(8.dp))
-                projectTypes.chunked(2).forEach { rowTypes ->
+                projectTypes.chunked(2).forEachIndexed { rowIdx, rowTypes ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        rowTypes.forEach { type ->
+                        rowTypes.forEachIndexed { colIdx, type ->
+                            val idx = rowIdx * 2 + colIdx
                             NewProjectTypeOption(
                                 type = type,
-                                selected = selectedType == type.label,
-                                onClick = { selectedType = type.label; errorMessage = null },
+                                selected = selectedType == idx,
+                                onClick = { selectedType = idx; errorMessage = null },
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -2238,9 +2573,9 @@ fun showNewFileDialog(activity: MainActivity) {
     fun dp(v: Int) = (v * density).toInt()
     val input = EditText(activity).apply {
         hint = "File name (e.g. Main.kt)"
-        setTextColor(android.graphics.Color.parseColor("#E6E6E6"))
-        setHintTextColor(android.graphics.Color.parseColor("#888888"))
-        background = android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#3A3D42"))
+        setTextColor(StudioUi.color(StudioUi.Text))
+        setHintTextColor(StudioUi.color(StudioUi.Muted))
+        background = StudioUi.inputBg(activity)
         setPadding(dp(8), dp(8), dp(8), dp(8))
     }
     AlertDialog.Builder(activity)
@@ -2253,6 +2588,7 @@ fun showNewFileDialog(activity: MainActivity) {
             val newFile = File(projectDir, name)
             try {
                 newFile.createNewFile()
+                host.studioLoadFileTree(projectDir)
                 activity.studioOpenFileInEditor(newFile)
                 Toast.makeText(activity, "Created: $name", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) { Toast.makeText(activity, "Failed: ${e.message}", Toast.LENGTH_SHORT).show() }
@@ -2267,9 +2603,9 @@ fun showNewFolderDialog(activity: MainActivity) {
     fun dp(v: Int) = (v * density).toInt()
     val input = EditText(activity).apply {
         hint = "Folder name"
-        setTextColor(android.graphics.Color.parseColor("#E6E6E6"))
-        setHintTextColor(android.graphics.Color.parseColor("#888888"))
-        background = android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#3A3D42"))
+        setTextColor(StudioUi.color(StudioUi.Text))
+        setHintTextColor(StudioUi.color(StudioUi.Muted))
+        background = StudioUi.inputBg(activity)
         setPadding(dp(8), dp(8), dp(8), dp(8))
     }
     AlertDialog.Builder(activity)
@@ -2280,7 +2616,7 @@ fun showNewFolderDialog(activity: MainActivity) {
             if (name.isEmpty()) { Toast.makeText(activity, "Enter a folder name", Toast.LENGTH_SHORT).show(); return@setPositiveButton }
             val projectDir = activity.studioProjectDir ?: return@setPositiveButton
             val newDir = File(projectDir, name)
-            if (newDir.mkdirs()) Toast.makeText(activity, "Created: $name", Toast.LENGTH_SHORT).show()
+            if (newDir.mkdirs()) { host.studioLoadFileTree(projectDir); Toast.makeText(activity, "Created: $name", Toast.LENGTH_SHORT).show() }
             else Toast.makeText(activity, "Failed to create folder", Toast.LENGTH_SHORT).show()
         }
         .setNegativeButton("Cancel", null)
@@ -2339,44 +2675,56 @@ fun showRecentFilesDialog(activity: MainActivity) {
 
 fun showProjectStatsDialog(activity: MainActivity) {
     val projectDir = activity.studioProjectDir ?: return
-    var fileCount = 0
-    var lineCount = 0L
-    var dirCount = 0
-    projectDir.walkTopDown().forEach { f ->
-        if (f.isDirectory) dirCount++
-        else if (f.isFile && !f.path.contains("/.git/") && !f.path.contains("/.gradle/") && !f.path.contains("/build/")) {
-            fileCount++
-            try { lineCount += f.readLines().size } catch (_: Exception) {}
+    val progress = android.app.ProgressDialog(activity).apply {
+        setTitle(AppLanguage.string(activity, R.string.stats_title))
+        setMessage("Calculating…")
+        isIndeterminate = true
+        setCancelable(false)
+        show()
+    }
+    activity.studioScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        var fileCount = 0
+        var lineCount = 0L
+        var dirCount = 0
+        projectDir.walkTopDown().forEach { f ->
+            if (f.isDirectory) dirCount++
+            else if (f.isFile && !f.path.contains("/.git/") && !f.path.contains("/.gradle/") && !f.path.contains("/build/")) {
+                fileCount++
+                try { lineCount += f.readLines().size } catch (_: Exception) {}
+            }
+        }
+        withContext(kotlinx.coroutines.Dispatchers.Main) {
+            runCatching { progress.dismiss() }
+            val density = activity.resources.displayMetrics.density
+            fun dp(v: Int) = (v * density).toInt()
+            val layout = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(16), dp(16), dp(16))
+            }
+            layout.addView(TextView(activity).apply {
+                text = AppLanguage.string(activity, R.string.stats_title)
+                setTextColor(StudioUi.color(StudioUi.Text))
+                textSize = 16f
+                setTypeface(Typeface.DEFAULT_BOLD)
+                setPadding(0, 0, 0, dp(8))
+            })
+            layout.addView(TextView(activity).apply {
+                text = AppLanguage.string(activity, R.string.stats_summary)
+                    .replace("%d", fileCount.toString())
+                    .replace("%d", dirCount.toString())
+                    .replace("%d", lineCount.toString())
+                setTextColor(StudioUi.color(StudioUi.Text))
+                textSize = 14f
+                setTypeface(Typeface.create("monospace", Typeface.NORMAL))
+                setPadding(0, 0, 0, dp(8))
+            })
+            AlertDialog.Builder(activity)
+                .setTitle(AppLanguage.string(activity, R.string.stats_title))
+                .setView(layout)
+                .setPositiveButton("OK", null)
+                .show()
         }
     }
-    val density = activity.resources.displayMetrics.density
-    fun dp(v: Int) = (v * density).toInt()
-    val layout = LinearLayout(activity).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(16), dp(16), dp(16))
-    }
-    layout.addView(TextView(activity).apply {
-        text = AppLanguage.string(activity, R.string.stats_title)
-        setTextColor(0xFFE6E6E6.toInt())
-        textSize = 16f
-        setTypeface(Typeface.DEFAULT_BOLD)
-        setPadding(0, 0, 0, dp(8))
-    })
-    layout.addView(TextView(activity).apply {
-        text = AppLanguage.string(activity, R.string.stats_summary)
-            .replace("%d", fileCount.toString())
-            .replace("%d", dirCount.toString())
-            .replace("%d", lineCount.toString())
-        setTextColor(0xFFE6E6E6.toInt())
-        textSize = 14f
-        setTypeface(Typeface.create("monospace", Typeface.NORMAL))
-        setPadding(0, 0, 0, dp(8))
-    })
-    AlertDialog.Builder(activity)
-        .setTitle(AppLanguage.string(activity, R.string.stats_title))
-        .setView(layout)
-        .setPositiveButton("OK", null)
-        .show()
 }
 
 fun showFindInFilesDialog(activity: MainActivity) {
@@ -2389,7 +2737,7 @@ fun showFindInFilesDialog(activity: MainActivity) {
         setPadding(16, 16, 16, 16)
         addView(TextView(activity).apply {
             text = AppLanguage.string(activity, R.string.find_in_files_title)
-            setTextColor(0xFFE6E6E6.toInt())
+            setTextColor(StudioUi.color(StudioUi.Text))
             textSize = 14f
             setTypeface(Typeface.DEFAULT_BOLD)
             setPadding(0, 0, 0, dp(8))
@@ -2402,25 +2750,35 @@ fun showFindInFilesDialog(activity: MainActivity) {
         .setPositiveButton("Search") { _, _ ->
             val query = queryInput.text.toString().trim()
             if (query.isBlank()) return@setPositiveButton
-            val results = mutableListOf<String>()
-            projectDir.walkTopDown().forEach { f ->
-                if (f.isFile && !f.path.contains("/.git/") && !f.path.contains("/.gradle/") && !f.path.contains("/build/")) {
-                    try {
-                        val text = f.readText(Charsets.UTF_8)
-                        val lines = text.lines()
-                        for ((line, idx) in lines.withIndex()) {
-                            val l = line.toString()
-                            if (l.lowercase().contains(query.lowercase())) {
-                                val relPath = f.relativeTo(projectDir).path
-                                val snippet = l.take(60)
-                                results.add("$relPath:${idx + 1}: $snippet")
+            val progress = android.app.ProgressDialog(activity).apply {
+                setTitle(AppLanguage.string(activity, R.string.find_in_files_title))
+                setMessage("Searching…")
+                isIndeterminate = true
+                setCancelable(false)
+                show()
+            }
+            activity.studioScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val results = mutableListOf<String>()
+                projectDir.walkTopDown().forEach { f ->
+                    if (results.size >= 200) return@forEach
+                    if (f.isFile && !f.path.contains("/.git/") && !f.path.contains("/.gradle/") && !f.path.contains("/build/")) {
+                        try {
+                            val lines = f.readText(Charsets.UTF_8).lines()
+                            for ((idx, l) in lines.withIndex()) {
+                                if (l.contains(query, ignoreCase = true)) {
+                                    results.add("${f.relativeTo(projectDir).path}:${idx + 1}: ${l.take(60).trim()}")
+                                    if (results.size >= 200) break
+                                }
                             }
-                        }
-                    } catch (_: Exception) {}
+                        } catch (_: Exception) {}
+                    }
+                }
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    runCatching { progress.dismiss() }
+                    if (results.isEmpty()) Toast.makeText(activity, "No results found", Toast.LENGTH_SHORT).show()
+                    else AlertDialog.Builder(activity).setTitle("Results (${results.size})").setMessage(results.joinToString("\n")).setPositiveButton("OK", null).show()
                 }
             }
-            if (results.isEmpty()) Toast.makeText(activity, "No results found", Toast.LENGTH_SHORT).show()
-            else AlertDialog.Builder(activity).setTitle("Results (${results.size})").setMessage(results.joinToString("\n")).setPositiveButton("OK", null).show()
         }
         .setNegativeButton("Cancel", null)
         .show()
@@ -2431,4 +2789,195 @@ private fun getKnownProjects(activity: MainActivity): List<File> {
     activity.studioGetRecentProjects().asSequence().map(::File).filter { it.isDirectory }.forEach(projects::add)
     File(activity.filesDir, "workspace").listFiles()?.asSequence()?.filter { it.isDirectory }?.forEach(projects::add)
     return projects.toList()
+}
+
+
+@Composable
+private fun LogcatPane(activity: MainActivity) {
+    val ide = LocalIdeColors.current
+    val lines = remember { mutableStateListOf<Pair<String, String>>() } // level -> raw line
+    var paused by remember { mutableStateOf(false) }
+    var levelFilter by remember { mutableStateOf("V") }
+    var modeLabel by remember { mutableStateOf("") }
+    val manager = remember {
+        com.aide.mobilestudio.LogcatManager(
+            activity,
+            onLine = { raw, _ ->
+                val level = when {
+                    raw.contains(" E/") || raw.startsWith("E/") -> "E"
+                    raw.contains(" W/") || raw.startsWith("W/") -> "W"
+                    raw.contains(" I/") || raw.startsWith("I/") -> "I"
+                    raw.contains(" D/") || raw.startsWith("D/") -> "D"
+                    else -> "V"
+                }
+                lines.add(level to raw)
+                if (lines.size > 1000) lines.removeAt(0)
+            },
+            onError = { err -> lines.add("E" to ("logcat: $err")) },
+            onMode = { m -> modeLabel = m },
+        )
+    }
+    DisposableEffect(manager) {
+        manager.start()
+        onDispose { manager.stop() }
+    }
+    LaunchedEffect(paused) {
+        if (paused) manager.pause() else manager.resume()
+    }
+
+    val levels = listOf("V", "D", "I", "W", "E")
+    val levelRank = mapOf("V" to 0, "D" to 1, "I" to 2, "W" to 3, "E" to 4)
+    val minRank = levelRank[levelFilter] ?: 0
+    val visible = lines.filter { (level, _) -> (levelRank[level] ?: 0) >= minRank }
+    val scrollState = rememberScrollState()
+    LaunchedEffect(visible.size) { scrollState.scrollTo(scrollState.maxValue) }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color(ide.p.editorBg))) {
+        // Filter / control bar
+        Row(
+            modifier = Modifier.fillMaxWidth().height(34.dp).background(Color(ide.p.surface)).padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            levels.forEach { lv ->
+                Box(
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (levelFilter == lv) ide.accent.copy(alpha = 0.22f) else Color(ide.p.surface2))
+                        .clickable { levelFilter = lv }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(lv, color = if (levelFilter == lv) ide.accent else ide.textSoft, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            if (modeLabel.isNotBlank()) {
+                Text(modeLabel, color = ide.muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
+            Text(if (paused) "▶" else "❚❚", color = if (paused) ide.success else ide.warning, fontSize = 12.sp, modifier = Modifier.clickable { paused = !paused }.padding(6.dp))
+            Text("✕", color = ide.textSoft, fontSize = 14.sp, modifier = Modifier.clickable { lines.clear() }.padding(6.dp))
+            Text("⧉", color = ide.textSoft, fontSize = 13.sp, modifier = Modifier.clickable {
+                val text = visible.joinToString("\n") { it.second }
+                val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("logcat", text))
+                Toast.makeText(activity, "Logcat copied", Toast.LENGTH_SHORT).show()
+            }.padding(6.dp))
+        }
+        Box(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(8.dp)) {
+            if (visible.isEmpty()) {
+                Text("Waiting for logcat output…", color = ide.muted, style = IdeMono.log)
+            } else {
+                Column {
+                    visible.forEach { (level, line) ->
+                        val color = when (level) {
+                            "E" -> ide.error
+                            "W" -> ide.warning
+                            "I" -> ide.info
+                            else -> ide.textSoft
+                        }
+                        Text(text = line, color = color, style = IdeMono.log, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Pairs of (display label, action id) shown in the command palette. */
+private data class PaletteCommand(val label: String, val action: String)
+
+@Composable
+private fun CommandPaletteOverlay(
+    activity: MainActivity,
+    onRun: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val ide = LocalIdeColors.current
+    val commands = remember {
+        listOf(
+            PaletteCommand(AppLanguage.string(activity, R.string.action_new_file), "new_file"),
+            PaletteCommand(AppLanguage.string(activity, R.string.newproject_title), "new_project"),
+            PaletteCommand(AppLanguage.string(activity, R.string.action_open_project), "open_project"),
+            PaletteCommand(AppLanguage.string(activity, R.string.action_save), "save"),
+            PaletteCommand(AppLanguage.string(activity, R.string.action_settings), "settings"),
+            PaletteCommand(AppLanguage.string(activity, R.string.tab_build), "pane_buildlog"),
+            PaletteCommand(AppLanguage.string(activity, R.string.tab_problems), "pane_problems"),
+            PaletteCommand(AppLanguage.string(activity, R.string.tab_shell), "pane_terminal"),
+            PaletteCommand(AppLanguage.string(activity, R.string.tab_logcat), "pane_logcat"),
+            PaletteCommand("Run 'app'", "run"),
+            PaletteCommand("Build", "build"),
+            PaletteCommand("Stop Build", "stop_build"),
+            PaletteCommand("Find", "find"),
+            PaletteCommand(AppLanguage.string(activity, R.string.find_in_files_title), "find_in_files"),
+            PaletteCommand("Git", "git"),
+            PaletteCommand("Device Manager", "device_manager"),
+            PaletteCommand("SDK Manager", "sdk_manager"),
+            PaletteCommand("File Manager", "file_manager"),
+            PaletteCommand("Terminal", "terminal"),
+            PaletteCommand("Recent Projects", "recent_projects"),
+            PaletteCommand("Go to File… (Quick Open)", "quick_open"),
+            PaletteCommand(AppLanguage.string(activity, R.string.stats_title), "project_stats"),
+        )
+    }
+    var query by remember { mutableStateOf("") }
+    val results = remember(query) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) commands else commands.filter { it.label.lowercase().contains(q) }
+    }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color(0x88000000)).clickable(enabled = true, onClick = onDismiss),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 48.dp, start = 16.dp, end = 16.dp)
+                .heightIn(max = 480.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(ide.p.card))
+                .border(1.dp, ide.border, RoundedCornerShape(8.dp))
+                .clickable(enabled = false) {},
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().background(Color(ide.p.surface)).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("›", color = ide.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    cursorBrush = SolidColor(ide.accent),
+                    textStyle = TextStyle(color = ide.text, fontSize = 14.sp),
+                    modifier = Modifier.weight(1f).focusRequester(focusRequester),
+                    decorationBox = { inner ->
+                        if (query.isEmpty()) Text("Type a command…", color = ide.muted, fontSize = 14.sp)
+                        inner()
+                    },
+                )
+            }
+            IdeDivider()
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(8.dp)) {
+                if (results.isEmpty()) {
+                    Text("No matching commands", color = ide.muted, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
+                } else {
+                    results.forEach { cmd ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onRun(cmd.action) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(cmd.label, color = ide.text, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

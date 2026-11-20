@@ -63,6 +63,13 @@ class LogcatManager(
     }.getOrDefault(false)
 
     private fun tryEnableAdbTcpWithSu() {
+        // Only attempt the privileged path on a device that actually exposes
+        // a `su` binary. On a stock (non-rooted) physical device this avoids a
+        // pointless process spawn / 2s wait; the caller falls back to plain
+        // `logcat` (what the app UID is allowed to read) either way.
+        val hasSu = listOf("/system/bin/su", "/system/xbin/su", "/sbin/su")
+            .any { java.io.File(it).exists() }
+        if (!hasSu) return
         runCatching {
             val p = ProcessBuilder(
                 "su", "-c",
