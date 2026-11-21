@@ -551,11 +551,13 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
 
         jreGradleInstaller = JreGradleInstaller(
             context = this,
-            onLog = { line -> buildOutput.appendLine(line, LineLevel.INFO) },
+            onLog = { line -> setStatus(line.take(120)) },
             onProgress = { pct ->
                 runOnUiThread {
-                    buildProgress.visibility = View.VISIBLE
-                    buildProgress.progress = pct
+                    if (::buildProgress.isInitialized) {
+                        buildProgress.visibility = View.VISIBLE
+                        buildProgress.progress = pct
+                    }
                 }
             }
         )
@@ -5005,8 +5007,8 @@ Long press: Toggle Shell panel"""
     private fun markGradleSyncNeeded(file: File?) {
         if (gradleSyncRunning || !isGradleSyncFile(file)) return
         gradleSyncNeeded = true
-        tvStatusRight.text = "Rebuild needed"
-        tvStatusRight.setTextColor(StudioUi.color(StudioUi.Amber))
+        if (::tvStatusRight.isInitialized) tvStatusRight.text = "Rebuild needed"
+        if (::tvStatusRight.isInitialized) tvStatusRight.setTextColor(StudioUi.color(StudioUi.Amber))
         setStatus("Gradle changed. Run Build to update.")
     }
 
@@ -6226,8 +6228,8 @@ Long press: Toggle Shell panel"""
                             variantSelector.setVariantsFromModel(model)
                         }
 
-                        tvStatusRight.text = if (success) "Synced" else "Sync failed"
-                        tvStatusRight.setTextColor(StudioUi.color(if (success) "#98C379" else "#E06C75"))
+                        if (::tvStatusRight.isInitialized) tvStatusRight.text = if (success) "Synced" else "Sync failed"
+                        if (::tvStatusRight.isInitialized) tvStatusRight.setTextColor(StudioUi.color(if (success) "#98C379" else "#E06C75"))
 
                         val status = if (success) {
                             buildString {
@@ -7834,8 +7836,8 @@ Long press: Toggle Shell panel"""
         checkProjectUpdates()
 
         if (::tvStatusRight.isInitialized) {
-            tvStatusRight.text = if (currentProjectKind == ProjectKind.GODOT) "Godot" else "Sync Now"
-            tvStatusRight.setTextColor(StudioUi.color(if (currentProjectKind == ProjectKind.GODOT) "#61AFEF" else StudioUi.Amber))
+            if (::tvStatusRight.isInitialized) tvStatusRight.text = if (currentProjectKind == ProjectKind.GODOT) "Godot" else "Sync Now"
+            if (::tvStatusRight.isInitialized) tvStatusRight.setTextColor(StudioUi.color(if (currentProjectKind == ProjectKind.GODOT) "#61AFEF" else StudioUi.Amber))
         }
 
         // Live edit: watch project files.
@@ -7910,8 +7912,8 @@ Long press: Toggle Shell panel"""
                 override fun onAnalysisStarted(file: java.io.File) {
                     runOnUiThread {
                         if (file == currentFile && ::tvStatusRight.isInitialized) {
-                            tvStatusRight.text = "Analyzing..."
-                            tvStatusRight.setTextColor(StudioUi.color(StudioUi.Amber))
+                            if (::tvStatusRight.isInitialized) tvStatusRight.text = "Analyzing..."
+                            if (::tvStatusRight.isInitialized) tvStatusRight.setTextColor(StudioUi.color(StudioUi.Amber))
                         }
                     }
                 }
@@ -7922,8 +7924,8 @@ Long press: Toggle Shell panel"""
                             val summary = analysisEngine?.getDiagnosticsForFile(file).orEmpty()
                             val errCount = summary.count { it.severity == com.aide.mobilestudio.analysis.DiagnosticSeverity.ERROR }
                             val warnCount = summary.count { it.severity == com.aide.mobilestudio.analysis.DiagnosticSeverity.WARNING }
-                            tvStatusRight.text = if (errCount == 0 && warnCount == 0) "No errors" else "$errCount error(s), $warnCount warning(s)"
-                            tvStatusRight.setTextColor(StudioUi.color(if (errCount == 0) "#98C379" else "#E06C75"))
+                            if (::tvStatusRight.isInitialized) tvStatusRight.text = if (errCount == 0 && warnCount == 0) "No errors" else "$errCount error(s), $warnCount warning(s)"
+                            if (::tvStatusRight.isInitialized) tvStatusRight.setTextColor(StudioUi.color(if (errCount == 0) "#98C379" else "#E06C75"))
                         }
                     }
                 }
@@ -8054,7 +8056,7 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         findViewById<TextView>(R.id.tab_problems)?.text = ui("Problems")
         findViewById<TextView>(R.id.tab_shell)?.text = ui("Shell")
         if (::tvStatusLang.isInitialized) {
-            tvStatusLang.text = when (currentProjectKind) {
+            if (::tvStatusLang.isInitialized) tvStatusLang.text = when (currentProjectKind) {
                 ProjectKind.PYTHON -> "Python"
                 ProjectKind.JAR -> "Java/JAR"
                 ProjectKind.EXE -> "C/C++"
@@ -9618,7 +9620,11 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         }
     }
 
-    private fun setStatus(msg: String) { tvStatusLeft.text = msg }
+    private fun setStatus(msg: String) {
+        // The View-based status bar was removed by the Compose migration;
+        // guard the lateinit field so imperative status callers stay safe.
+        if (::tvStatusLeft.isInitialized) tvStatusLeft.text = msg
+    }
 
     private fun showMemoryDialog(snapshot: MemoryMonitor.MemorySnapshot) {
         val dialog = android.app.AlertDialog.Builder(this)
@@ -9719,14 +9725,14 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
         val errorCount = liveErrors.count { it.severity == BuildProblem.Severity.ERROR }
         val warningCount = liveErrors.count { it.severity == BuildProblem.Severity.WARNING }
         if (errorCount > 0 || warningCount > 0) {
-            tvStatusRight.text = "\u26A0$warningCount \u2716$errorCount"
-            tvStatusRight.setTextColor(StudioUi.color(StudioUi.ActiveAmber))
+            if (::tvStatusRight.isInitialized) tvStatusRight.text = "\u26A0$warningCount \u2716$errorCount"
+            if (::tvStatusRight.isInitialized) tvStatusRight.setTextColor(StudioUi.color(StudioUi.ActiveAmber))
         } else if (!gradleSyncNeeded && !gradleSyncRunning) {
-            tvStatusRight.text = "No errors"
-            tvStatusRight.setTextColor(StudioUi.color(StudioUi.ActiveGreen))
+            if (::tvStatusRight.isInitialized) tvStatusRight.text = "No errors"
+            if (::tvStatusRight.isInitialized) tvStatusRight.setTextColor(StudioUi.color(StudioUi.ActiveGreen))
         }
         val file = currentFile
-        tvStatusLang.text     = when (file?.extension) {
+        if (::tvStatusLang.isInitialized) tvStatusLang.text     = when (file?.extension) {
             "kt"   -> "Kotlin"
             "java" -> "Java"
             "xml"  -> "XML"
