@@ -269,7 +269,7 @@ class BuildToolsSettingsActivity : AppCompatActivity() {
             BuildToolsConfig.setAddOpens(this, it)
         }
         textRow("Custom JVM args", BuildToolsConfig.customJvmArgs(this),
-            "e.g. -Xss512k -XX:+UseCompressedOops") {
+            "Android JDK: -XX:-UseCompressedOops -Xint (MTE safe)") {
             BuildToolsConfig.setCustomJvmArgs(this, it)
         }
         textRow("File encoding", BuildToolsConfig.fileEncoding(this), "UTF-8") {

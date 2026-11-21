@@ -88,14 +88,14 @@ object BuildToolCatalog {
     val FALLBACK_JDK = listOf(
         ToolRelease(
             version = "21",
-            url = "https://github.com/$CATALOG_OWNER/$CATALOG_REPO/releases/download/jdk21-android-21.0.4/jdk21-android.tar.gz",
-            sha256 = "e561d04f4f91714da934723d1ec3214380b90e62e5aee3844ba2854179bd5c77",
-            tag = "jdk21-android-21.0.4"
+            url = "https://github.com/$CATALOG_OWNER/$CATALOG_REPO/releases/download/jdk21-android-21.0.14/jdk21-android-arm64.tar.gz",
+            sha256 = "b6575760724183350c98206082da7829808b62b766e2d30fc253101b1e8cda0e",
+            tag = "jdk21-android-21.0.14"
         ),
         ToolRelease(
             version = "17",
-            url = "https://github.com/$CATALOG_OWNER/$CATALOG_REPO/releases/download/MobileStudio-JDK17-Android-ARM64/jdk17-android.tar.gz",
-            sha256 = "b7cdb041d902f84efca00a886502b93e07c064d80c7386ba572dc9e99033e8e3",
+            url = "https://github.com/$CATALOG_OWNER/$CATALOG_REPO/releases/download/MobileStudio-JDK17-Android-ARM64/jdk17-android-arm64.tar.gz",
+            sha256 = "248a95192b257f80d618395083cf611c1ddb8eb8823dab70f2b1f26442688bfc",
             tag = "MobileStudio-JDK17-Android-ARM64"
         )
     )
@@ -123,16 +123,16 @@ object BuildToolCatalog {
     // Pure parsing helpers (unit-testable)
     // ------------------------------------------------------------------
 
-    private val JDK_ASSET_REGEX = Regex("""^jdk(\d+)-android\.tar\.gz$""")
+    private val JDK_ASSET_REGEX = Regex("""^jdk(\d+)-android(?:-arm64)?\.tar\.gz$""")
     private val CMAKE_ASSET_REGEX = Regex("""^cmake-(\d+(?:\.\d+)*)-android-arm64\.tar\.gz$""")
     private val CMAKE_TAG_REGEX = Regex("""^cmake-android-v(\d+(?:\.\d+)*)$""")
     private val NDK_ASSET_REGEX = Regex("""^android-ndk-(\d+(?:\.\d+)*)-arm64\.tar\.zst$""")
 
-    /** "jdk21-android.tar.gz" -> 21; anything else -> null. */
+    /** "jdk21-android-arm64.tar.gz" -> 21; anything else -> null. */
     fun jdkMajorFromAsset(assetName: String): Int? =
         JDK_ASSET_REGEX.matchEntire(assetName)?.groupValues?.get(1)?.toIntOrNull()
 
-    /** Major version parsed from any tag mentioning jdk<N> ("jdk21-android-21.0.4" -> 21). */
+    /** Major version parsed from any tag mentioning jdk<N> ("jdk21-android-21.0.14" -> 21). */
     fun jdkMajorFromTag(tag: String): Int? =
         Regex("""(?i)jdk(\d+)""").find(tag)?.groupValues?.get(1)?.toIntOrNull()
 

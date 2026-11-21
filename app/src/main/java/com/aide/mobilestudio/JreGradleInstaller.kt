@@ -965,7 +965,7 @@ exit 127
         }
 
         log("Resolving custom OpenJDK 21 Android ARM64 URL...")
-        val url = "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/jdk21-android-21.0.4/jdk21-android.tar.gz"
+        val url = "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/jdk21-android-21.0.14/jdk21-android-arm64.tar.gz"
         log("JDK 21 URL: $url")
 
         val jdkFile = File(installDir, "jdk21-android.tar.gz")
@@ -1014,10 +1014,10 @@ exit 127
         }
 
         log("Resolving custom OpenJDK 17 Android ARM64 URL...")
-        val url = "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio-JDK17-Android-ARM64/jdk17-android.tar.gz"
+        val url = "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio-JDK17-Android-ARM64/jdk17-android-arm64.tar.gz"
         log("JDK 17 URL: $url")
 
-        val jdkFile = File(installDir, "jdk17-android.tar.gz")
+        val jdkFile = File(installDir, "jdk17-android-arm64.tar.gz")
         log("Downloading JDK 17 (Android ARM64 Bionic)...")
         downloadFile(url, jdkFile)
 
@@ -1412,8 +1412,8 @@ exit 127
     private fun resolveTermuxJdkUrl(packageName: String = "openjdk-17"): String {
         // For JDK 17/21, use our custom-built Android ARM64 binaries from GitHub
         return when (packageName) {
-            "openjdk-17" -> "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio-JDK17-Android-ARM64/jdk17-android.tar.gz"
-            "openjdk-21" -> "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/jdk21-android-21.0.4/jdk21-android.tar.gz"
+            "openjdk-17" -> "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/MobileStudio-JDK17-Android-ARM64/jdk17-android-arm64.tar.gz"
+            "openjdk-21" -> "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/jdk21-android-21.0.14/jdk21-android-arm64.tar.gz"
             else -> throw RuntimeException("Unsupported JDK package: $packageName. Only openjdk-17 and openjdk-21 are supported.")
         }
     }
