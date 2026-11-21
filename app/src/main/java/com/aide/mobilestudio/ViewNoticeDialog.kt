@@ -60,7 +60,7 @@ object VersionNoticeDialog {
     private const val PREFS        = "ms_version_notice"
     private const val KEY_HIDE_UNTIL = "hide_until"
     private const val ASSET_FILE   = "MobileStudioVersion.txt"
-    private const val VERSION_NAME = "26.8.17  ·  Lavender🪻"
+    private const val VERSION_NAME = "26.11.12  ·  Magnolia🌸"
     
     fun showIfNeeded(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -350,9 +350,21 @@ object VersionNoticeDialog {
     
     private fun defaultContent() = """
 <Korean>
-## 26.8.17 Lavender🪻
+## 26.11.12 Magnolia🌸
 
-**MobileStudio 26.8.17 Lavender🪻**
+**MobileStudio 26.11.12 Magnolia🌸**
+
+### IDE 셸 개선 (신규)
+
+- **새 프로젝트 생성** 완전한 Android 프로젝트 자동 생성 (Gradle wrapper · Manifest · MainActivity · res)
+- **Kotlin 새 프로젝트** "Hello, MobileStudio" 텍스트가 표시되는 MainActivity 자동 생성 및 열기
+- **실행 파이프라인** 빌드 → APK 설치 → 앱 실행, 빌드 중지/재빌드/정리 지원
+- **Command Palette** Ctrl+Shift+P 로 모든 명령 검색, 키보드 단축키 지원
+- **로그캣 탭** 실제 logcat 출력, 레벨 필터/일시정지/복사
+- **상태바** Ln/Col · 언어 · 인코딩 · Git 브랜치 · 기기 표시
+- **테마** Light/Dracula/Monokai/Nord 등 선택 시 전체 UI 즉시 반영
+- **애니메이션** 드로어 · 하단 패널 · 오버레이 전환 애니메이션
+- **AGP Upgrade Assistant** 분석/계획/실행/롤백 실제 동작 UI
 
 ### 빌드 환경
 
@@ -383,9 +395,21 @@ object VersionNoticeDialog {
 - **영역 제한** 컴포넌트가 가상 화면 밖으로 나가지 않도록 자동 조절됩니다.
 </Korean>
 <English>
-## 26.8.17 Lavender🪻
+## 26.11.12 Magnolia🌸
 
-**MobileStudio 26.8.17 Lavender🪻** - Advanced Android IDE.
+**MobileStudio 26.11.12 Magnolia🌸** - Advanced Android IDE.
+
+### IDE Shell Improvements (New)
+
+- **New Project** Creates a complete Android project (Gradle wrapper, Manifest, MainActivity, res)
+- **Kotlin projects** Auto-generate and open a MainActivity showing "Hello, MobileStudio"
+- **Run pipeline** Build -> install APK -> launch app, with stop/rebuild/clean
+- **Command Palette** Ctrl+Shift+P to search all commands, keyboard shortcuts
+- **Logcat tab** Real logcat output with level filters, pause and copy
+- **Status bar** Ln/Col, language, encoding, Git branch and device
+- **Themes** Light/Dracula/Monokai/Nord applied instantly across the UI
+- **Animations** Drawer, bottom panel and overlay transitions
+- **AGP Upgrade Assistant** Real analyze/plan/execute/rollback UI
 
 ### Build System
 

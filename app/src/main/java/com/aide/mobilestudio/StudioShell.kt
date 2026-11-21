@@ -2422,9 +2422,22 @@ private fun NewProjectDialog(
             val projectDir = generator.create(config)
             // Ensure the essential Android skeleton is present even if a
             // template path skipped a file — guarantees a basic Android project.
-            ensureAndroidSkeleton(projectDir, name, "com.example.$safePkg", useJava = (template == ProjectTemplateGenerator.Template.EMPTY_JAVA_ACTIVITY))
+            val useJava = template == ProjectTemplateGenerator.Template.EMPTY_JAVA_ACTIVITY
+            ensureAndroidSkeleton(projectDir, name, "com.example.$safePkg", useJava = useJava)
+            // Kotlin projects always get the canonical "Hello, MobileStudio" MainActivity.
+            if (!useJava && template != ProjectTemplateGenerator.Template.NATIVE_CPP) {
+                writeHelloMainActivity(projectDir, "com.example.$safePkg")
+            }
             activity.studioOpenProject(projectDir)
             activity.studioPutLastProject(projectDir.absolutePath)
+            // Open the generated MainActivity right away so the user lands in
+            // the editor instead of an empty "No file selected" pane.
+            val mainActivityFile = if (useJava) {
+                File(projectDir, "app/src/main/java/${"com.example.$safePkg".replace('.', '/')}/MainActivity.java")
+            } else {
+                File(projectDir, "app/src/main/kotlin/${"com.example.$safePkg".replace('.', '/')}/MainActivity.kt")
+            }
+            if (mainActivityFile.exists()) activity.studioOpenFileAt(mainActivityFile, 1)
             onDismiss()
             Toast.makeText(activity, AppLanguage.string(activity, R.string.projects_created).replace("%s", projectDir.toString()), Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
@@ -2541,6 +2554,33 @@ private fun NewProjectTypeOption(type: NewProjectType, selected: Boolean, onClic
  * Android project files. Called after the template generator; it only fills
  * in files that are missing, so a complete template is left untouched.
  */
+/** Writes (or overwrites) the Kotlin MainActivity so every Kotlin project
+ *  opens on a simple "Hello, MobileStudio" screen. */
+private fun writeHelloMainActivity(projectDir: File, packageName: String) {
+    val pkgPath = packageName.replace('.', '/')
+    val file = File(projectDir, "app/src/main/kotlin/$pkgPath/MainActivity.kt")
+    file.parentFile?.mkdirs()
+    file.writeText("""
+        package $packageName
+
+        import android.os.Bundle
+        import android.widget.TextView
+        import androidx.appcompat.app.AppCompatActivity
+
+        class MainActivity : AppCompatActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                val textView = TextView(this).apply {
+                    text = "Hello, MobileStudio"
+                    textSize = 20f
+                    gravity = android.view.Gravity.CENTER
+                }
+                setContentView(textView)
+            }
+        }
+    """.trimIndent())
+}
+
 private fun ensureAndroidSkeleton(projectDir: File, appName: String, packageName: String, useJava: Boolean = false) {
     fun writeIfMissing(rel: String, content: String) {
         val f = File(projectDir, rel)
@@ -2619,11 +2659,18 @@ private fun ensureAndroidSkeleton(projectDir: File, appName: String, packageName
             package $packageName
 
             import android.os.Bundle
+            import android.widget.TextView
             import androidx.appcompat.app.AppCompatActivity
 
             class MainActivity : AppCompatActivity() {
                 override fun onCreate(savedInstanceState: Bundle?) {
                     super.onCreate(savedInstanceState)
+                    val textView = TextView(this).apply {
+                        text = "Hello, MobileStudio"
+                        textSize = 20f
+                        gravity = android.view.Gravity.CENTER
+                    }
+                    setContentView(textView)
                 }
             }
         """)
