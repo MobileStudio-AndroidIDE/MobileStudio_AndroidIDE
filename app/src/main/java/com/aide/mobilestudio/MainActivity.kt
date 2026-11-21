@@ -149,7 +149,8 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     var fileContent: String by mutableStateOf("")
     val treeItems = mutableStateListOf<FileItem>()
     var selectedTab by mutableStateOf(0)
-    var tabs: MutableList<String> = mutableListOf()
+    /** Editor tabs shown by the Compose shell (observed state). */
+    val tabs = androidx.compose.runtime.snapshots.SnapshotStateList<String>()
     var editorProblems: MutableList<EditorProblem> = mutableStateListOf()
 
     /** Task names for the in-flight build, handed to extensions via onBuildStart. */
@@ -4339,12 +4340,21 @@ Long press: Toggle Shell panel"""
         // Save scroll position of previous file
         val previousNavPath = currentFile?.absolutePath
         currentFile?.let {
-            tabScrollPositions[it.absolutePath] = (codeEditor.parent as? ScrollView)?.scrollY ?: 0
-            tabCursorPositions[it.absolutePath] = codeEditor.selectionStart
+            if (::codeEditor.isInitialized) {
+                tabScrollPositions[it.absolutePath] = (codeEditor.parent as? ScrollView)?.scrollY ?: 0
+                tabCursorPositions[it.absolutePath] = codeEditor.selectionStart
+            }
         }
 
         if (!openTabs.contains(file)) openTabs.add(file)
         currentFile = file
+        // Keep the Compose shell's tab strip in sync (it reads `tabs`, not
+        // the legacy View-based `openTabs`). Without this the editor stays on
+        // the "No file selected" welcome screen even though a file is open.
+        val tabLabel = currentProjectDir?.let { runCatching { file.relativeTo(it).path }.getOrNull() }
+            ?: file.name
+        if (!tabs.contains(tabLabel)) tabs.add(tabLabel)
+        selectedTab = tabs.indexOf(tabLabel).coerceAtLeast(0)
         recordFileNavigation(previousNavPath, file.absolutePath)
         unsavedChanges = false
         StorageHelper.pushRecentFile(this, file.absolutePath)
@@ -4372,36 +4382,45 @@ Long press: Toggle Shell panel"""
                 buildVirtualWindow(0)
             } else null
             withContext(Dispatchers.Main) {
-                suppressEditorChange = true
-                codeEditor.clearHistory()
-                if (useVirtual && window != null) {
-                    isVirtualScroll = true
-                    codeEditor.setText(window)
-                } else {
-                    virtualLines = null
-                    isVirtualScroll = false
-                    codeEditor.setText(content)
-                }
-                suppressEditorChange = false
+                // The Compose shell renders from these two state holders — they
+                // MUST be updated on every file open or the editor stays blank.
+                fileContent = content
+                pathText = file.absolutePath
+                EditorPaneState.content = content
+                EditorPaneState.unsaved = false
 
-                // Restore cursor/scroll
-                val savedCursor = tabCursorPositions[file.absolutePath] ?: 0
-                val totalLen = if (isVirtualScroll) codeEditor.text?.length else content.length
-                codeEditor.setSelection(savedCursor.coerceIn(0, totalLen))
-                codeEditor.post {
-                    updateVirtualScrollListener()
-                    if (isVirtualScroll) updateLiveDiagnosticsNow()
+                if (::codeEditor.isInitialized) {
+                    suppressEditorChange = true
+                    codeEditor.clearHistory()
+                    if (useVirtual && window != null) {
+                        isVirtualScroll = true
+                        codeEditor.setText(window)
+                    } else {
+                        virtualLines = null
+                        isVirtualScroll = false
+                        codeEditor.setText(content)
+                    }
+                    suppressEditorChange = false
+
+                    val savedCursor = tabCursorPositions[file.absolutePath] ?: 0
+                    val totalLen = if (isVirtualScroll) codeEditor.text?.length else content.length
+                    codeEditor.setSelection(savedCursor.coerceIn(0, totalLen))
+                    codeEditor.post {
+                        updateVirtualScrollListener()
+                        if (isVirtualScroll) updateLiveDiagnosticsNow()
+                    }
+                    codeEditor.post {
+                        updateLiveDiagnosticsNow()
+                        maybeOfferLanguageConversion()
+                    }
                 }
 
-                codeEditor.post {
-                    updateLiveDiagnosticsNow()
-                    maybeOfferLanguageConversion()
+                if (::autoComplete.isInitialized) {
+                    currentProjectDir?.let { autoComplete.setProjectDir(it) }
+                    autoComplete.setCurrentFile(file)
                 }
-                currentProjectDir?.let { autoComplete.setProjectDir(it) }
-                autoComplete.setCurrentFile(file)
-                webAutoComplete.setCurrentFile(file)
+                if (::webAutoComplete.isInitialized) webAutoComplete.setCurrentFile(file)
 
-                // Notify analysis engine of file open
                 currentProjectDir?.let { projDir ->
                     analysisEngine?.openFile(projDir, file)
                 }
@@ -4412,7 +4431,7 @@ Long press: Toggle Shell panel"""
                 updatePreviewButtonVisibility()
                 updateBreadcrumb()
                 setStatus("${file.name}  ${formatFileSize(file.length())}")
-                drawerLayout.closeDrawer(GravityCompat.START)
+                if (::drawerLayout.isInitialized) drawerLayout.closeDrawer(GravityCompat.START)
                 maybeShowExtensionBanner(file)
                 ExtensionHost.dispatchFileOpenForAll(file)
             }
