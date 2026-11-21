@@ -180,6 +180,14 @@ fun StudioApp(host: StudioHost) {
         }
     }
 
+    fun openProjectViaFileManager() {
+        val intent = Intent(context, FileManagerActivity::class.java).apply {
+            putExtra("project_mode", true)
+            putExtra("is_new_project", false)
+        }
+        host.studioPickProjectViaFileManager.launch(intent)
+    }
+
     fun startBuild(installAndRun: Boolean = false) {
         if (host.studioIsBuildRunning) {
             Toast.makeText(context, AppLanguage.string(activity, R.string.build_already_running), Toast.LENGTH_SHORT).show()
@@ -316,7 +324,7 @@ fun StudioApp(host: StudioHost) {
             "new_project" -> FileManagerActivity.start(context, projectMode = true, isNewProject = true)
             "new_file" -> showNewFileDialog(activity)
             "new_folder" -> showNewFolderDialog(activity)
-            "open_project" -> FileManagerActivity.start(context, projectMode = true)
+            "open_project" -> openProjectViaFileManager()
             "save", "save_all" -> saveCurrent()
             "close_tab" -> {
                 if (host.studioTabDirty) {
@@ -577,7 +585,7 @@ fun StudioApp(host: StudioHost) {
                         },
                         onNewTab = { name -> host.studioNewEditorTab(name); centerPane = "editor" },
                         onCloseTab = { idx -> host.studioCloseEditorTab(idx) },
-                        onOpenProject = { host.studioPickDir.launch(null) },
+                        onOpenProject = { openProjectViaFileManager() },
                         onSaveCurrent = { saveCurrent() },
                         modifier = Modifier.weight(1f),
                     )
@@ -638,7 +646,7 @@ fun StudioApp(host: StudioHost) {
                     drawerMode = "projects"
                     drawerOpen = false
                 },
-                onOpenProject = { host.studioPickDir.launch(null) },
+                onOpenProject = { openProjectViaFileManager() },
                 onRefresh = { host.studioLoadFileTree(host.studioProjectDir ?: activity.filesDir) },
                 onSwitchToFiles = { drawerMode = "files" },
                 onSwitchToProjects = { drawerMode = "projects" },

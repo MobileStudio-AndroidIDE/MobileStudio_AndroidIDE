@@ -300,6 +300,27 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
 
     override var studioOnNewProjectDirPicked: ((String) -> Unit)? = null
 
+    override val studioPickProjectViaFileManager: ActivityResultLauncher<android.content.Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                val dir = result.data?.getStringExtra(FileManagerActivity.EXTRA_SELECTED_DIR)
+                val newProject = result.data?.getBooleanExtra(FileManagerActivity.EXTRA_NEW_PROJECT, false) == true
+                if (dir != null) {
+                    val file = java.io.File(dir)
+                    if (newProject) {
+                        studioNewProjectDir = file
+                        studioNewProjectDialogVisible = true
+                    } else {
+                        openProject(file)
+                        putLastProject(file.absolutePath)
+                    }
+                }
+            }
+        }
+
+    /** Parent folder selected for a new project via the in-app file manager. */
+    private var studioNewProjectDir: java.io.File? = null
+
     override val studioPickNewProjectDir: ActivityResultLauncher<android.net.Uri?> =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             uri?.let { u ->
@@ -362,7 +383,7 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     override fun studioLoadFileTree(root: File) { loadFileTree(root) }
 
     override fun studioToggleTreeFolder(dir: File) {
-        val key = dir.absolutePath
+        val key = canonicalPath(dir)
         if (key in expandedFileTreePaths) expandedFileTreePaths.remove(key)
         else expandedFileTreePaths.add(key)
         currentProjectDir?.let { loadFileTree(it) }
@@ -2680,12 +2701,19 @@ Long press: Toggle Shell panel"""
             }
         }
         appendChildren(root, 0)
-        if (!::fileAdapter.isInitialized) return
-        fileAdapter.setAllItems(items.toList())
-        fileAdapter.updateItems(items)
+
+        // The Compose shell reads `treeItems` (a SnapshotStateList); the legacy
+        // View adapter/tree are only initialized in the removed bindViews().
+        // Always publish to the Compose list first so the drawer shows the full
+        // tree, then best-effort update the legacy views when they exist.
+        treeItems.clear()
+        treeItems.addAll(items)
+        if (::fileAdapter.isInitialized) {
+            fileAdapter.setAllItems(items.toList())
+            fileAdapter.updateItems(items)
+        }
         updateDrawerPath()
-        if (!::fileTree.isInitialized) return
-        if (StudioUi.shouldAnimate(this)) {
+        if (::fileTree.isInitialized && StudioUi.shouldAnimate(this)) {
             fileTree.post {
                 val views = (0 until fileTree.childCount.coerceAtMost(15))
                     .mapNotNull { fileTree.getChildAt(it) }
@@ -7829,7 +7857,10 @@ Long press: Toggle Shell panel"""
         updateBuildOptionLabel()
         updateProjectModeUi()
         File(targetDir, "gradlew").takeIf { it.exists() }?.setExecutable(true, false)
-        if (::fileAdapter.isInitialized) loadFileTree(targetDir)
+        // Always populate the Compose file tree; `fileAdapter` is only bound
+        // in the removed View-based bindViews(), so gating on it left the
+        // drawer empty when a project was first opened.
+        loadFileTree(targetDir)
         if (::drawerLayout.isInitialized) drawerLayout.closeDrawer(GravityCompat.START)
         if (::autoComplete.isInitialized) autoComplete.setProjectDir(targetDir)
         gradleSyncNeeded = currentProjectKind != ProjectKind.GODOT

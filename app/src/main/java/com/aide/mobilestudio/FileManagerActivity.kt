@@ -56,6 +56,8 @@ class FileManagerActivity : AppCompatActivity() {
 
     /** When true, directory selection opens the directory as a project instead of browsing. */
     private var projectMode = false
+    /** Optional filename filter entered in the search box. */
+    private var nameFilter: String = ""
     /** When true, after opening dir as project, show New Project dialog. */
     private var isNewProject = false
 
@@ -114,6 +116,22 @@ class FileManagerActivity : AppCompatActivity() {
         actionRow.addView(makeButton("+ File") { promptNewFile() })
         rootContainer.addView(actionRow)
 
+        // Live filename filter.
+        val searchBox = EditText(this).apply {
+            hint = "Filter files by name…"
+            setSingleLine(true)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        searchBox.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                nameFilter = s?.toString()?.trim().orEmpty()
+                refresh()
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+        rootContainer.addView(searchBox)
+
         fileList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         rootContainer.addView(fileList)
 
@@ -154,7 +172,16 @@ class FileManagerActivity : AppCompatActivity() {
         val sorted = files.sortedWith(compareBy({ it.isDirectory }, { it.name.lowercase() }))
 
         for (f in sorted) {
+            if (nameFilter.isNotBlank() && !f.name.contains(nameFilter, ignoreCase = true)) continue
             fileList.addView(makeRow(f.name, f, f.isDirectory))
+        }
+        if (fileList.childCount == 0) {
+            val empty = TextView(this).apply {
+                text = if (nameFilter.isBlank()) "This folder is empty." else "No files match \"$nameFilter\"."
+                setTextColor(StudioUi.color(StudioUi.TextSoft))
+                setPadding(dp(8), dp(16), dp(8), dp(16))
+            }
+            fileList.addView(empty)
         }
     }
 
@@ -201,11 +228,10 @@ class FileManagerActivity : AppCompatActivity() {
 
         row.setOnClickListener {
             if (isDir) {
-                if (projectMode) {
-                    confirmOpenAsProject(file)
-                } else {
-                    navigateTo(file)
-                }
+                // Always browse into directories. In project mode the dedicated
+                // "Open as Project" button confirms the current folder, so users
+                // can still navigate deep into app/src/main/... before picking.
+                navigateTo(file)
             } else {
                 openFileAction(file)
             }
@@ -254,21 +280,15 @@ class FileManagerActivity : AppCompatActivity() {
             .setTitle("Open as Project")
             .setMessage("Open '${dir.absolutePath}' as the MobileStudio project?")
             .setPositiveButton("Open") { _, _ ->
-                (this as? MainActivity)?.let { activity ->
-                    if (isNewProject) {
-                        // New project: show project creation dialog inside selected dir
-                        activity.currentProjectDir = dir
-                        activity.putLastProject(dir.absolutePath)
-                        showNewProjectDialog(activity)
-                    } else {
-                        activity.openProject(dir)
-                        activity.putLastProject(dir.absolutePath)
-                    }
-                    finish()
-                } ?: run {
-                    Toast.makeText(this, "Opened: ${dir.absolutePath}", Toast.LENGTH_SHORT).show()
-                    finish()
+                // FileManagerActivity runs in its own task, so it cannot cast
+                // `this` to MainActivity. Return the chosen path via setResult
+                // and let the caller (MainActivity) open the project.
+                val result = Intent().apply {
+                    putExtra(EXTRA_SELECTED_DIR, dir.absolutePath)
+                    putExtra(EXTRA_NEW_PROJECT, isNewProject)
                 }
+                setResult(RESULT_OK, result)
+                finish()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -672,6 +692,9 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     companion object {
+        const val EXTRA_SELECTED_DIR = "selected_dir"
+        const val EXTRA_NEW_PROJECT = "new_project"
+
         fun start(context: Context, projectMode: Boolean = false, isNewProject: Boolean = false) {
             val intent = Intent(context, FileManagerActivity::class.java)
             intent.putExtra("project_mode", projectMode)

@@ -65,6 +65,9 @@ interface StudioHost {
     /** Callback invoked with the chosen new-project parent path. */
     var studioOnNewProjectDirPicked: ((String) -> Unit)?
 
+    /** Launches the in-app file manager to pick a project directory. */
+    val studioPickProjectViaFileManager: ActivityResultLauncher<android.content.Intent>
+
     // ── Actions ──────────────────────────────────────────────────────────
 
     /** Opens [dir] as the active project. */
