@@ -7866,6 +7866,7 @@ Long press: Toggle Shell panel"""
     private fun setupBreadcrumb() {}
 
     private fun updateBreadcrumb() {
+        if (!::breadcrumb.isInitialized) return
         val file = currentFile ?: return
         val project = currentProjectDir ?: return
         breadcrumb.removeAllViews()
