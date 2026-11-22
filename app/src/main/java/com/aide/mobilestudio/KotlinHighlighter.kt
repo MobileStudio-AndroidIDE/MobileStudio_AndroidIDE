@@ -16,8 +16,8 @@ object KotlinHighlighter {
 
     private fun colorKw() = 0xFF569CD6.toInt()    // Bright blue for keywords
     private fun colorStr() = 0xFFCE9178.toInt()    // Sand color for strings
-    private fun colorComment() = 0xFF6A9955.toInt() // Green for comments
-    private fun colorDoc() = 0xFF8BC34A.toInt()     // Light green for doc comments
+    private fun colorComment() = 0xFF808080.toInt() // Gray for comments
+    private fun colorDoc() = 0xFF808080.toInt()     // Gray for doc comments
     private fun colorNum() = 0xFFB5CEA8.toInt()     // Light sage for numbers
     private fun colorAnnotation() = 0xFFC586C0.toInt() // Purple for annotations
     private fun colorClass() = 0xFF4EC9B0.toInt()    // Teal for classes
@@ -146,7 +146,7 @@ object KotlinHighlighter {
         }
         preprocessorPattern.findAll(source).forEach {
             if (!inComment(it.range) && !inString(it.range)) {
-                spans += HighlightSpan(it.range.first, it.range.last + 1, colorAnnotation())
+                spans += HighlightSpan(it.range.first, it.range.last + 1, colorComment())
             }
         }
 

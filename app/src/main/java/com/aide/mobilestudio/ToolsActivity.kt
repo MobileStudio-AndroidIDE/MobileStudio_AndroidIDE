@@ -120,6 +120,9 @@ class ToolsPanel(
     /** Per-kind count of "Show more old versions" taps (survives re-renders). */
     private val expandedKindCounts = mutableMapOf<ToolchainManager.Kind, Int>()
 
+    /** JDK versions the user has ticked for multi-install (survives re-renders). */
+    private val selectedJdkVersions = mutableSetOf<String>()
+
     /** Currently selected Tools sidebar category. */
     private var currentCategory: String = "all"
 
@@ -3716,6 +3719,62 @@ try {
             })
         }
 
+        if (kind == ToolchainManager.Kind.JDK) {
+            val versions = toolVersionsNewestFirst(kind)
+            val jdkVersions = versions.filter { it.matches(Regex("^(17|21)$")) }
+            if (jdkVersions.isNotEmpty()) {
+                card.addView(TextView(this).apply {
+                    text = t("Select JDK versions to install:")
+                    textSize = 12f
+                    setTextColor(StudioUi.color(StudioUi.TextSoft))
+                    setPadding(0, dp(6), 0, 0)
+                })
+                val checkboxRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(4), 0, dp(6))
+                }
+                jdkVersions.forEach { ver ->
+                    val checked = selectedJdkVersions.contains(ver)
+                    val cb = CheckBox(this).apply {
+                        text = "JDK $ver"
+                        isChecked = checked
+                        textSize = 13f
+                        setTextColor(StudioUi.color(StudioUi.Text))
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
+                        setOnCheckedChangeListener { _, isChecked ->
+                            if (isChecked) selectedJdkVersions.add(ver)
+                            else selectedJdkVersions.remove(ver)
+                        }
+                    }
+                    checkboxRow.addView(cb)
+                    checkboxRow.addView(spacer(dp(12)))
+                }
+                card.addView(checkboxRow)
+                card.addView(LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(4), 0, 0)
+                    addView(primaryButton("Install selected") {
+                        val toInstall = selectedJdkVersions.toList()
+                        if (toInstall.isEmpty()) {
+                            toast("Select at least one JDK version")
+                            return@primaryButton
+                        }
+                        selectedJdkVersions.clear()
+                        installJdkVersionsSequentially(toInstall, 0)
+                    })
+                    addView(secondaryButton("Clear") {
+                        selectedJdkVersions.clear()
+                        renderAll()
+                    })
+                })
+            }
+        }
+
         card.addView(spacer(dp(8)))
         val versions = toolVersionsNewestFirst(kind)
         if (versions.isEmpty()) {
@@ -3777,6 +3836,49 @@ try {
             if (VersionPagination.hasMore(versions.size, nextExpansions)) {
                 rowsHost.addView(buildShowMoreRow(kind, versions, nextExpansions, rowsHost))
             }
+        }
+    }
+
+    /** Installs the selected JDK versions one at a time, refreshing after each. */
+    private fun installJdkVersionsSequentially(versions: List<String>, index: Int) {
+        if (index >= versions.size) return
+        val ver = versions[index]
+        val url = toolchain.downloadUrl(ToolchainManager.Kind.JDK, ver) ?: run {
+            toast("No download URL for JDK $ver")
+            installJdkVersionsSequentially(versions, index + 1)
+            return
+        }
+        val targetDir = File(toolchain.kindDir(ToolchainManager.Kind.JDK), ver)
+        if (targetDir.exists()) {
+            toast("JDK $ver already installed")
+            installJdkVersionsSequentially(versions, index + 1)
+            return
+        }
+        host.runOnUiThread {
+            AlertDialog.Builder(host)
+                .setTitle(t("Install JDK $ver"))
+                .setMessage(t("Download and install JDK $ver now?"))
+                .setPositiveButton(t("OK")) { _, _ ->
+                    DownloadTask.start(
+                        context = host,
+                        label = "JDK $ver",
+                        url = url,
+                        targetDir = targetDir,
+                        mode = ToolchainDownloadService.MODE_TOOLCHAIN,
+                        kind = ToolchainManager.Kind.JDK,
+                        version = ver,
+                        onComplete = { host.runOnUiThread {
+                            toast("JDK $ver installed")
+                            renderAll()
+                            installJdkVersionsSequentially(versions, index + 1)
+                        } }
+                    )
+                    toast("Download started: JDK $ver")
+                }
+                .setNegativeButton(t("Cancel")) { _, _ ->
+                    installJdkVersionsSequentially(versions, index + 1)
+                }
+                .show()
         }
     }
 
