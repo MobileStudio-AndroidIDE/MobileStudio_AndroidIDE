@@ -407,7 +407,11 @@ object BuildToolsConfig {
     }
 
     fun buildGradleCliArgs(context: Context): List<String> = buildList {
-        if (daemon(context)) add("--daemon") else add("--no-daemon")
+        // The ported Android JDK ships no jspawnhelper, so POSIX_SPAWN cannot
+        // fork a daemon JVM (exit 127). FORK/VFORK are both unsupported on
+        // Android. Run in-process with no daemon to avoid all child-JVM forks.
+        // (This costs a little speed but is the only working mode here.)
+        add("--no-daemon")
         if (parallel(context)) add("--parallel")
         if (buildCache(context)) add("--build-cache")
         add("--max-workers=${maxWorkers(context)}")

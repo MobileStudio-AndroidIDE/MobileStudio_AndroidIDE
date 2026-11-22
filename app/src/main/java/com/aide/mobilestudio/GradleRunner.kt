@@ -56,6 +56,11 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
         get() = BuildToolsConfig.maxWorkers(context)
 
     fun isGradleDaemonRequested(projectDir: File, gradleUserHome: File): Boolean {
+        // The ported Android JDK has no jspawnhelper, so a forked Gradle daemon
+        // cannot start (POSIX_SPAWN exit 127; FORK/VFORK unsupported on Android).
+        // Always run single-process. Settings are ignored until the JDK ships
+        // a working spawn helper.
+        return false
         // 1) Explicit user/project settings win, including an explicit false
         readGradleDaemonFlag(File(projectDir, "gradle.properties"))?.let { return it }
         readGradleDaemonFlag(File(gradleUserHome, "gradle.properties"))?.let { return it }
