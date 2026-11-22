@@ -43,6 +43,7 @@ import org.xml.sax.SAXParseException
 import org.xml.sax.helpers.DefaultHandler
 import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
 import com.aide.mobilestudio.ai.OpencodeEnvironment
+import com.aide.mobilestudio.godot.MobileGodotEditorActivity
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -337,7 +338,9 @@ printf("x = %d\\n", x);"""
             "java_dev" to "Java Development",
             "android_dev" to "Android Development",
             "build_gradle" to "Build & Gradle",
-            "additional" to "Additional Tools"
+            "additional" to "Additional Tools",
+            "godot" to "Godot Engine",
+            "exe_runner" to "Exe Runner"
         )
 
         for ((id, label) in categories) {
@@ -456,6 +459,14 @@ printf("x = %d\\n", x);"""
                 rootContainer.addView(buildAppUpdateCard())
                 rootContainer.addView(spacer(dp(8)))
             }
+            "godot" -> {
+                rootContainer.addView(buildGodotCard())
+                rootContainer.addView(spacer(dp(8)))
+            }
+            "exe_runner" -> {
+                rootContainer.addView(buildExeRunnerCard())
+                rootContainer.addView(spacer(dp(8)))
+            }
         }
     }
 
@@ -518,6 +529,10 @@ printf("x = %d\\n", x);"""
         }
         rootContainer.addView(buildAppUpdateCard())
         rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildGodotCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildExeRunnerCard())
+        rootContainer.addView(spacer(dp(8)))
     }
 
     private fun renderAll() {
@@ -578,6 +593,157 @@ printf("x = %d\\n", x);"""
         }
         rootContainer.addView(buildAppUpdateCard())
         rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildGodotCard())
+        rootContainer.addView(spacer(dp(8)))
+        rootContainer.addView(buildExeRunnerCard())
+        rootContainer.addView(spacer(dp(8)))
+    }
+
+    private fun buildExeRunnerCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+
+        card.addView(sectionTitle("Exe Runner"))
+
+        card.addView(TextView(host).apply {
+            text = "Windows/Linux ARM64 exe 실행기"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(StudioUi.color(StudioUi.Text))
+            setPadding(0, 0, 0, dp(8))
+        })
+
+        card.addView(TextView(host).apply {
+            text = "exe 파일을 선택하고 실행하세요. GUI 앱은 X11, 콘솔 앱은 터미널에서 출력/입력 가능합니다."
+            textSize = 11f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(12))
+        })
+
+        val exePath = File(filesDir, "toolchain/exe-runner")
+        exePath.mkdirs()
+
+        val pathRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, 0)
+        }
+        val exePathText = TextView(host).apply {
+            text = exePath.absolutePath
+            textSize = 11f
+            typeface = Typeface.MONOSPACE
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            background = android.graphics.drawable.ColorDrawable(StudioUi.color(StudioUi.Surface2))
+            setSingleLine(true)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+        }
+        pathRow.addView(exePathText)
+        pathRow.addView(secondaryButton("열기") {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/octet-stream"
+            }
+            host.startActivityForResult(intent, 1002)
+        })
+        card.addView(pathRow)
+
+        val btnRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        btnRow.addView(primaryButton("실행") {
+            toast("Exe Runner 실행 기능은 준비 중입니다. (예정: Wine / 박스64 / 네이티브 ARM64 exe)")
+        })
+        btnRow.addView(secondaryButton("콘솔 지우기") { })
+        card.addView(btnRow)
+
+        card.addView(TextView(host).apply {
+            text = "준비 중..."
+            textSize = 11f
+            setTextColor(StudioUi.color(StudioUi.Muted))
+            setPadding(0, dp(8), 0, 0)
+        })
+
+        return card
+    }
+
+    private fun buildGodotCard(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StudioUi.cardBg(host)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+
+        card.addView(sectionTitle("Godot Engine"))
+
+        val godotDir = File(filesDir, "toolchain/godot")
+        val godotBinary = File(godotDir, "godot")
+        val isInstalled = godotBinary.exists() && godotBinary.isFile
+
+        card.addView(TextView(host).apply {
+            text = if (isInstalled) "Godot Engine installed at toolchain/godot/"
+            else "Godot Engine not installed"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(if (isInstalled) StudioUi.color(StudioUi.Green) else StudioUi.color(StudioUi.Text))
+            setPadding(0, 0, 0, dp(8))
+        })
+
+        card.addView(TextView(host).apply {
+            text = "Godot 4.x game engine for Android game development"
+            textSize = 11f
+            setTextColor(StudioUi.color(StudioUi.TextSoft))
+            setPadding(0, 0, 0, dp(12))
+        })
+
+        val buttonRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, 0)
+        }
+
+        if (isInstalled) {
+            buttonRow.addView(primaryButton("Run Godot") {
+                val intent = Intent(host, MobileGodotEditorActivity::class.java)
+                host.startActivity(intent)
+            })
+            buttonRow.addView(secondaryButton("Reinstall") {
+                showUrlDownloadDialog(
+                    title = "Download Godot Engine",
+                    hint = "https://github.com/godotengine/godot/releases/download/4.3/Godot_v4.3-stable_linux.x86_64.zip",
+                    savedKey = "godot_url",
+                    targetDir = godotDir,
+                    mode = ToolchainDownloadService.MODE_TOOLCHAIN,
+                    label = "Godot Engine"
+                )
+            })
+        } else {
+            buttonRow.addView(primaryButton("Download Godot") {
+                showUrlDownloadDialog(
+                    title = "Download Godot Engine",
+                    hint = "https://github.com/godotengine/godot/releases/download/4.3/Godot_v4.3-stable_linux.x86_64.zip",
+                    savedKey = "godot_url",
+                    targetDir = godotDir,
+                    mode = ToolchainDownloadService.MODE_TOOLCHAIN,
+                    label = "Godot Engine"
+                )
+            })
+        }
+        buttonRow.addView(secondaryButton("Open Folder") {
+            val intent = Intent(Intent.ACTION_VIEW)
+            intent.setDataAndType(android.net.Uri.fromFile(godotDir), "resource/folder")
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            host.startActivity(intent)
+        })
+
+        card.addView(buttonRow)
+        return card
     }
 
     private fun buildDeviceManagerCard(): View {
@@ -604,12 +770,6 @@ printf("x = %d\\n", x);"""
             setPadding(0, 0, 0, dp(8))
         })
         val devices = AdbDeviceManager.listDevices()
-        card.addView(TextView(host).apply {
-            text = t("Connected devices (" + devices.size + ")")
-            textSize = 12f
-            setTextColor(StudioUi.color(StudioUi.TextSoft))
-            setPadding(0, 0, 0, dp(6))
-        })
         for (d in devices) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL

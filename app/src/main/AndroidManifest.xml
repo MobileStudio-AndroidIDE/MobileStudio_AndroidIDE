@@ -338,5 +338,14 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
         <activity android:name=".agpupgrade.AgpUpgradeToolWindow$AgpUpgradeToolWindowActivity" android:exported="false" android:label="AGP Upgrade Assistant" />
+
+        <!-- Wine X11 GUI Activity -->
+        <activity
+            android:name=".wine.WineActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.MobileStudio" />
     </application>
 </manifest>

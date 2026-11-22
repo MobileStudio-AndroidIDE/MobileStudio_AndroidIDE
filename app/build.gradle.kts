@@ -81,7 +81,10 @@ android {
             "jar",
             "tar",
             "tgz",
-            "dat"
+            "dat",
+            "dll",
+            "so",
+            "exe"
         )
     }
 
