@@ -548,6 +548,10 @@ fun StudioApp(host: StudioHost) {
                 onRun = { startBuild() },
                 onOpenSettings = { showSettingsOverlay = true },
                 onAction = { performAction(it) },
+                showPreview = host.studioCurrentFile?.isPreviewableLayout() == true,
+                onPreview = {
+                    host.studioCurrentFile?.let { LayoutPreviewActivity.start(activity, it) }
+                },
             )
             Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 LeftStrip(
@@ -1687,6 +1691,8 @@ private fun TopMenuBar(
     onRun: () -> Unit,
     onOpenSettings: () -> Unit,
     onAction: (String) -> Unit,
+    showPreview: Boolean = false,
+    onPreview: () -> Unit = {},
 ) {
     val menus = remember(activity) {
         val tr = { key: Int -> AppLanguage.string(activity, key) }
@@ -1839,6 +1845,12 @@ private fun TopMenuBar(
                 modifier = Modifier.size(40.dp).background(ide.success.copy(alpha = 0.14f), RoundedCornerShape(4.dp)).clickable(onClick = onRun).semantics { contentDescription = "Run build" },
                 contentAlignment = Alignment.Center,
             ) { IdeIcon(iconRes = R.drawable.ic_ide_run, color = ide.success, modifier = Modifier.size(19.dp)) }
+            if (showPreview) {
+                Box(
+                    modifier = Modifier.size(40.dp).background(ide.info.copy(alpha = 0.14f), RoundedCornerShape(4.dp)).clickable(onClick = onPreview).semantics { contentDescription = "Layout preview" },
+                    contentAlignment = Alignment.Center,
+                ) { Text("▤", color = ide.info, fontSize = 18.sp) }
+            }
             Box(
                 modifier = Modifier.size(40.dp).clickable(onClick = onOpenSettings).semantics { contentDescription = "Settings" },
                 contentAlignment = Alignment.Center,
@@ -2117,16 +2129,28 @@ private fun StudioStatusBar(host: StudioHost, projectName: String, problems: Int
             StatusChip(text = device, ide = ide, color = ide.success)
             Spacer(modifier = Modifier.width(6.dp))
         }
-        // Caret position
+        // Caret position — tapping opens Go-to-Line
         if (caretLine > 0) {
-            Text(text = "Ln $caretLine, Col $caretColumn", color = ide.textSoft, fontSize = 9.sp, maxLines = 1)
+            Text(
+                text = "Ln $caretLine, Col $caretColumn",
+                color = ide.accent,
+                fontSize = 9.sp,
+                maxLines = 1,
+                modifier = Modifier.clickable { host.studioGoToLine() }.semantics { contentDescription = "Go to line" },
+            )
             Spacer(modifier = Modifier.width(8.dp))
         }
         // Language
         Text(text = langLabel, color = ide.textSoft, fontSize = 9.sp, maxLines = 1)
         Spacer(modifier = Modifier.width(8.dp))
-        // Encoding
-        Text(text = encoding, color = ide.muted, fontSize = 9.sp, maxLines = 1)
+        // Encoding — tapping opens the encoding picker (UTF-8/UTF-16/...)
+        Text(
+            text = encoding,
+            color = ide.info,
+            fontSize = 9.sp,
+            maxLines = 1,
+            modifier = Modifier.clickable { host.studioShowEncodingDialog() }.semantics { contentDescription = "Change encoding" },
+        )
         Spacer(modifier = Modifier.width(8.dp))
         // Problems badge (animated alpha)
         if (problemsAlpha > 0.01f) {

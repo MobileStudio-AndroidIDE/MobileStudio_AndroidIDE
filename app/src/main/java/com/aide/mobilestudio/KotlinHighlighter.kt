@@ -227,7 +227,14 @@ object KotlinHighlighter {
         return spans
     }
 
+    /** Last applied spans per editable, used to avoid tearing down and
+     *  re-adding identical spans (which made XML/other languages flicker on
+     *  every keystroke even when the highlight result did not change). */
+    private val lastAppliedSpans = java.util.WeakHashMap<Editable, List<HighlightSpan>>()
+
     private fun applySpans(text: Editable, spans: List<HighlightSpan>) {
+        if (lastAppliedSpans[text] == spans) return
+        lastAppliedSpans[text] = spans
         text.getSpans(0, text.length, ForegroundColorSpan::class.java).forEach { text.removeSpan(it) }
         text.getSpans(0, text.length, StyleSpan::class.java).forEach {
             if (it.style == Typeface.BOLD) text.removeSpan(it)

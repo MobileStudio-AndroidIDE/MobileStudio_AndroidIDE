@@ -187,6 +187,8 @@ class LayoutPreviewActivity : AppCompatActivity() {
 
     private lateinit var mainContainer: FrameLayout
     private lateinit var previewImage: ImageView
+    /** True once a real (native or LayoutLib) render bitmap was produced. */
+    private var hasRenderedBitmap = false
     private lateinit var designCanvas: DesignCanvas
     private lateinit var editToggleBtn: ImageButton
     private lateinit var outputText: TextView
@@ -428,6 +430,42 @@ class LayoutPreviewActivity : AppCompatActivity() {
                         if (isKo) "회전: ${if (isLandscape) "가로" else "세로"}"
                         else "Rotation: ${if (isLandscape) "Landscape" else "Portrait"}",
                         Toast.LENGTH_SHORT).show()
+                }
+            })
+
+            // DPI (density) selector — changes real Android density metrics
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = "DPI ${(previewDensity * 160).toInt()}"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                val densities = listOf(0.75f, 1f, 1.5f, 2f, 3f)
+                setOnClickListener {
+                    val idx = densities.indexOf(previewDensity).let { if (it < 0) 1 else it }
+                    previewDensity = densities[(idx + 1) % densities.size]
+                    text = "DPI ${(previewDensity * 160).toInt()}"
+                    renderDesign()
+                    refreshWidgetPreview()
+                    renderNativePreviewToBitmap()
+                }
+            })
+
+            // API level selector — affects framework resource resolution
+            addView(Button(this@LayoutPreviewActivity).apply {
+                text = "API $previewApiLevel"
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                setBackgroundColor("#2B3140".toColorInt())
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                val levels = listOf(24, 28, 30, 33, 34, 36)
+                setOnClickListener {
+                    val idx = levels.indexOf(previewApiLevel).let { if (it < 0) 4 else it }
+                    previewApiLevel = levels[(idx + 1) % levels.size]
+                    text = "API $previewApiLevel"
+                    renderDesign()
+                    refreshWidgetPreview()
+                    renderNativePreviewToBitmap()
                 }
             })
 
@@ -844,7 +882,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
             renderLayoutLibInBackground()
             
             // 고화질 이미지가 없으면 경량 미리보기를 유지
-            if (previewImage.drawable != null) {
+            if (hasRenderedBitmap && previewImage.drawable != null) {
                 previewImage.visibility = View.VISIBLE
                 widgetHost?.findViewById<ScrollView>(R.id.widget_scroll)?.visibility = View.GONE
             } else {
@@ -1051,8 +1089,13 @@ class LayoutPreviewActivity : AppCompatActivity() {
         val attrs = mutableMapOf<String, String>()
         for (i in 0 until parser.attributeCount) {
             val prefix = parser.getAttributePrefix(i)
-            val name = if (prefix.isNullOrEmpty()) parser.getAttributeName(i) else "$prefix:${parser.getAttributeName(i)}"
-            attrs[name] = parser.getAttributeValue(i)
+            val local = parser.getAttributeName(i)
+            val value = parser.getAttributeValue(i) ?: continue
+            val name = if (prefix.isNullOrEmpty()) local else "$prefix:$local"
+            attrs[name] = value
+            // Also store the bare local name so attribute helpers that look up
+            // e.g. attrs["text"] work with real Android XML (android:text).
+            if (!prefix.isNullOrEmpty() && !attrs.containsKey(local)) attrs[local] = value
         }
         return attrs
     }
@@ -1711,6 +1754,54 @@ class LayoutPreviewActivity : AppCompatActivity() {
     // LayoutLib 고화질 렌더링 (백그라운드) + Output 로그
     // =========================================================================
 
+    /**
+     * Renders the current layout through the real Android View pipeline
+     * (measure -> layout -> draw -> Bitmap). Used as the primary preview when
+     * LayoutLib native libraries are unavailable on this host/device.
+     */
+    private fun renderNativePreviewToBitmap() {
+        val file = targetFile ?: return
+        val d = resources.displayMetrics.density
+        val (wDp, hDp) = when (deviceSize) {
+            "tablet" -> 800 to 1200
+            "foldable" -> 1200 to 800
+            else -> 360 to 694
+        }
+        val finalW = if (isLandscape) hDp else wDp
+        val finalH = if (isLandscape) wDp else hDp
+        val config = NativeLayoutRenderEngine.DeviceConfig(
+            widthDp = finalW,
+            heightDp = finalH,
+            density = previewDensity,
+            apiLevel = previewApiLevel,
+        )
+        Thread {
+            val result = NativeLayoutRenderEngine.render(this, file, config) { tag, attrs, parser, _ ->
+                try {
+                    // Reuse the activity's real View-tree builder (handles all
+                    // container/widget tags and their children recursively).
+                    buildViewFromParser(parser)
+                } catch (e: Exception) {
+                    Log.w(TAG, "native view factory failed for $tag", e)
+                    null
+                }
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                addOutput("· ${result.message} (${result.viewCount} views)")
+                result.bitmap?.let { bmp ->
+                    previewImage.setImageBitmap(bmp)
+                    hasRenderedBitmap = true
+                    previewImage.visibility = View.VISIBLE
+                    widgetHost?.findViewById<ScrollView>(R.id.widget_scroll)?.visibility = View.GONE
+                }
+            }
+        }.apply { name = "MobileStudioNativePreview"; isDaemon = true; start() }
+    }
+
+    private var previewDensity: Float = 1f
+    private var previewApiLevel: Int = 34
+
     private fun renderLayoutLibInBackground() {
         val file = targetFile ?: return
         addOutput("LayoutLib bridge: preparing render...")
@@ -1739,6 +1830,8 @@ class LayoutPreviewActivity : AppCompatActivity() {
                         }
                         LayoutLibPreviewEngine.Status.UNAVAILABLE -> {
                             addOutput("· ${result.message}")
+                            addOutput("· Falling back to real Android View renderer…")
+                            renderNativePreviewToBitmap()
                         }
                         LayoutLibPreviewEngine.Status.FAILED -> {
                             val detail = result.detail.lineSequence()
@@ -1748,6 +1841,8 @@ class LayoutPreviewActivity : AppCompatActivity() {
                                 .takeLast(4)
                                 .joinToString(" | ")
                             addOutput("· ${result.message}${if (detail.isNotBlank()) " · $detail" else ""}")
+                            addOutput("· Falling back to real Android View renderer…")
+                            renderNativePreviewToBitmap()
                         }
                     }
                 }
@@ -2697,7 +2792,10 @@ class LayoutPreviewActivity : AppCompatActivity() {
             suppressFileObserver = true
             targetFile?.writeText(xml)
             suppressFileObserver = false
-            
+
+            // Notify the caller (Compose shell) so its editor re-reads the file.
+            setResult(REQ_VISUAL_EDIT, Intent().putExtra(EXTRA_FILE, targetFile?.absolutePath))
+
             val isKo = AppLanguage.isKorean(this)
             Toast.makeText(this, if (isKo) "저장됨: ${targetFile?.name}" else "Saved: ${targetFile?.name}", Toast.LENGTH_SHORT).show()
             Log.i(TAG, "XML saved successfully to ${targetFile?.absolutePath}")
@@ -2722,6 +2820,7 @@ class LayoutPreviewActivity : AppCompatActivity() {
             suppressFileObserver = true
             targetFile?.writeText(xml)
             suppressFileObserver = false
+            setResult(REQ_VISUAL_EDIT, Intent().putExtra(EXTRA_FILE, targetFile?.absolutePath))
             Log.i(TAG, "autoSave success")
         }
     }

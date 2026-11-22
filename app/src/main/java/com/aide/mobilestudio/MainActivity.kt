@@ -457,6 +457,49 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         installLatestApk()
     }
 
+    override fun studioShowEncodingDialog() {
+        showEncodingDialog()
+    }
+
+    private val layoutPreviewLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val path = result.data?.getStringExtra("extra_file_path")
+            if (!path.isNullOrBlank()) {
+                val file = java.io.File(path)
+                if (file.exists()) {
+                    // Re-open so the Compose editor picks up the visually edited XML.
+                    studioOpenFileAt(file, 1)
+                }
+            }
+        }
+
+    override fun studioOpenLayoutPreview(file: File) {
+        layoutPreviewLauncher.launch(
+            Intent(this, LayoutPreviewActivity::class.java).putExtra("extra_file_path", file.absolutePath)
+        )
+    }
+
+    override fun studioGoToLine() {
+        val editor = EditorPaneState.editor
+        if (editor == null) {
+            showToast("Open a file first")
+            return
+        }
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            hint = "Line number"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Go to Line")
+            .setView(input)
+            .setPositiveButton("Go") { _, _ ->
+                val line = input.text.toString().toIntOrNull() ?: return@setPositiveButton
+                studioSelectEditorLine(line)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     override fun studioOpenFileAt(file: File, line: Int) {
         openFile(file)
         Handler(Looper.getMainLooper()).postDelayed({
@@ -5096,13 +5139,15 @@ Long press: Toggle Shell panel"""
     }
 
     private fun showEditor() {
-        StudioUi.animateFadeOut(welcomeScreen, StudioUi.AnimFast)
-        StudioUi.animateFadeIn(editorContainer, StudioUi.AnimNormal)
+        // Compose shell decides editor vs welcome from `tabs` state; the legacy
+        // View-based views are only bound in the removed bindViews().
+        if (::welcomeScreen.isInitialized) StudioUi.animateFadeOut(welcomeScreen, StudioUi.AnimFast)
+        if (::editorContainer.isInitialized) StudioUi.animateFadeIn(editorContainer, StudioUi.AnimNormal)
     }
 
     private fun showWelcome() {
-        StudioUi.animateFadeIn(welcomeScreen, StudioUi.AnimNormal)
-        StudioUi.animateFadeOut(editorContainer, StudioUi.AnimFast)
+        if (::welcomeScreen.isInitialized) StudioUi.animateFadeIn(welcomeScreen, StudioUi.AnimNormal)
+        if (::editorContainer.isInitialized) StudioUi.animateFadeOut(editorContainer, StudioUi.AnimFast)
     }
 
     // MobileStudio comment

@@ -143,6 +143,15 @@ interface StudioHost {
 
     /** Opens [file] and moves the caret to 1-based [line]. */
     fun studioOpenFileAt(file: File, line: Int)
+
+    /** Shows the file-encoding picker for the current buffer. */
+    fun studioShowEncodingDialog()
+
+    /** Prompts for a line number and moves the caret there. */
+    fun studioGoToLine()
+
+    /** Opens the visual layout editor for [file] and refreshes it on result. */
+    fun studioOpenLayoutPreview(file: File)
 }
 
 /**
