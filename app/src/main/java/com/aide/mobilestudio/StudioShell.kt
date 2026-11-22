@@ -1576,22 +1576,18 @@ private fun DownloadManagerWindow(
     onDismiss: () -> Unit,
 ) {
     val task = DownloadCenter.state.value
-    // Never write state during composition: defer dismissal to an effect.
-    LaunchedEffect(task) {
-        if (task == null) onDismiss()
-    }
-    if (task == null) return
-
     val context: Context = LocalContext.current
     val ide = LocalIdeColors.current
 
-    val t: DownloadCenter.Task = task
+    // JDK 설치 선택 상태 (다운로더 팝업 전용)
+    val selectedJdkVersions by remember { mutableStateOf(mutableSetOf<String>()) }
+
     Box(
         modifier = Modifier.fillMaxSize().background(Color(0x99000000)),
         contentAlignment = Alignment.Center,
     ) {
         Card(
-            modifier = Modifier.width(420.dp).height(IntrinsicSize.Min),
+            modifier = Modifier.width(460.dp).height(IntrinsicSize.Min),
             colors = CardDefaults.cardColors(containerColor = Color(ide.p.card)),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(8.dp),
@@ -1602,110 +1598,200 @@ private fun DownloadManagerWindow(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(text = AppLanguage.string(activity, R.string.downloader_title), color = ide.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (task == null) AppLanguage.string(activity, R.string.downloader_title)
+                        else AppLanguage.string(activity, R.string.downloader_downloading).replace("%s", task.label),
+                        color = ide.text,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                     IconButton(onClick = {
-                        if (t.status == DownloadCenter.Status.CONFIRM) DownloadCenter.decline()
-                        else if (t.status == DownloadCenter.Status.DOWNLOADING) DownloadCenter.cancel()
+                        if (task != null && task.status == DownloadCenter.Status.CONFIRM) DownloadCenter.decline()
+                        else if (task != null && task.status == DownloadCenter.Status.DOWNLOADING) DownloadCenter.cancel()
                         onDismiss()
                     }) { Text("×", color = ide.textSoft, fontSize = 20.sp) }
                 }
                 Divider(color = ide.divider, modifier = Modifier.padding(vertical = 12.dp))
-                Text(text = AppLanguage.string(activity, R.string.downloader_downloading).replace("%s", t.label), color = ide.info, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = AppLanguage.string(activity, R.string.downloader_download_path), color = ide.textSoft, fontSize = 11.sp)
-                Text(text = t.downloadPath.ifBlank { "—" }, color = ide.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = AppLanguage.string(activity, R.string.downloader_file_name), color = ide.textSoft, fontSize = 11.sp)
-                Text(text = t.fileName.ifBlank { "—" }, color = ide.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
-                Spacer(modifier = Modifier.height(12.dp))
 
-                when (t.status) {
-                    DownloadCenter.Status.CONFIRM -> {
-                        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                            val totalMB = if (t.totalBytes > 0) "${(t.totalBytes / (1024 * 1024)).toString()} MB" else "Unknown size"
-                            Text(text = AppLanguage.string(activity, R.string.downloader_file_size).replace("%s", totalMB), color = ide.text, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = AppLanguage.string(activity, R.string.downloader_confirm_title), color = ide.textSoft, fontSize = 13.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = AppLanguage.string(activity, R.string.downloader_confirm_message).replace("%s", t.label.lowercase()), color = ide.error, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Button(onClick = { DownloadCenter.approve() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.success)) { Text(AppLanguage.string(activity, R.string.yes), color = Color.White, fontWeight = FontWeight.Bold) }
-                                Button(onClick = { DownloadCenter.decline(); onDismiss() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text(AppLanguage.string(activity, R.string.no), color = Color.White, fontWeight = FontWeight.Bold) }
+                if (task == null) {
+                    // ─── JDK 빠른 설치 섹션 ───
+                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "JDK 빠른 설치", color = ide.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "설치할 JDK 버전을 선택하세요.", color = ide.textSoft, fontSize = 11.sp)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val jdkVersions = listOf("17", "21")
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            jdkVersions.forEach { ver ->
+                                val checked = selectedJdkVersions.contains(ver)
+                                Row(modifier = Modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = { isChecked: Boolean ->
+                                            if (isChecked) selectedJdkVersions.add(ver)
+                                            else selectedJdkVersions.remove(ver)
+                                        }
+                                    )
+                                    Text(text = "JDK $ver", color = ide.text, fontSize = 13.sp)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Button(
+                                onClick = {
+                                    if (selectedJdkVersions.isEmpty()) {
+                                        activity.runOnUiThread {
+                                            android.widget.Toast.makeText(activity, AppLanguage.string(activity, R.string.projects_create_failed).replace("%s", "Select at least one JDK version"), android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        val toInstall = selectedJdkVersions.toList()
+                                        selectedJdkVersions.clear()
+                                        onDismiss()
+                                        installJdkVersionsSequentially(activity, toInstall, 0)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = ide.success)
+                            ) { Text(AppLanguage.string(activity, R.string.yes), color = Color.White, fontWeight = FontWeight.Bold) }
+
+                            Button(
+                                onClick = { selectedJdkVersions.clear() },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = ide.error)
+                            ) { Text("Clear", color = Color.White, fontWeight = FontWeight.Bold) }
+                        }
                     }
-                    DownloadCenter.Status.DOWNLOADING -> {
-                        val percent = t.percent
-                        val downloadedMB = t.downloadedBytes / (1024 * 1024)
-                        val totalMB = if (t.totalBytes > 0) t.totalBytes / (1024 * 1024) else 0L
-                        val speedMB = t.speedBytesPerSec / (1024 * 1024)
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).background(Color(ide.p.surface2)).clip(RoundedCornerShape(7.dp))) {
-                                Box(modifier = Modifier.fillMaxWidth(percent.toFloat() / 100f).fillMaxHeight().background(ide.accent).clip(RoundedCornerShape(7.dp)))
+                } else {
+                    val t: DownloadCenter.Task = task
+                    when (t.status) {
+                        DownloadCenter.Status.CONFIRM -> {
+                            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                val totalMB = if (t.totalBytes > 0) "${(t.totalBytes / (1024 * 1024)).toString()} MB" else "Unknown size"
+                                Text(text = AppLanguage.string(activity, R.string.downloader_file_size).replace("%s", totalMB), color = ide.text, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(text = AppLanguage.string(activity, R.string.downloader_confirm_title), color = ide.textSoft, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(text = AppLanguage.string(activity, R.string.downloader_confirm_message).replace("%s", t.label.lowercase()), color = ide.error, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Button(onClick = { DownloadCenter.approve() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.success)) { Text(AppLanguage.string(activity, R.string.yes), color = Color.White, fontWeight = FontWeight.Bold) }
+                                    Button(onClick = { DownloadCenter.decline(); onDismiss() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text(AppLanguage.string(activity, R.string.no), color = Color.White, fontWeight = FontWeight.Bold) }
+                                }
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                val progressText = if (totalMB > 0) "${downloadedMB} MB / ${totalMB} MB (${percent}%)" else "${downloadedMB} MB / ? (${percent}%)"
-                                Text(text = progressText, color = ide.text, fontSize = 12.sp)
-                                if (speedMB > 0) Text(text = AppLanguage.string(activity, R.string.downloader_speed).replace("%s", "${speedMB} MB/s"), color = ide.info, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                            }
-                            if (t.message.isNotBlank()) { Text(text = t.message, color = ide.textSoft, fontSize = 11.sp, modifier = Modifier.fillMaxWidth()) }
-                            // Fine-grained extraction detail: archive name + every file path.
-                            if (t.stageDetail.isNotBlank()) {
+                        }
+                        DownloadCenter.Status.DOWNLOADING -> {
+                            val percent = t.percent
+                            val downloadedMB = t.downloadedBytes / (1024 * 1024)
+                            val totalMB = if (t.totalBytes > 0) t.totalBytes / (1024 * 1024) else 0L
+                            val speedMB = t.speedBytesPerSec / (1024 * 1024)
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Box(modifier = Modifier.fillMaxWidth().height(14.dp).background(Color(ide.p.surface2)).clip(RoundedCornerShape(7.dp))) {
+                                    Box(modifier = Modifier.fillMaxWidth(percent.toFloat() / 100f).fillMaxHeight().background(ide.accent).clip(RoundedCornerShape(7.dp)))
+                                }
                                 Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = t.stageDetail,
-                                    color = ide.info,
-                                    fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    val progressText = if (totalMB > 0) "${downloadedMB} MB / ${totalMB} MB (${percent}%)" else "${downloadedMB} MB / ? (${percent}%)"
+                                    Text(text = progressText, color = ide.text, fontSize = 12.sp)
+                                    if (speedMB > 0) Text(text = AppLanguage.string(activity, R.string.downloader_speed).replace("%s", "${speedMB} MB/s"), color = ide.info, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                                }
+                                if (t.message.isNotBlank()) { Text(text = t.message, color = ide.textSoft, fontSize = 11.sp, modifier = Modifier.fillMaxWidth()) }
+                                if (t.stageDetail.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = t.stageDetail,
+                                        color = ide.info,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                                if (t.detailLog.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    val recent = t.detailLog.takeLast(5).joinToString("\n")
+                                    Text(
+                                        text = recent,
+                                        color = ide.muted,
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        maxLines = 6,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 92.dp)
+                                            .verticalScroll(rememberScrollState()),
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(onClick = { DownloadCenter.cancel() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text(AppLanguage.string(activity, R.string.action_cancel), color = Color.White, fontWeight = FontWeight.Bold) }
                             }
-                            if (t.detailLog.isNotEmpty()) {
+                        }
+                        DownloadCenter.Status.DONE, DownloadCenter.Status.FAILED, DownloadCenter.Status.CANCELLED -> {
+                            val iconText: String
+                            val iconColor: Color
+                            val title: String
+                            when (t.status) {
+                                DownloadCenter.Status.DONE -> { iconText = "✓"; iconColor = ide.success; title = "Download Complete" }
+                                DownloadCenter.Status.FAILED -> { iconText = "✗"; iconColor = ide.error; title = "Download Failed" }
+                                else -> { iconText = "⊘"; iconColor = ide.muted; title = "Download Cancelled" }
+                            }
+                            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(text = iconText, color = iconColor, fontSize = 48.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(text = title, color = iconColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                val recent = t.detailLog.takeLast(5).joinToString("\n")
-                                Text(
-                                    text = recent,
-                                    color = ide.muted,
-                                    fontSize = 9.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    maxLines = 6,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(max = 92.dp)
-                                        .verticalScroll(rememberScrollState()),
-                                )
+                                if (t.message.isNotBlank()) { Text(text = t.message, color = ide.muted, fontSize = 13.sp, textAlign = TextAlign.Center) }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(onClick = { onDismiss() }, modifier = Modifier.width(120.dp)) { Text(AppLanguage.string(activity, R.string.close), color = Color.White) }
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { DownloadCenter.cancel() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text(AppLanguage.string(activity, R.string.action_cancel), color = Color.White, fontWeight = FontWeight.Bold) }
                         }
                     }
-                    DownloadCenter.Status.DONE, DownloadCenter.Status.FAILED, DownloadCenter.Status.CANCELLED -> {
-                        val iconText: String
-                        val iconColor: Color
-                        val title: String
-                        when (t.status) {
-                            DownloadCenter.Status.DONE -> { iconText = "✓"; iconColor = ide.success; title = "Download Complete" }
-                            DownloadCenter.Status.FAILED -> { iconText = "✗"; iconColor = ide.error; title = "Download Failed" }
-                            else -> { iconText = "⊘"; iconColor = ide.muted; title = "Download Cancelled" }
-                        }
-                        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = iconText, color = iconColor, fontSize = 48.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = title, color = iconColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            if (t.message.isNotBlank()) { Text(text = t.message, color = ide.muted, fontSize = 13.sp, textAlign = TextAlign.Center) }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { onDismiss() }, modifier = Modifier.width(120.dp)) { Text(AppLanguage.string(activity, R.string.close), color = Color.White) }
-                        }
-                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                if (task != null && task.status !in listOf(DownloadCenter.Status.DONE, DownloadCenter.Status.FAILED, DownloadCenter.Status.CANCELLED)) {
+                    Button(onClick = { onDismiss() }, modifier = Modifier.width(120.dp)) { Text(AppLanguage.string(activity, R.string.close), color = Color.White) }
                 }
             }
         }
     }
+}
+
+/** Installs the selected JDK versions one at a time from the Downloader popup. */
+private fun installJdkVersionsSequentially(activity: MainActivity, versions: List<String>, index: Int) {
+    if (index >= versions.size) return
+    val ver = versions[index]
+    val toolchain = ToolchainManager(activity)
+    val url = toolchain.downloadUrl(ToolchainManager.Kind.JDK, ver) ?: run {
+        activity.runOnUiThread { android.widget.Toast.makeText(activity, "No download URL for JDK $ver", android.widget.Toast.LENGTH_SHORT).show() }
+        installJdkVersionsSequentially(activity, versions, index + 1)
+        return
+    }
+    val targetDir = File(toolchain.kindDir(ToolchainManager.Kind.JDK), ver)
+    if (targetDir.exists()) {
+        activity.runOnUiThread { android.widget.Toast.makeText(activity, "JDK $ver already installed", android.widget.Toast.LENGTH_SHORT).show() }
+        installJdkVersionsSequentially(activity, versions, index + 1)
+        return
+    }
+    DownloadTask.start(
+        context = activity,
+        label = "JDK $ver",
+        url = url,
+        targetDir = targetDir,
+        mode = ToolchainDownloadService.MODE_TOOLCHAIN,
+        kind = ToolchainManager.Kind.JDK,
+        version = ver,
+        onComplete = { activity.runOnUiThread {
+            android.widget.Toast.makeText(activity, "JDK $ver installed", android.widget.Toast.LENGTH_SHORT).show()
+            installJdkVersionsSequentially(activity, versions, index + 1)
+        } }
+    )
+    activity.runOnUiThread { android.widget.Toast.makeText(activity, "Download started: JDK $ver", android.widget.Toast.LENGTH_SHORT).show() }
 }
 
 private data class StudioMenuItem(val label: String, val action: String = "", val shortcut: String = "", val divider: Boolean = false, val subItems: List<StudioMenuItem> = emptyList())
