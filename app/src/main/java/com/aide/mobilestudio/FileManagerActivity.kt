@@ -320,7 +320,7 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun navigateTo(dir: File, addToBack: Boolean = true) {
-        if (addToBack) {
+        if (addToBack && ::currentDir.isInitialized) {
             navBackStack.add(currentDir)
             navForwardStack.clear()
         }
