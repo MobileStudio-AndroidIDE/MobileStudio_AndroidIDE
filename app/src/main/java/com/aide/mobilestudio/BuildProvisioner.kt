@@ -182,6 +182,10 @@ object BuildProvisioner {
     /**
      * Downloads JDK 21 (or 17 when the project requires it) through
      * JdkDownloader.ensureJdk, which itself skips valid installs.
+     *
+     * When no JDK is installed, shows a JDK version selection dialog
+     * (17 and/or 21 checkboxes) via DownloadCenter, then installs each
+     * selected version sequentially.
      */
     private fun ensureJdk(context: Context, projectDir: File, emit: (String, LineLevel) -> Unit): Boolean {
         val toolchain = ToolchainManager(context)
@@ -191,25 +195,22 @@ object BuildProvisioner {
         val pref = context.getSharedPreferences("mobilestudio_settings", Context.MODE_PRIVATE)
             .getString("preferred_jdk_major", "0") ?: "0"
 
-        val order = buildList {
+        // Determine candidate versions
+        val candidates = buildList {
             if (pref == "17" || pref == "21") {
-                // User explicitly chose a version — try only that one first
                 add(pref.toInt())
-                // Fall back to the other if the chosen one fails
                 add(if (pref == "17") 21 else 17)
             } else if (required != null) {
-                // Project requires a specific version
                 add(required)
                 add(if (required == 21) 17 else 21)
             } else {
-                // Auto: prefer JDK 21, then 17
                 add(21)
                 add(17)
             }
-        }
+        }.distinct()
 
-        for (major in order) {
-            BuildCancellation.throwIfCancelled()
+        // Fast path: if any candidate is already installed, activate and skip download
+        for (major in candidates) {
             val version = "jdk-$major"
             val dir = File(toolchain.kindDir(ToolchainManager.Kind.JDK), version)
             if (JdkDownloader.isValidJdk(dir, major)) {
@@ -217,24 +218,62 @@ object BuildProvisioner {
                 emit("> [Provision] JDK $major: already installed (skip)", LineLevel.INFO)
                 return true
             }
+        }
+
+        // No JDK installed: show selection dialog (17 and/or 21 checkboxes)
+        emit("> [Provision] JDK: not installed — showing version selection", LineLevel.INFO)
+        val jdkChoices = candidates.sortedDescending() // show 21 first, then 17
+        val urlForFirst = BuildToolCatalog.findJdk(BuildToolCatalog.loadCached(context), jdkChoices.first())?.url
+            ?: "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/jdk21-android-21.0.14/jdk21-android-arm64.tar.gz"
+        val totalBytes = DownloadCenter.probeContentLength(urlForFirst)
+
+        val approved = DownloadCenter.confirm(
+            label = "JDK ${jdkChoices.joinToString("/")}",
+            url = urlForFirst,
+            downloadPath = File(context.filesDir, "toolchain/jdk").absolutePath,
+            fileName = "jdk-select.tar.gz",
+            totalBytes = totalBytes,
+            jdkVersionChoices = jdkChoices.map { it.toString() }
+        )
+
+        if (!approved) {
+            emit("> [Provision] JDK download declined by user", LineLevel.WARNING)
+            return false
+        }
+
+        val selected = DownloadCenter.state.value?.selectedJdkVersions
+            ?: emptyList()
+        if (selected.isEmpty()) {
+            emit("> [Provision] WARN: no JDK version selected", LineLevel.WARNING)
+            return false
+        }
+
+        // Install each selected version sequentially (skipConfirm since user already chose)
+        var allOk = true
+        for (majorStr in selected) {
+            val major = majorStr.toIntOrNull() ?: continue
+            BuildCancellation.throwIfCancelled()
+            val version = "jdk-$major"
+            val dir = File(toolchain.kindDir(ToolchainManager.Kind.JDK), version)
             emit("> [Provision] JDK $major: downloading (Android ARM64)...", LineLevel.INFO)
             val result = runCatching {
-                JdkDownloader.ensureJdk(context, dir, major) { msg ->
+                JdkDownloader.ensureJdk(context, dir, major, onProgress = { msg ->
                     emit("> [Provision] JDK: $msg", LineLevel.INFO)
-                }
-            }.getOrElse {
-                android.util.Log.w(TAG, "JDK $major install error", it)
-                emit("> [Provision] WARN: JDK $major install error: ${it.message}", LineLevel.WARNING)
-                null
+                }, skipConfirm = true)
+            }.getOrElse { ex ->
+                android.util.Log.w(TAG, "JDK $major install error", ex)
+                emit("> [Provision] WARN: JDK $major install error: ${ex.message ?: "unknown"}", LineLevel.WARNING)
+                JdkDownloader.JdkResult(null, false, ex.message ?: "unknown")
             }
             if (result?.success == true && result.dir != null) {
                 runCatching { toolchain.setActiveVersion(ToolchainManager.Kind.JDK, version) }
                 emit("> [Provision] JDK $major ready", LineLevel.SUCCESS)
-                return true
+            } else {
+                emit("> [Provision] WARN: JDK $major download failed: ${result?.message}", LineLevel.WARNING)
+                allOk = false
             }
-            emit("> [Provision] WARN: JDK $major download failed: ${result?.message}", LineLevel.WARNING)
         }
-        return false
+        return allOk
     }
 
     /**

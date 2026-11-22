@@ -1585,6 +1585,9 @@ private fun DownloadManagerWindow(
     // JDK 설치 선택 상태 (다운로더 팝업 전용)
     val selectedJdkVersions by remember { mutableStateOf(mutableSetOf<String>()) }
 
+    // CONFIRM 다이얼로그 내 JDK 선택 상태 (빌드 시 JDK 누락 다이얼로그 전용)
+    val selectedConfirmJdkVersions by remember { mutableStateOf(mutableSetOf<String>()) }
+
     Box(
         modifier = Modifier.fillMaxSize().background(Color(0x99000000)),
         contentAlignment = Alignment.Center,
@@ -1679,10 +1682,46 @@ private fun DownloadManagerWindow(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(text = AppLanguage.string(activity, R.string.downloader_confirm_title), color = ide.textSoft, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.height(8.dp))
+
+                                // JDK 버전 선택 체크박스 (빌드 시 JDK 누락 시 표시)
+                                if (t.jdkVersionChoices != null && t.jdkVersionChoices.isNotEmpty()) {
+                                    Text(text = "설치할 JDK 버전을 선택하세요.", color = ide.textSoft, fontSize = 11.sp)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        t.jdkVersionChoices.forEach { ver ->
+                                            val checked = selectedConfirmJdkVersions.contains(ver)
+                                            Row(modifier = Modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Checkbox(
+                                                    checked = checked,
+                                                    onCheckedChange = { isChecked: Boolean ->
+                                                        if (isChecked) selectedConfirmJdkVersions.add(ver)
+                                                        else selectedConfirmJdkVersions.remove(ver)
+                                                    }
+                                                )
+                                                Text(text = "JDK $ver", color = ide.text, fontSize = 13.sp)
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+
                                 Text(text = AppLanguage.string(activity, R.string.downloader_confirm_message).replace("%s", t.label.lowercase()), color = ide.error, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Button(onClick = { DownloadCenter.approve() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.success)) { Text(AppLanguage.string(activity, R.string.yes), color = Color.White, fontWeight = FontWeight.Bold) }
+                                    Button(
+                                        onClick = {
+                                            if (t.jdkVersionChoices != null && t.jdkVersionChoices.isNotEmpty() && selectedConfirmJdkVersions.isEmpty()) {
+                                                activity.runOnUiThread {
+                                                    android.widget.Toast.makeText(activity, "Select at least one JDK version", android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                            } else {
+                                                DownloadCenter.approve(selectedConfirmJdkVersions.toList())
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = ide.success)
+                                    ) { Text(AppLanguage.string(activity, R.string.yes), color = Color.White, fontWeight = FontWeight.Bold) }
                                     Button(onClick = { DownloadCenter.decline(); onDismiss() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text(AppLanguage.string(activity, R.string.no), color = Color.White, fontWeight = FontWeight.Bold) }
                                 }
                             }

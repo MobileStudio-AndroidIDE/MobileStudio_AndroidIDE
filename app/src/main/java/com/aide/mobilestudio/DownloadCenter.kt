@@ -42,7 +42,11 @@ object DownloadCenter {
         /** Latest fine-grained detail, e.g. the file currently being extracted. */
         val stageDetail: String = "",
         /** Rolling log of extraction / verification steps (most recent last). */
-        val detailLog: List<String> = emptyList()
+        val detailLog: List<String> = emptyList(),
+        /** When non-null, the CONFIRM dialog shows checkboxes for these JDK versions. */
+        val jdkVersionChoices: List<String>? = null,
+        /** Versions the user selected via checkboxes (populated when jdkVersionChoices != null). */
+        val selectedJdkVersions: List<String> = emptyList()
     ) {
         val percent: Int
             get() = if (totalBytes > 0) {
@@ -117,13 +121,17 @@ object DownloadCenter {
     /**
      * Shows the "Download? Yes / No" prompt and blocks until answered.
      * Returns true when the download may start.
+     *
+     * When [jdkVersionChoices] is non-null, the CONFIRM dialog shows checkboxes
+     * for each JDK version so the user can select one or more to install.
      */
     fun confirm(
         label: String,
         url: String,
         downloadPath: String,
         fileName: String,
-        totalBytes: Long
+        totalBytes: Long,
+        jdkVersionChoices: List<String>? = null
     ): Boolean {
         cancelRequested = false
         if (!uiAttached) return true
@@ -139,7 +147,8 @@ object DownloadCenter {
                 downloadPath = downloadPath,
                 fileName = fileName,
                 totalBytes = totalBytes,
-                status = Status.CONFIRM
+                status = Status.CONFIRM,
+                jdkVersionChoices = jdkVersionChoices
             )
         }
 
@@ -158,10 +167,18 @@ object DownloadCenter {
     }
 
     fun approve() {
+        approve(emptyList())
+    }
+
+    /** Approve with the JDK versions the user selected via checkboxes. */
+    fun approve(selectedJdkVersions: List<String>) {
         approved = true
         resetSpeed()
         main.post {
-            state.value = state.value?.copy(status = Status.DOWNLOADING)
+            state.value = state.value?.copy(
+                status = Status.DOWNLOADING,
+                selectedJdkVersions = selectedJdkVersions
+            )
         }
         confirmLatch?.countDown()
     }

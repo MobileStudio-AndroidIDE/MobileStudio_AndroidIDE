@@ -65,12 +65,16 @@ object JdkDownloader {
     /**
      * Ensures a valid JDK exists at the given directory.
      * If missing or corrupted, downloads from GitHub Release and extracts.
+     *
+     * When [skipConfirm] is true, the DownloadCenter.confirm() dialog is skipped
+     * (caller is responsible for showing the selection UI beforehand).
      */
     fun ensureJdk(
         context: Context,
         jdkDir: File,
         version: Int = JDK_VERSION,
-        onProgress: ((String) -> Unit)? = null
+        onProgress: ((String) -> Unit)? = null,
+        skipConfirm: Boolean = false
     ): JdkResult {
         val config = resolveConfig(context, version)
             ?: return JdkResult(null, false, "Unsupported JDK version: $version")
@@ -87,9 +91,12 @@ object JdkDownloader {
         val tmpFile = File(jdkDir.parentFile, "jdk-$version-android.tar.gz.tmp")
         val archiveName = url.substringAfterLast('/').ifBlank { "jdk-$version-android.tar.gz" }
         val totalBytes = DownloadCenter.probeContentLength(url)
-        if (!DownloadCenter.confirm("JDK $version", url, jdkDir.absolutePath, archiveName, totalBytes)) {
-            onProgress?.invoke("JDK $version download declined")
-            return JdkResult(null, false, "Download declined")
+
+        if (!skipConfirm) {
+            if (!DownloadCenter.confirm("JDK $version", url, jdkDir.absolutePath, archiveName, totalBytes)) {
+                onProgress?.invoke("JDK $version download declined")
+                return JdkResult(null, false, "Download declined")
+            }
         }
         DownloadCenter.begin("JDK $version", url, jdkDir.absolutePath, archiveName, totalBytes)
         try {
