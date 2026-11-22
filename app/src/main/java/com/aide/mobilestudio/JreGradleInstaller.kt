@@ -1557,7 +1557,9 @@ exit 127
             else parts.drop(stripCount).joinToString("/")
 
             if (stripped != null && stripped.isNotEmpty()) {
-                log("Extracting: $stripped")
+                val detail = "Extracting: $stripped"
+                log(detail)
+                DownloadCenter.stageDetail(detail)
             }
 
             when (typeFlag) {
@@ -2381,7 +2383,9 @@ private fun patchGradleLauncherForAndroid(jarFile: File) {
                 }
                 if (name.isNotEmpty()) {
                     val dest = File(destDir, name)
-                    log("Extracting: $name")
+                    val detail = "Extracting: $name"
+                    log(detail)
+                    DownloadCenter.stageDetail(detail)
                     if (entry.isDirectory) dest.mkdirs()
                     else { dest.parentFile?.mkdirs(); FileOutputStream(dest).use { zis.copyTo(it) } }
                 }

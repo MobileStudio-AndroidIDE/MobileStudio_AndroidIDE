@@ -1651,6 +1651,34 @@ private fun DownloadManagerWindow(
                                 if (speedMB > 0) Text(text = AppLanguage.string(activity, R.string.downloader_speed).replace("%s", "${speedMB} MB/s"), color = ide.info, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                             }
                             if (t.message.isNotBlank()) { Text(text = t.message, color = ide.textSoft, fontSize = 11.sp, modifier = Modifier.fillMaxWidth()) }
+                            // Fine-grained extraction detail: archive name + every file path.
+                            if (t.stageDetail.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = t.stageDetail,
+                                    color = ide.info,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                            if (t.detailLog.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                val recent = t.detailLog.takeLast(5).joinToString("\n")
+                                Text(
+                                    text = recent,
+                                    color = ide.muted,
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 6,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 92.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                )
+                            }
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(onClick = { DownloadCenter.cancel() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ide.error)) { Text(AppLanguage.string(activity, R.string.action_cancel), color = Color.White, fontWeight = FontWeight.Bold) }
                         }

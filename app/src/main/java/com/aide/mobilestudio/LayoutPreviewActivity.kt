@@ -952,8 +952,14 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 return
             }
             rootNode = newRoot
+            // Persist the edited source immediately so the file (and any other
+            // open editor) sees the same XML, then re-render everything.
+            suppressFileObserver = true
+            targetFile?.writeText(xml)
+            suppressFileObserver = false
             renderDesign()
             refreshWidgetPreview()
+            renderNativePreviewToBitmap()
             val isKo = AppLanguage.isKorean(this)
             Toast.makeText(this, if (isKo) "소스 → 디자인 동기화 완료" else "Source → Design synced", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
@@ -4273,19 +4279,28 @@ $resourceEntry
     // XML 파일 감시 (외부 수정 자동 반영)
     // =========================================================================
 
+    private val fileChangeDebounce = android.os.Handler(android.os.Looper.getMainLooper())
+    private val fileChangeRunnable = Runnable {
+        if (isFinishing || isDestroyed) return@Runnable
+        loadXmlToNodes()
+        renderDesign()
+        refreshWidgetPreview()
+        renderNativePreviewToBitmap()   // keep the real-View bitmap in sync too
+    }
+
     private fun startFileObserver() {
         val f = targetFile ?: return
         fileObserver?.stopWatching()
         try {
-            fileObserver = object : FileObserver(f.absolutePath, FileObserver.CLOSE_WRITE or FileObserver.MODIFY) {
+            // Compose editor saves via tmp-file rename -> MOVED_TO / CREATE,
+            // not just MODIFY. Watch all write-ish events and debounce.
+            val mask = FileObserver.CLOSE_WRITE or FileObserver.MODIFY or
+                FileObserver.MOVED_TO or FileObserver.CREATE or FileObserver.ATTRIB
+            fileObserver = object : FileObserver(f.absolutePath, mask) {
                 override fun onEvent(event: Int, path: String?) {
                     if (suppressFileObserver) return
-                    runOnUiThread {
-                        if (isFinishing || isDestroyed) return@runOnUiThread
-                        loadXmlToNodes()
-                        renderDesign()
-                        refreshWidgetPreview()
-                    }
+                    fileChangeDebounce.removeCallbacks(fileChangeRunnable)
+                    fileChangeDebounce.postDelayed(fileChangeRunnable, 250)
                 }
             }.apply { startWatching() }
         } catch (e: Exception) {

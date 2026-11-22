@@ -38,7 +38,11 @@ object DownloadCenter {
         val status: Status,
         val downloadedBytes: Long = 0L,
         val speedBytesPerSec: Long = 0L,
-        val message: String = ""
+        val message: String = "",
+        /** Latest fine-grained detail, e.g. the file currently being extracted. */
+        val stageDetail: String = "",
+        /** Rolling log of extraction / verification steps (most recent last). */
+        val detailLog: List<String> = emptyList()
     ) {
         val percent: Int
             get() = if (totalBytes > 0) {
@@ -258,8 +262,19 @@ object DownloadCenter {
         main.post {
             val current = state.value ?: return@post
             if (current.status != Status.CANCELLED) {
-                state.value = current.copy(message = message)
+                state.value = current.copy(message = message, stageDetail = "")
             }
+        }
+    }
+
+    /** Fine-grained progress line (e.g. "Extracting: lib/armeabi-v7a/libx.so").
+     *  Updates both the headline detail and the rolling log shown in the UI. */
+    fun stageDetail(detail: String) {
+        main.post {
+            val current = state.value ?: return@post
+            if (current.status == Status.CANCELLED) return@post
+            val log = (current.detailLog + detail).takeLast(40)
+            state.value = current.copy(stageDetail = detail, detailLog = log)
         }
     }
 

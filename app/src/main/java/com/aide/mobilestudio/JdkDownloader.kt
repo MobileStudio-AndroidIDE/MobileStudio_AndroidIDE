@@ -129,8 +129,9 @@ object JdkDownloader {
             }
 
             // Extract
-            onProgress?.invoke("Extracting JDK $version...")
-            DownloadCenter.stage("Extracting JDK $version...")
+            val extractLabel = "Extracting ${tmpFile.name}..."
+            onProgress?.invoke(extractLabel)
+            DownloadCenter.stage(extractLabel)
             extractTarGz(tmpFile, jdkDir, onProgress, File(context.applicationInfo.nativeLibraryDir))
             tmpFile.delete()
 
@@ -311,7 +312,9 @@ object JdkDownloader {
                                 runCatching { Os.chmod(target.absolutePath, (mode and 0b111_111_111)) }
                             }
                         }
-                        onProgress?.invoke("Extracting: $rel")
+                        val detail = "Extracting: $rel"
+                        onProgress?.invoke(detail)
+                        DownloadCenter.stageDetail(detail)
                     }
                 }
             }
