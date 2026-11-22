@@ -635,8 +635,8 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
             realtimeCompiler = com.aide.mobilestudio.analysis.RealtimeCompiler(this),
             onAutoCompileLine = { line, level ->
                 runOnUiThread {
-                    buildOutput?.appendLine(line, level)
-                    buildMonitor?.onLine(line, level)
+                    if (::buildOutput.isInitialized) buildOutput.appendLine(line, level)
+                    if (::buildMonitor.isInitialized) buildMonitor.onLine(line, level)
                 }
             },
             onProblemsUpdated = { problems ->
@@ -8184,15 +8184,12 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
                 setStatus("Realtime diagnostics ready after toolchain install")
                 return@launch
             }
-            // A full Gradle rebuild on every project open is the main source of
-            // heat/battery drain. Only do it when a real analysis engine is
-            // active; otherwise skip and let on-demand Build do the work.
-            if (analysisEngine == null) {
-                setStatus("Realtime diagnostics idle (no analysis engine)")
-                return@launch
-            }
-            setStatus("Realtime diagnostics running...")
-            buildScheduler.forceRebuild()
+            // Real-time compilation is done by AnalysisEngine (javac + Kotlin
+            // compiler), NEVER by Gradle. Gradle only runs on explicit Build.
+            // Forcing a Gradle build here crashed with
+            // UninitializedPropertyAccessException (View status views are gone
+            // in the Compose shell) and caused an endless recreate loop.
+            setStatus("Realtime diagnostics active")
         }
     }
 
@@ -9821,6 +9818,10 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
     }
 
     private fun updateStatusBar() {
+        // Compose shell owns the status bar; View-based status views are not
+        // bound after the migration, so skip when uninitialized.
+        if (!::codeEditor.isInitialized) return
+        if (!::tvStatusCursor.isInitialized) return
         val text   = codeEditor.text ?: return
         val cursor = codeEditor.selectionStart.coerceAtLeast(0).coerceAtMost(text.length)
         val before = text.substring(0, cursor)
