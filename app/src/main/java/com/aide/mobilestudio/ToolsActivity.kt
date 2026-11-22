@@ -44,6 +44,7 @@ import org.xml.sax.helpers.DefaultHandler
 import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
 import com.aide.mobilestudio.ai.OpencodeEnvironment
 import com.aide.mobilestudio.godot.MobileGodotEditorActivity
+import com.aide.mobilestudio.wine.WineGuiActivity
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -658,19 +659,37 @@ printf("x = %d\\n", x);"""
             setPadding(0, dp(8), 0, 0)
         }
         btnRow.addView(primaryButton("실행") {
-            toast("Exe Runner 실행 기능은 준비 중입니다. (예정: Wine / 박스64 / 네이티브 ARM64 exe)")
+            val exeFile = File(exePath, "main.exe")
+            if (exeFile.exists()) {
+                runExe(exeFile)
+            } else {
+                toast("exe 파일이 없습니다. 먼저 exe 파일을 선택하세요.")
+            }
         })
         btnRow.addView(secondaryButton("콘솔 지우기") { })
         card.addView(btnRow)
 
         card.addView(TextView(host).apply {
-            text = "준비 중..."
+            text = "exe 파일을 선택하고 '실행' 버튼을 누르세요."
             textSize = 11f
             setTextColor(StudioUi.color(StudioUi.Muted))
             setPadding(0, dp(8), 0, 0)
         })
 
         return card
+    }
+
+    /** exe 파일을 Wine/Box64 또는 네이티브 ARM64로 실행합니다. */
+    private fun runExe(exeFile: File) {
+        val wineDir = File(filesDir, "wine-mobile")
+        val wineBin = File(wineDir, "bin/wine")
+        if (wineBin.exists()) {
+            // Wine이 설치되어 있으면 WineGuiActivity (X11 연동)로 실행
+            WineGuiActivity.start(host, exeFile.absolutePath, null)
+            return
+        }
+        // Wine이 없으면 안내
+        toast("Wine이 설치되지 않았습니다. 도구 > Exe Runner에서 Wine을 설치하세요.")
     }
 
     private fun buildGodotCard(): View {
