@@ -126,7 +126,7 @@ object DownloadTask {
         }
     }
 
-    private fun downloadAndExtract(
+    fun downloadAndExtract(
         url: String,
         targetDir: File,
         mode: String,

@@ -45,6 +45,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,6 +97,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.charset.Charset
 
 /** Default content shown in an empty editor pane. */
@@ -1762,7 +1765,9 @@ private fun DownloadManagerWindow(
     }
 }
 
-/** Installs the selected JDK versions one at a time from the Downloader popup. */
+/** Installs the selected JDK versions one at a time from the Downloader popup.
+ *  Uses DownloadCenter so progress shows inside the DownloadManager popup
+ *  instead of a separate DownloadTask dialog. */
 private fun installJdkVersionsSequentially(activity: MainActivity, versions: List<String>, index: Int) {
     if (index >= versions.size) return
     val ver = versions[index]
@@ -1778,20 +1783,49 @@ private fun installJdkVersionsSequentially(activity: MainActivity, versions: Lis
         installJdkVersionsSequentially(activity, versions, index + 1)
         return
     }
-    DownloadTask.start(
-        context = activity,
-        label = "JDK $ver",
-        url = url,
-        targetDir = targetDir,
-        mode = ToolchainDownloadService.MODE_TOOLCHAIN,
-        kind = ToolchainManager.Kind.JDK,
-        version = ver,
-        onComplete = { activity.runOnUiThread {
-            android.widget.Toast.makeText(activity, "JDK $ver installed", android.widget.Toast.LENGTH_SHORT).show()
-            installJdkVersionsSequentially(activity, versions, index + 1)
-        } }
-    )
-    activity.runOnUiThread { android.widget.Toast.makeText(activity, "Download started: JDK $ver", android.widget.Toast.LENGTH_SHORT).show() }
+
+    val totalBytes = runCatching {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "HEAD"
+            connectTimeout = 15_000
+            readTimeout = 15_000
+            instanceFollowRedirects = true
+            connect()
+        }
+        val length = conn.contentLengthLong
+        conn.disconnect()
+        length
+    }.getOrDefault(-1L)
+
+    activity.lifecycleScope.launch(Dispatchers.IO) {
+        val approved = DownloadCenter.confirm("JDK $ver", url, targetDir.absolutePath, "jdk-$ver-android-arm64.tar.gz", totalBytes)
+        if (!approved) {
+            activity.runOnUiThread { installJdkVersionsSequentially(activity, versions, index + 1) }
+            return@launch
+        }
+        activity.runOnUiThread {
+            DownloadCenter.begin("JDK $ver", url, targetDir.absolutePath, "jdk-$ver-android-arm64.tar.gz", totalBytes)
+        }
+
+        try {
+            DownloadTask.downloadAndExtract(url, targetDir, ToolchainDownloadService.MODE_TOOLCHAIN, ToolchainManager.Kind.JDK, ver) { progress, text ->
+                activity.runOnUiThread {
+                    val downloaded = if (totalBytes > 0) (progress.toLong() * totalBytes / 100).coerceAtLeast(0L) else progress.toLong()
+                    DownloadCenter.progress(downloaded, totalBytes)
+                    DownloadCenter.stage(text)
+                }
+            }
+            activity.runOnUiThread {
+                DownloadCenter.done("JDK $ver installed")
+                installJdkVersionsSequentially(activity, versions, index + 1)
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                DownloadCenter.fail(e.message ?: "Install failed")
+                installJdkVersionsSequentially(activity, versions, index + 1)
+            }
+        }
+    }
 }
 
 private data class StudioMenuItem(val label: String, val action: String = "", val shortcut: String = "", val divider: Boolean = false, val subItems: List<StudioMenuItem> = emptyList())
