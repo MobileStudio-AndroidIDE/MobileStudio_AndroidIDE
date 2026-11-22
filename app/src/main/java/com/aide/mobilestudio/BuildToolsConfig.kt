@@ -408,6 +408,9 @@ object BuildToolsConfig {
         if (buildCache(context)) add("--build-cache")
         add("--max-workers=${maxWorkers(context)}")
         add("--console=${console(context)}")
+        // Surface the real cause of daemon-start failures (noexec/exec_redirect)
+        // instead of the opaque "A problem occurred starting process" message.
+        add("--stacktrace")
     }
 
     fun buildKotlinDaemonArgs(context: Context): String {
