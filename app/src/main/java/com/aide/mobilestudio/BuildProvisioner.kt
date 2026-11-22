@@ -255,22 +255,38 @@ object BuildProvisioner {
             BuildCancellation.throwIfCancelled()
             val version = "jdk-$major"
             val dir = File(toolchain.kindDir(ToolchainManager.Kind.JDK), version)
-            emit("> [Provision] JDK $major: downloading (Android ARM64)...", LineLevel.INFO)
-            val result = runCatching {
-                JdkDownloader.ensureJdk(context, dir, major, onProgress = { msg ->
-                    emit("> [Provision] JDK: $msg", LineLevel.INFO)
-                }, skipConfirm = true)
-            }.getOrElse { ex ->
-                android.util.Log.w(TAG, "JDK $major install error", ex)
-                emit("> [Provision] WARN: JDK $major install error: ${ex.message ?: "unknown"}", LineLevel.WARNING)
-                JdkDownloader.JdkResult(null, false, ex.message ?: "unknown")
+            if (dir.exists() && JdkDownloader.isValidJdk(dir, major)) {
+                runCatching { toolchain.setActiveVersion(ToolchainManager.Kind.JDK, version) }
+                emit("> [Provision] JDK $major: already installed (skip)", LineLevel.INFO)
+                continue
             }
-            if (result?.success == true && result.dir != null) {
+            val catalog = BuildToolCatalog.loadCached(context)
+            val url = BuildToolCatalog.findJdk(catalog, major)?.url
+                ?: "https://github.com/MobileStudio-AndroidIDE/MobileStudio_AndroidIDE/releases/download/jdk21-android-21.0.14/jdk21-android-arm64.tar.gz"
+            emit("> [Provision] JDK $major: downloading (Android ARM64)...", LineLevel.INFO)
+            val totalBytes = DownloadCenter.probeContentLength(url)
+            try {
+                DownloadTask.downloadAndExtract(
+                    url = url,
+                    targetDir = dir,
+                    mode = ToolchainDownloadService.MODE_TOOLCHAIN,
+                    kind = ToolchainManager.Kind.JDK,
+                    version = version,
+                    onProgress = { percent, text ->
+                        (context as? MainActivity)?.runOnUiThread {
+                            val downloaded = if (totalBytes > 0) (percent.toLong() * totalBytes / 100).coerceAtLeast(0L) else percent.toLong()
+                            DownloadCenter.progress(downloaded, totalBytes)
+                            DownloadCenter.stage(text)
+                        }
+                    }
+                )
                 runCatching { toolchain.setActiveVersion(ToolchainManager.Kind.JDK, version) }
                 emit("> [Provision] JDK $major ready", LineLevel.SUCCESS)
-            } else {
-                emit("> [Provision] WARN: JDK $major download failed: ${result?.message}", LineLevel.WARNING)
+            } catch (e: Exception) {
+                android.util.Log.w(TAG, "JDK $major install error", e)
+                emit("> [Provision] WARN: JDK $major install error: ${e.message ?: "unknown"}", LineLevel.WARNING)
                 allOk = false
+                DownloadCenter.fail(e.message ?: "Install failed")
             }
         }
         return allOk
