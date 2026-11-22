@@ -174,7 +174,14 @@ object DownloadCenter {
     fun approve(selectedJdkVersions: List<String>) {
         approved = true
         resetSpeed()
+        // Update state synchronously so callers reading state.value after
+        // confirm() returns see the selected versions immediately.
+        state.value = state.value?.copy(
+            status = Status.DOWNLOADING,
+            selectedJdkVersions = selectedJdkVersions
+        )
         main.post {
+            // Notify UI of status change
             state.value = state.value?.copy(
                 status = Status.DOWNLOADING,
                 selectedJdkVersions = selectedJdkVersions
