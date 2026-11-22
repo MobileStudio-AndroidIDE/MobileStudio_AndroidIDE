@@ -277,6 +277,7 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                 }
 
                 emit(onLine, "> Starting Gradle (NativeExec)...", LineLevel.INFO)
+                Log.i("MobileStudioBuild", "Starting Gradle via NativeExec: java=${javaExec.absolutePath}, tasks=${tasks.joinToString(" ")}, cwd=${projectDir.absolutePath}")
                 val handle = NativeExec.start(
                     javaBin = javaExec.absolutePath,
                     codeCacheDir = context.codeCacheDir.absolutePath,
@@ -300,16 +301,32 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                 }
 
                 emit(onLine, "> Gradle process started, waiting for output...", LineLevel.INFO)
+                emit(onLine, "> java=${javaExec.absolutePath}", LineLevel.DEBUG)
+                emit(onLine, "> tasks=${tasks.joinToString(" ")}", LineLevel.DEBUG)
 
                 val acc = StringBuilder()
                 val outputFilter = BuildOutputFilter(onLine, errors)
                 var lastOutputMs = System.currentTimeMillis()
+                var lastHeartbeatMs = lastOutputMs
+                var emptyReads = 0
                 while (true) {
                     if (cancelRequested || currentNativeHandle != handle) break
                     val chunkOrNull = NativeExec.readChunk(handle, 500) ?: break
                     if (cancelRequested || currentNativeHandle != handle) break
-                    if (chunkOrNull.isEmpty()) continue
+                    if (chunkOrNull.isEmpty()) {
+                        emptyReads++
+                        // Gradle can stay silent for many seconds while starting
+                        // its daemon. Emit a heartbeat so the log never looks stuck.
+                        val now = System.currentTimeMillis()
+                        if (now - lastHeartbeatMs > 5000L) {
+                            lastHeartbeatMs = now
+                            emit(onLine, "> Gradle still starting… (${(now - lastOutputMs) / 1000}s, no output yet)", LineLevel.INFO)
+                            Log.i("MobileStudioBuild", "Gradle silent for ${(now - lastOutputMs) / 1000}s (emptyReads=$emptyReads, nativeError=${NativeExec.getLastError()})")
+                        }
+                        continue
+                    }
                     lastOutputMs = System.currentTimeMillis()
+                    lastHeartbeatMs = lastOutputMs
 
                     val normalized = chunkOrNull.replace('\r', '\n')
                     acc.append(normalized)

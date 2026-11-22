@@ -220,10 +220,14 @@ class LayoutLibImporter(private val context: Context) {
             return ImportResult(false, 0, "Bundled LayoutLib assets are missing.")
         }
 
-        val tempDir = File(context.cacheDir, "layoutlib_bundled_install").apply {
-            deleteRecursively()
-            mkdirs()
+        val tempDir = File(context.cacheDir, "layoutlib_bundled_install")
+        // deleteRecursively() asserts the root is a directory if it exists.
+        // A stale file (or a failed prior install) makes it throw; guard both.
+        runCatching {
+            if (tempDir.isDirectory) tempDir.deleteRecursively()
+            else if (tempDir.exists()) tempDir.delete()
         }
+        tempDir.mkdirs()
         var copied = 0
         return try {
             onProgress("Installing bundled LayoutLib runtime...")
