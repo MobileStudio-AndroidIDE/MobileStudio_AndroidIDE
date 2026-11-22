@@ -373,12 +373,16 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     }
 
     override fun studioSelectEditorLine(line: Int) {
-        val editor = EditorPaneState.editor ?: return
-        val textLayout = editor.layout ?: return
-        val targetLine = line.coerceIn(0, (textLayout.lineCount - 1).coerceAtLeast(0))
-        val offset = textLayout.getLineStart(targetLine)
-        editor.setSelection(offset)
-        editor.requestFocus()
+        try {
+            val editor = EditorPaneState.editor ?: return
+            val textLayout = editor.layout ?: return
+            val targetLine = line.coerceIn(0, (textLayout.lineCount - 1).coerceAtLeast(0))
+            val offset = textLayout.getLineStart(targetLine)
+            editor.setSelection(offset)
+            editor.requestFocus()
+        } catch (e: Exception) {
+            // Editor may not be mounted yet; selection is non-fatal
+        }
     }
 
     override fun studioLoadFileTree(root: File) { loadFileTree(root) }
@@ -501,7 +505,12 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
     }
 
     override fun studioOpenFileAt(file: File, line: Int) {
-        openFile(file)
+        try {
+            openFile(file)
+        } catch (e: Exception) {
+            // Non-fatal: file open failed, line selection skipped
+            return
+        }
         Handler(Looper.getMainLooper()).postDelayed({
             studioSelectEditorLine(line)
         }, 150)
