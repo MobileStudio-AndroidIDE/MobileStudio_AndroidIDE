@@ -56,6 +56,7 @@ class ProjectTemplateGenerator(private val context: Context) {
         MINECRAFT_FORGE,
         PYTHON_SCRIPT,
         WINDOWS_EXE,
+        MINGW_GAME,
         GAME_2D_PONG,
         GAME_2D_SNAKE,
         GAME_3D_SCENE,
@@ -134,6 +135,10 @@ class ProjectTemplateGenerator(private val context: Context) {
         }
         if (cfg.template == Template.WINDOWS_EXE) {
             writeWindowsExeProject(root)
+            return root
+        }
+        if (cfg.template == Template.MINGW_GAME) {
+            writeMingwGameProject(root, cfg)
             return root
         }
         if (cfg.template == Template.GAME_2D_PONG || cfg.template == Template.GAME_2D_SNAKE ||
@@ -6283,6 +6288,312 @@ static GLuint ms_link_program(const char* vsSrc, const char* fsSrc) {
             Tools > Wine & Box64 > **Run .exe** (runs via box64 → wine64)
 
             Console apps read stdin from the input line at the bottom of the console dialog.
+        """.trimIndent())
+    }
+
+    private fun writeMingwGameProject(root: File, cfg: ProjectConfig) {
+        val pkgPath = cfg.packageName.replace('.', '/')
+
+        write(root, "dodger.c", """
+            /*
+             * mingw-example: 간단한 GUI 게임 (Windows)
+             * "Dodger" - 화살표 키로 플레이어를 이동시켜 떨어지는 장애물 피하기
+             *
+             * 빌드 (Linux 호스트, mingw-w64 교차 컴파일):
+             *   x86_64-w64-mingw32-gcc -O2 -o dodger.exe dodger.c -lgdi32 -luser32 -lwinmm -mwindows
+             *
+             * 실행: MobileStudio > 도구 > EXE 실행기 > dodger.exe 선택 > 실행
+             */
+
+            #include <windows.h>
+            #include <stdlib.h>
+            #include <time.h>
+
+            #define WINDOW_WIDTH  640
+            #define WINDOW_HEIGHT 480
+            #define PLAYER_WIDTH  80
+            #define PLAYER_HEIGHT 15
+            #define OBJ_SIZE      25
+            #define MAX_OBJS      10
+            #define PLAYER_SPEED  12
+            #define OBJ_SPEED     6
+            #define FRAME_MS      16
+
+            static HWND   g_hwnd;
+            static int    g_player_x = (WINDOW_WIDTH - PLAYER_WIDTH) / 2;
+            static int    g_obj_x[MAX_OBJS];
+            static int    g_obj_y[MAX_OBJS];
+            static int    g_obj_active[MAX_OBJS];
+            static int    g_score = 0;
+            static int    g_game_over = 0;
+            static int    g_obj_count = 0;
+            static UINT   g_timer_id;
+            static HBRUSH g_brush_player;
+            static HBRUSH g_brush_obj;
+            static HBRUSH g_brush_bg;
+            static HPEN   g_pen_text;
+
+            static void reset_object(int i) {
+                g_obj_x[i] = rand() % (WINDOW_WIDTH - OBJ_SIZE);
+                g_obj_y[i] = -OBJ_SIZE - (rand() % 200);
+                g_obj_active[i] = 1;
+            }
+
+            static void init_game(void) {
+                g_player_x = (WINDOW_WIDTH - PLAYER_WIDTH) / 2;
+                g_score = 0;
+                g_game_over = 0;
+                g_obj_count = 0;
+                for (int i = 0; i < MAX_OBJS; i++) {
+                    g_obj_active[i] = 0;
+                }
+                for (int i = 0; i < 3; i++) {
+                    reset_object(i);
+                }
+                g_obj_count = 3;
+            }
+
+            static void update_game(void) {
+                if (g_game_over) return;
+
+                for (int i = 0; i < MAX_OBJS; i++) {
+                    if (!g_obj_active[i]) continue;
+                    g_obj_y[i] += OBJ_SPEED;
+
+                    if (g_obj_y[i] > WINDOW_HEIGHT) {
+                        g_obj_active[i] = 0;
+                        g_obj_count--;
+                        g_score += 10;
+                        if (g_obj_count < MAX_OBJS && rand() % 3 == 0) {
+                            int idx = -1;
+                            for (int j = 0; j < MAX_OBJS; j++) {
+                                if (!g_obj_active[j]) { idx = j; break; }
+                            }
+                            if (idx >= 0) { reset_object(idx); g_obj_count++; }
+                        }
+                    }
+
+                    int player_bottom = WINDOW_HEIGHT - 40;
+                    if (g_obj_y[i] + OBJ_SIZE > player_bottom &&
+                        g_obj_y[i] < player_bottom + PLAYER_HEIGHT &&
+                        g_obj_x[i] + OBJ_SIZE > g_player_x &&
+                        g_obj_x[i] < g_player_x + PLAYER_WIDTH) {
+                        g_game_over = 1;
+                    }
+                }
+            }
+
+            static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+                switch (msg) {
+                case WM_CREATE:
+                    init_game();
+                    g_timer_id = SetTimer(hwnd, 1, FRAME_MS, NULL);
+                    g_brush_player = CreateSolidBrush(RGB(0, 150, 255));
+                    g_brush_obj    = CreateSolidBrush(RGB(255, 80, 80));
+                    g_brush_bg     = CreateSolidBrush(RGB(240, 240, 240));
+                    g_pen_text     = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
+                    srand((unsigned)time(NULL));
+                    break;
+
+                case WM_KEYDOWN:
+                    if (!g_game_over) {
+                        switch (wParam) {
+                        case VK_LEFT:
+                            g_player_x -= PLAYER_SPEED;
+                            if (g_player_x < 0) g_player_x = 0;
+                            break;
+                        case VK_RIGHT:
+                            g_player_x += PLAYER_SPEED;
+                            if (g_player_x > WINDOW_WIDTH - PLAYER_WIDTH)
+                                g_player_x = WINDOW_WIDTH - PLAYER_WIDTH;
+                            break;
+                        }
+                    } else if (wParam == VK_SPACE) {
+                        init_game();
+                    }
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+
+                case WM_TIMER:
+                    if (wParam == g_timer_id) {
+                        update_game();
+                        InvalidateRect(hwnd, NULL, FALSE);
+                    }
+                    break;
+
+                case WM_PAINT: {
+                    PAINTSTRUCT ps;
+                    HDC hdc = BeginPaint(hwnd, &ps);
+
+                    RECT rect;
+                    GetClientRect(hwnd, &rect);
+                    FillRect(hdc, &rect, g_brush_bg);
+
+                    RECT player_rect = {
+                        g_player_x,
+                        WINDOW_HEIGHT - 40,
+                        g_player_x + PLAYER_WIDTH,
+                        WINDOW_HEIGHT - 40 + PLAYER_HEIGHT
+                    };
+                    FillRect(hdc, &player_rect, g_brush_player);
+
+                    for (int i = 0; i < MAX_OBJS; i++) {
+                        if (!g_obj_active[i]) continue;
+                        RECT obj_rect = {
+                            g_obj_x[i], g_obj_y[i],
+                            g_obj_x[i] + OBJ_SIZE, g_obj_y[i] + OBJ_SIZE
+                        };
+                        FillRect(hdc, &obj_rect, g_brush_obj);
+                    }
+
+                    char buf[128];
+                    SetBkMode(hdc, TRANSPARENT);
+                    SelectObject(hdc, g_pen_text);
+
+                    if (g_game_over) {
+                        wsprintf(buf, "GAME OVER - Score: %d  (스페이스바로 재시작)", g_score);
+                        TextOut(hdc, WINDOW_WIDTH/2 - 150, WINDOW_HEIGHT/2 - 20, buf, lstrlen(buf));
+                    } else {
+                        wsprintf(buf, "Score: %d   (왼쪽/오른쪽 화살표로 이동)", g_score);
+                        TextOut(hdc, 20, 20, buf, lstrlen(buf));
+                        wsprintf(buf, "장애물을 피하세요!");
+                        TextOut(hdc, 20, 45, buf, lstrlen(buf));
+                    }
+
+                    EndPaint(hwnd, &ps);
+                    break;
+                }
+
+                case WM_DESTROY:
+                    if (g_timer_id) KillTimer(hwnd, g_timer_id);
+                    DeleteObject(g_brush_player);
+                    DeleteObject(g_brush_obj);
+                    DeleteObject(g_brush_bg);
+                    DeleteObject(g_pen_text);
+                    PostQuitMessage(0);
+                    break;
+
+                default:
+                    return DefWindowProc(hwnd, msg, wParam, lParam);
+                }
+                return 0;
+            }
+
+            int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+                               LPSTR lpCmdLine, int nCmdShow) {
+                const char CLASS_NAME[] = "DodgerGameClass";
+
+                WNDCLASS wc = {0};
+                wc.lpfnWndProc = WndProc;
+                wc.hInstance = hInstance;
+                wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+                wc.lpszClassName = CLASS_NAME;
+                wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+
+                RegisterClass(&wc);
+
+                HWND hwnd = CreateWindowEx(
+                    0, CLASS_NAME, "Dodger - 장애물 피하기 게임",
+                    WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
+                    CW_USEDEFAULT, CW_USEDEFAULT,
+                    WINDOW_WIDTH + 16, WINDOW_HEIGHT + 39,
+                    NULL, NULL, hInstance, NULL);
+
+                if (!hwnd) return 1;
+
+                g_hwnd = hwnd;
+                ShowWindow(hwnd, nCmdShow);
+                UpdateWindow(hwnd);
+
+                MSG msg;
+                while (GetMessage(&msg, NULL, 0, 0)) {
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                }
+                return (int)msg.wParam;
+            }
+        """.trimIndent())
+
+        write(root, "build.sh", """
+            #!/bin/bash
+            # mingw-example 빌드 스크립트 (Linux 호스트)
+
+            set -e
+
+            echo "=== mingw-example 빌드 ==="
+
+            if ! command -v x86_64-w64-mingw32-gcc &> /dev/null; then
+                echo "오류: x86_64-w64-mingw32-gcc가 설치되지 않았습니다."
+                echo "설치: sudo apt install mingw-w64"
+                exit 1
+            fi
+
+            echo "dodger.c 컴파일 중..."
+            x86_64-w64-mingw32-gcc -O2 -o dodger.exe dodger.c -lgdi32 -luser32 -lwinmm -mwindows
+
+            if [ -f dodger.exe ]; then
+                echo "=== 빌드 완료: dodger.exe ==="
+                echo ""
+                echo "실행: MobileStudio > 도구 > EXE 실행기 > dodger.exe 선택 > 실행"
+                echo "또는 Wine으로 직접 실행: wine dodger.exe"
+            else
+                echo "=== 빌드 실패 ==="
+                exit 1
+            fi
+        """.trimIndent())
+
+        write(root, "README.md", """
+            # mingw-example - 간단한 GUI 게임 (Windows)
+
+            이 프로젝트는 MobileStudio의 **도구 > EXE 실행기**에서 실행할 수 있는 간단한 GUI 게임입니다.
+
+            ## 게임 설명
+
+            **Dodger** - 화살표 키(←/→)로 플레이어(파란색 바)를 이동시켜 떨어지는 장애물(빨간색 사각형)을 피하는 게임입니다.
+
+            - 장애물을 피할 때마다 점수 +10
+            - 장애물에 닿으면 게임 오버 (스페이스바로 재시작)
+
+            ## 빌드 방법
+
+            ### Linux 호스트 (mingw-w64 교차 컴파일)
+
+            \`\`\`bash
+            # mingw-w64 설치 (Ubuntu/Debian)
+            sudo apt install mingw-w64
+
+            # 컴파일
+            x86_64-w64-mingw32-gcc -O2 -o dodger.exe dodger.c -lgdi32 -luser32 -lwinmm -mwindows
+            \`\`\`
+
+            ### Windows 호스트 (MinGW)
+
+            \`\`\`bash
+            gcc -O2 -o dodger.exe dodger.c -lgdi32 -luser32 -lwinmm -mwindows
+            \`\`\`
+
+            ## MobileStudio에서 실행
+
+            1. MobileStudio 앱 실행
+            2. **도구 > EXE 실행기** 선택
+            3. dodger.exe 파일이 포함된 프로젝트 열기
+            4. **실행** 버튼 클릭
+            5. Wine + X11로 게임이 실행됩니다 (X 서버가 실행 중이어야 함)
+
+            ## 파일 구성
+
+            | 파일 | 설명 |
+            |------|------|
+            | dodger.c | 게임 소스 코드 (Win32 API + GDI) |
+            | build.sh | Linux에서 mingw로 컴파일하는 스크립트 |
+            | README.md | 이 설명서 |
+        """.trimIndent())
+
+        write(root, ".gitignore", """
+            *.exe
+            *.o
+            build/
+            .gradle/
         """.trimIndent())
     }
 

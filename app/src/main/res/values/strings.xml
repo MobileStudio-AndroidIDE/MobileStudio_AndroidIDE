@@ -203,6 +203,8 @@
     <string name="newproject_created_toast">Project created: %s</string>
     <string name="newproject_type_python">Python (Shell)</string>
     <string name="newproject_type_windows">Windows .exe</string>
+    <string name="newproject_type_mingw">MINGW 게임</string>
+    <string name="newproject_type_mingw_desc">mingw-w64 장애물 피하기 게임</string>
     <string name="newproject_creation_failed_title">Project Creation Failed</string>
     <string name="newproject_path_label">Location</string>
     <string name="newproject_placeholder_app">MyApplication</string>

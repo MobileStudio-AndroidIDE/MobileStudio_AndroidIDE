@@ -2570,7 +2570,7 @@ private fun NewProjectDialog(
 ) {
     val host = activity as StudioHost
     val ide = LocalIdeColors.current
-    var selectedType by remember { mutableStateOf(0) }  // 0=Android, 1=Java, 2=Kotlin, 3=EXE
+    var selectedType by remember { mutableStateOf(0) }  // 0=Android, 1=Java, 2=Kotlin, 3=EXE(Native), 4=MINGW Game
     var projectName by remember { mutableStateOf("") }
     // Default to the projects root, NOT the last opened project folder —
     // otherwise the new project is created *inside* the last project.
@@ -2588,6 +2588,7 @@ private fun NewProjectDialog(
             NewProjectType(AppLanguage.string(activity, R.string.newproject_type_java), AppLanguage.string(activity, R.string.newproject_type_java_desc)),
             NewProjectType(AppLanguage.string(activity, R.string.newproject_type_kotlin), AppLanguage.string(activity, R.string.newproject_type_kotlin_desc)),
             NewProjectType(AppLanguage.string(activity, R.string.newproject_type_exe), AppLanguage.string(activity, R.string.newproject_type_exe_desc)),
+            NewProjectType(AppLanguage.string(activity, R.string.newproject_type_mingw), AppLanguage.string(activity, R.string.newproject_type_mingw_desc)),
         )
     }
     val previewPath = remember(projectLocation, projectName) {
@@ -2623,9 +2624,11 @@ private fun NewProjectDialog(
         //   1 Java source      -> EMPTY_JAVA_ACTIVITY
         //   2 Kotlin source    -> EMPTY_ACTIVITY
         //   3 Native (C++/JNI) -> NATIVE_CPP (Android skeleton + native layer)
+        //   4 MINGW Game       -> MINGW_GAME (mingw-w64 dodger game, no Android skeleton)
         val template = when (selectedType) {
             1 -> ProjectTemplateGenerator.Template.EMPTY_JAVA_ACTIVITY
             3 -> ProjectTemplateGenerator.Template.NATIVE_CPP
+            4 -> ProjectTemplateGenerator.Template.MINGW_GAME
             else -> ProjectTemplateGenerator.Template.EMPTY_ACTIVITY
         }
         val safePkg = name.lowercase()
@@ -2639,12 +2642,15 @@ private fun NewProjectDialog(
         )
         try {
             val projectDir = generator.create(config)
-            // Ensure the essential Android skeleton is present even if a
-            // template path skipped a file — guarantees a basic Android project.
             val useJava = template == ProjectTemplateGenerator.Template.EMPTY_JAVA_ACTIVITY
-            ensureAndroidSkeleton(projectDir, name, "com.example.$safePkg", useJava = useJava)
+            val isMingw = template == ProjectTemplateGenerator.Template.MINGW_GAME
+            if (!isMingw) {
+                // Ensure the essential Android skeleton is present even if a
+                // template path skipped a file — guarantees a basic Android project.
+                ensureAndroidSkeleton(projectDir, name, "com.example.$safePkg", useJava = useJava)
+            }
             // Kotlin projects always get the canonical "Hello, MobileStudio" MainActivity.
-            if (!useJava && template != ProjectTemplateGenerator.Template.NATIVE_CPP) {
+            if (!useJava && template != ProjectTemplateGenerator.Template.NATIVE_CPP && !isMingw) {
                 writeHelloMainActivity(projectDir, "com.example.$safePkg")
             }
             activity.studioOpenProject(projectDir)
@@ -2653,6 +2659,8 @@ private fun NewProjectDialog(
             // the editor instead of an empty "No file selected" pane.
             val mainActivityFile = if (useJava) {
                 File(projectDir, "app/src/main/java/${"com.example.$safePkg".replace('.', '/')}/MainActivity.java")
+            } else if (isMingw) {
+                File(projectDir, "dodger.c")
             } else {
                 File(projectDir, "app/src/main/kotlin/${"com.example.$safePkg".replace('.', '/')}/MainActivity.kt")
             }
