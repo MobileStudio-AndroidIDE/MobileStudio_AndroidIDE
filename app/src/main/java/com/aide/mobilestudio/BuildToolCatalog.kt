@@ -89,7 +89,7 @@ object BuildToolCatalog {
         ToolRelease(
             version = "21",
             url = "https://github.com/$CATALOG_OWNER/$CATALOG_REPO/releases/download/jdk21-android-21.0.14/jdk21-android-arm64.tar.gz",
-            sha256 = "b6575760724183350c98206082da7829808b62b766e2d30fc253101b1e8cda0e",
+            sha256 = "8746f96a348c34b1e21508128478cb613de05f9d0aa9befad2967f83a9542680",
             tag = "jdk21-android-21.0.14"
         ),
         ToolRelease(
