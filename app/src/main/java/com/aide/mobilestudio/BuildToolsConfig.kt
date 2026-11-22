@@ -382,7 +382,6 @@ object BuildToolsConfig {
         add("-Duser.language=${userLanguage(context)}")
         add("-Duser.variant")
         add("-Dmobilestudio.gradle.env=jdk-cmake-tool-proxy-v29")
-        add("-Djdk.lang.Process.launchMechanism=FORK")
         add("-Dorg.gradle.native=false")
         val custom = customGradleJvmArgs(context)
         if (custom.isNotBlank()) addAll(custom.trim().split("\\s+".toRegex()))
