@@ -9,11 +9,21 @@ import java.util.zip.ZipFile
 
 class LayoutLibPreviewEngine(private val context: Context) {
 
+    companion object {
+        /** Content hash of the exact XML bytes — used as a render version. */
+        fun contentVersion(file: File): String = runCatching {
+            MessageDigest.getInstance("SHA-256").digest(file.readBytes())
+                .joinToString("") { "%02x".format(it) }
+        }.getOrDefault("missing")
+    }
+
     data class Result(
         val status: Status,
         val imageFile: File? = null,
         val message: String,
-        val detail: String = ""
+        val detail: String = "",
+        /** SHA-256 of the exact XML bytes that produced this result. */
+        val sourceVersion: String = ""
     )
 
     enum class Status {
@@ -35,6 +45,8 @@ class LayoutLibPreviewEngine(private val context: Context) {
     )
 
     fun render(layoutFile: File, widthPx: Int, heightPx: Int): Result {
+        val sourceVersion = contentVersion(layoutFile)
+        Log.d("LayoutLibRender", "render request: ${layoutFile.name} version=$sourceVersion ${layoutFile.length()}B")
         validateLayoutXml(layoutFile)?.let { return it }
         val importer = LayoutLibImporter(context)
         val bundledResult = importer.ensureBundledInstalled()
@@ -102,7 +114,7 @@ class LayoutLibPreviewEngine(private val context: Context) {
             cacheName(layoutFile, widthPx, heightPx)
         )
         if (outputFile.exists() && outputFile.length() > 0) {
-            return Result(Status.RENDERED, outputFile, "LayoutLib cached render ready.")
+            return Result(Status.RENDERED, outputFile, "LayoutLib cached render ready.", sourceVersion = sourceVersion)
         }
 
         val sourceFile = File(workDir, "MobileStudioLayoutLibRenderer.java")
@@ -208,7 +220,7 @@ class LayoutLibPreviewEngine(private val context: Context) {
 
         return when {
             render.exitCode == 0 && outputFile.exists() && outputFile.length() > 0 -> {
-                Result(Status.RENDERED, outputFile, "Rendered with Android LayoutLib Bridge.")
+                Result(Status.RENDERED, outputFile, "Rendered with Android LayoutLib Bridge.", sourceVersion = sourceVersion)
             }
             render.timedOut -> {
                 Result(
@@ -587,8 +599,10 @@ class LayoutLibPreviewEngine(private val context: Context) {
         }
     }
 
+    /** Content-based version: mtime+length can be identical after an in-place
+     *  editor save, which made stale renders look valid. See [contentVersion]. */
     private fun cacheName(file: File, widthPx: Int, heightPx: Int): String {
-        val key = "${file.absolutePath}|${file.lastModified()}|${file.length()}|$widthPx|$heightPx"
+        val key = "${file.absolutePath}|${contentVersion(file)}|$widthPx|$heightPx"
         val digest = MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
             .joinToString("") { "%02x".format(it) }
         return "layoutlib_$digest.png"

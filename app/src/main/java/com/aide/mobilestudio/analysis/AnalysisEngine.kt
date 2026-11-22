@@ -98,6 +98,10 @@ class AnalysisEngine(
         activeJobs.clear()
         resultCache.clear()
         kotlinDaemon?.stop()
+        // Cancel the per-engine scope so the idle monitor and debounced-change
+        // collector coroutines (and their FileObservers) do not survive a
+        // project switch / activity recreate and pile up CPU + memory.
+        scope.cancel()
     }
 
     fun openFile(projectDir: File, file: File, content: String? = null) {

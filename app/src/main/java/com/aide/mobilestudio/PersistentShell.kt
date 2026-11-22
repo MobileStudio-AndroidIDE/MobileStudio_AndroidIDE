@@ -264,9 +264,10 @@ class PersistentShell(
                     continue
                 }
 
-                // Shell alive but silent — short nap, the native poll already
-                // blocked for a few milliseconds.
-                Thread.sleep(2)
+                // Shell alive but silent. The native read already blocks until
+                // data arrives or times out; a 25ms nap cuts ~500 wakeups/sec
+                // down to ~40 without any noticeable input latency.
+                Thread.sleep(25)
             }
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()

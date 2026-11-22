@@ -1767,6 +1767,9 @@ class LayoutPreviewActivity : AppCompatActivity() {
      */
     private fun renderNativePreviewToBitmap() {
         val file = targetFile ?: return
+        val requestId = renderRequestCounter.incrementAndGet()
+        val requestedVersion = LayoutLibPreviewEngine.contentVersion(file)
+        android.util.Log.d("LayoutLibRender", "native request #$requestId version=$requestedVersion")
         val d = resources.displayMetrics.density
         val (wDp, hDp) = when (deviceSize) {
             "tablet" -> 800 to 1200
@@ -1794,7 +1797,15 @@ class LayoutPreviewActivity : AppCompatActivity() {
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                addOutput("· ${result.message} (${result.viewCount} views)")
+                val isCurrent = requestId == renderRequestCounter.get()
+                val currentVersion = targetFile?.let { LayoutLibPreviewEngine.contentVersion(it) } ?: ""
+                val versionOk = currentVersion == requestedVersion
+                addOutput("· ${result.message} (${result.viewCount} views) #$requestId current=$isCurrent versionOk=$versionOk")
+                android.util.Log.d("LayoutLibRender", "native result #$requestId current=$isCurrent versionOk=$versionOk")
+                if (!isCurrent || !versionOk) {
+                    addOutput("· Discarding stale native render #$requestId")
+                    return@runOnUiThread
+                }
                 result.bitmap?.let { bmp ->
                     previewImage.setImageBitmap(bmp)
                     hasRenderedBitmap = true
@@ -1808,9 +1819,16 @@ class LayoutPreviewActivity : AppCompatActivity() {
     private var previewDensity: Float = 1f
     private var previewApiLevel: Int = 34
 
+    /** Monotonic render request id. Only the newest request may publish a
+     *  bitmap, so a slow old render can never overwrite a newer preview. */
+    private val renderRequestCounter = java.util.concurrent.atomic.AtomicLong(0)
+
     private fun renderLayoutLibInBackground() {
         val file = targetFile ?: return
-        addOutput("LayoutLib bridge: preparing render...")
+        val requestId = renderRequestCounter.incrementAndGet()
+        val requestedVersion = LayoutLibPreviewEngine.contentVersion(file)
+        addOutput("LayoutLib bridge: preparing render #$requestId (xml=$requestedVersion)")
+        android.util.Log.d("LayoutLibRender", "request #$requestId version=$requestedVersion file=${file.name}")
         Thread {
             try {
                 val width = resources.displayMetrics.widthPixels.coerceAtLeast(dp(320))
@@ -1818,6 +1836,14 @@ class LayoutPreviewActivity : AppCompatActivity() {
                 val result = LayoutLibPreviewEngine(this).render(file, width, height)
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
+                    val isCurrent = requestId == renderRequestCounter.get()
+                    val versionOk = result.sourceVersion.isEmpty() || result.sourceVersion == requestedVersion
+                    addOutput("render #$requestId finished: ${result.status}, xml=${result.sourceVersion}, current=$isCurrent, versionOk=$versionOk")
+                    android.util.Log.d("LayoutLibRender", "result #$requestId version=${result.sourceVersion} current=$isCurrent versionOk=$versionOk")
+                    if (!isCurrent || !versionOk) {
+                        addOutput("· Discarding stale render #$requestId")
+                        return@runOnUiThread
+                    }
                     addOutput(buildLayoutLibOutput(result))
                     when (result.status) {
                         LayoutLibPreviewEngine.Status.RENDERED -> {

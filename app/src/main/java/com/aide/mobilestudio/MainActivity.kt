@@ -655,8 +655,9 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
             },
             onBuildState = { state ->
                 runOnUiThread {
-                    buildProgress?.visibility = if (state == BuildScheduler.State.BUILDING)
-                        View.VISIBLE else View.GONE
+                    if (::buildProgress.isInitialized) {
+                        buildProgress.visibility = if (state == BuildScheduler.State.BUILDING) View.VISIBLE else View.GONE
+                    }
                     when (state) {
                         BuildScheduler.State.BUILDING -> setStatus("Compiling...")
                         BuildScheduler.State.QUEUED -> setStatus("Compile queued (waiting for current build)")
@@ -759,7 +760,10 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
 
         gitManager = GitManager(this)
 
-        swapManager = SwapManager(this).also { it.start(2) }
+        // Do NOT allocate a ~2GB mmap swap file on launch: it forces a huge
+        // allocation + page-in and is the main cause of the phone heating up
+        // just from opening the IDE. Swap is opt-in from Build Tools instead.
+        swapManager = SwapManager(this)
 
         // Initialize volume gesture handler
         volumeGestureHandler = VolumeGestureHandler(object : VolumeGestureHandler.Callbacks {
@@ -1394,6 +1398,7 @@ Long press: Toggle Shell panel"""
         // Extension lifecycle: onShutdown — no UI may be touched after this.
         runCatching { ExtensionHost.dispatchShutdownForAll() }
         freezeDetector?.destroy()
+        runCatching { swapManager?.stop() }
         memoryMonitor.destroy()
         commandPalette.destroy()
         scope.cancel()
@@ -6275,7 +6280,7 @@ Long press: Toggle Shell panel"""
                 }
                 override fun onSyncProgress(progress: Float, message: String) {
                     runOnUiThread {
-                        buildProgress.progress = (progress * 100).toInt()
+                        if (::buildProgress.isInitialized) buildProgress.progress = (progress * 100).toInt()
                     }
                 }
                 override fun onSyncCompleted(success: Boolean, durationMs: Long, summary: String) {
@@ -7954,10 +7959,8 @@ Long press: Toggle Shell panel"""
             scheduleInitialProjectDiagnostics(targetDir)
         }
         
-        // Start real-time analysis engine (standalone Kotlin/Java compiler)
-        analysisEngine?.stopAll()
-
-        // Start real-time analysis engine (standalone Kotlin/Java compiler)
+        // Start a fresh real-time analysis engine for this project; the old
+        // one's scope/threads/FileObservers are cancelled by stopAll().
         analysisEngine?.stopAll()
         val analysisConfig = com.aide.mobilestudio.analysis.AnalysisConfig(
             debounceMs = 300L,
@@ -8179,6 +8182,13 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
             }
             if (!jreGradleInstaller.isInstalled) {
                 setStatus("Realtime diagnostics ready after toolchain install")
+                return@launch
+            }
+            // A full Gradle rebuild on every project open is the main source of
+            // heat/battery drain. Only do it when a real analysis engine is
+            // active; otherwise skip and let on-demand Build do the work.
+            if (analysisEngine == null) {
+                setStatus("Realtime diagnostics idle (no analysis engine)")
                 return@launch
             }
             setStatus("Realtime diagnostics running...")
@@ -9655,7 +9665,7 @@ val hasAndroidManifest = File(root, "app/src/main/AndroidManifest.xml").isFile |
             runCatching { ExtensionHost.dispatchBuildFinishForAll(pendingBuildSuccess) }
             pendingBuildSuccess = false
         }
-        buildProgress.visibility = if (running) View.VISIBLE else View.INVISIBLE
+        if (::buildProgress.isInitialized) buildProgress.visibility = if (running) View.VISIBLE else View.INVISIBLE
         // Row B spinner (moved up from the deleted build toolbar row)
         findViewById<ProgressBar>(R.id.build_progress)?.visibility =
             if (running) View.VISIBLE else View.INVISIBLE
