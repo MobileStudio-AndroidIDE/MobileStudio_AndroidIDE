@@ -382,6 +382,10 @@ object BuildToolsConfig {
         add("-Duser.language=${userLanguage(context)}")
         add("-Duser.variant")
         add("-Dmobilestudio.gradle.env=jdk-cmake-tool-proxy-v29")
+        // The ported Android JDK cannot exec its jspawnhelper (POSIX_SPAWN ->
+        // exit 127). Gradle explicitly recommends VFORK in this situation;
+        // FORK itself is unsupported on Android, but VFORK is available.
+        add("-Djdk.lang.Process.launchMechanism=VFORK")
         add("-Dorg.gradle.native=false")
         val custom = customGradleJvmArgs(context)
         if (custom.isNotBlank()) addAll(custom.trim().split("\\s+".toRegex()))
