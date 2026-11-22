@@ -95,7 +95,7 @@ object BuildToolCatalog {
         ToolRelease(
             version = "17",
             url = "https://github.com/$CATALOG_OWNER/$CATALOG_REPO/releases/download/MobileStudio-JDK17-Android-ARM64/jdk17-android-arm64.tar.gz",
-            sha256 = "248a95192b257f80d618395083cf611c1ddb8eb8823dab70f2b1f26442688bfc",
+            sha256 = "51d4ac9d91a124d74300a26712fec65d526562b50a24e1339f8f56c4be6f5686",
             tag = "MobileStudio-JDK17-Android-ARM64"
         )
     )
