@@ -341,7 +341,7 @@ printf("x = %d\\n", x);"""
             "build_gradle" to "Build & Gradle",
             "additional" to "Additional Tools",
             "godot" to "Godot Engine",
-            "exe_runner" to "Exe Runner"
+            "exe_runner" to "EXE 실행기"
         )
 
         for ((id, label) in categories) {
@@ -607,7 +607,7 @@ printf("x = %d\\n", x);"""
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
 
-        card.addView(sectionTitle("Exe Runner"))
+        card.addView(sectionTitle("EXE 실행기"))
 
         card.addView(TextView(host).apply {
             text = "Windows/Linux ARM64 exe 실행기"
