@@ -128,6 +128,12 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                     .getOrDefault(installer.effectiveJavaHome.absolutePath)
                 val javaExec = File(javaHome, "bin/java").takeIf { it.exists() }
                     ?: installer.effectiveJavaBin
+                // The ported JDK ships `bin/java` as a POSIX script wrapper that
+                // delegates to `bin/java.real`. Executing the ELF directly avoids
+                // shell-wrapper stalls inside NativeExec's noexec workaround.
+                // Fall back to the wrapper if the real ELF is absent.
+                val launchExec = File(javaHome, "bin/java.real").takeIf { it.isFile && it.length() > 1000 }
+                    ?: javaExec
                 val memoryBudget = BuildMemoryPolicy.resolve(context)
 
                 // Priority: 1) explicit user/project settings (incl. explicit false)
@@ -225,7 +231,7 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                     }
 
                 val javaArgs = buildJavaArgs(
-                    javaBin = javaExec,
+                    javaBin = launchExec,
                     launcherJar = launcherJar,
                     tasks = tasks,
                     projectDir = projectDir,
@@ -277,9 +283,9 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                 }
 
                 emit(onLine, "> Starting Gradle (NativeExec)...", LineLevel.INFO)
-                Log.i("MobileStudioBuild", "Starting Gradle via NativeExec: java=${javaExec.absolutePath}, tasks=${tasks.joinToString(" ")}, cwd=${projectDir.absolutePath}")
+                Log.i("MobileStudioBuild", "Starting Gradle via NativeExec: java=${launchExec.absolutePath}, tasks=${tasks.joinToString(" ")}, cwd=${projectDir.absolutePath}")
                 val handle = NativeExec.start(
-                    javaBin = javaExec.absolutePath,
+                    javaBin = launchExec.absolutePath,
                     codeCacheDir = context.codeCacheDir.absolutePath,
                     nativeLibDir = context.applicationInfo.nativeLibraryDir,
                     args = javaArgs,
@@ -322,6 +328,15 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                             lastHeartbeatMs = now
                             emit(onLine, "> Gradle still starting… (${(now - lastOutputMs) / 1000}s, no output yet)", LineLevel.INFO)
                             Log.i("MobileStudioBuild", "Gradle silent for ${(now - lastOutputMs) / 1000}s (emptyReads=$emptyReads, nativeError=${NativeExec.getLastError()})")
+                        }
+                        // Hard timeout: a fork/exec that never produces output
+                        // (e.g. a bad script wrapper or blocked LD_PRELOAD) would
+                        // otherwise hang forever with no user feedback.
+                        if (now - lastOutputMs > 120_000L) {
+                            emit(onLine, "> ERROR: Gradle produced no output for 120s — killing stuck process", LineLevel.ERROR)
+                            Log.e("MobileStudioBuild", "Gradle no-output timeout after 120s (nativeError=${NativeExec.getLastError()})")
+                            NativeExec.kill(handle)
+                            break
                         }
                         continue
                     }
