@@ -39,7 +39,10 @@ if(MOBILESTUDIO_BUILD_LLAMA AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp/CM
     # (requires Hexagon SDK at HEXAGON_SDK_ROOT). GGML_NNAPI is forced OFF,
     # OpenCL headers are not shipped by the NDK.
     set(GGML_VULKAN ON CACHE BOOL "Enable Vulkan support" FORCE)
-    set(GGML_HEXAGON ON CACHE BOOL "Enable Hexagon NPU backend" FORCE)
+    # Hexagon NPU backend needs the Qualcomm Hexagon SDK, which is not present
+    # on this build host. Keep Vulkan GPU + CPU; disabling Hexagon lets the
+    # core native libraries (gradle_exec etc.) build without the SDK.
+    set(GGML_HEXAGON OFF CACHE BOOL "Enable Hexagon NPU backend" FORCE)
     set(HEXAGON_SDK_ROOT "/home/limsemin/다운로드/Hexagon_SDK_Linux_6.7.0/Hexagon_SDK/6.7.0.0" CACHE PATH "Hexagon SDK root directory" FORCE)
 set(HEXAGON_TOOLS_ROOT "${HEXAGON_SDK_ROOT}/tools/HEXAGON_Tools/21.0.04" CACHE PATH "Hexagon tools root" FORCE)
 # PREBUILT_LIB_DIR is referenced by hexagon_fun.cmake string(FIND ...) before
