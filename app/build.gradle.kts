@@ -165,6 +165,10 @@ dependencies {
     implementation("org.ow2.asm:asm-util:9.7.1")
     implementation(files("libs/d8.jar"))
 
+    // PostHog analytics backend (official Android SDK). Project API key + host are
+    // centralized in com.aide.mobilestudio.analytics.AnalyticsConfig.
+    implementation("com.posthog:posthog-android:4.0.1")
+
     implementation("org.apache.commons:commons-compress:1.27.1")
     // zstd-jni removed — using pure Kotlin ZstdDecompressor instead
     implementation(files("libs/luaj-jse-3.0.2.jar"))
@@ -174,8 +178,6 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
-
-// The sample extension lives in examples/ as the single source of truth (it is
 // also what CI and the host build.sh consume). Mirror it into assets so the app
 // can offer "install sample" and "build sample" without the user creating a
 // project by hand first.

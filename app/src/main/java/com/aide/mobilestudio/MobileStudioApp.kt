@@ -1,6 +1,9 @@
 package com.aide.mobilestudio
 
 import android.app.Application
+import android.content.res.Configuration
+import com.aide.mobilestudio.ai.LlamaRuntimeManager
+import com.aide.mobilestudio.analytics.AnalyticsManager
 
 class MobileStudioApp : Application() {
     override fun onCreate() {
@@ -11,6 +14,13 @@ class MobileStudioApp : Application() {
         // gone (the workspace is the single AI surface now), so the Application
         // is the right home and every entry point - workspace, inline
         // completion - gets context-free access to the runtime manager.
-        com.aide.mobilestudio.ai.LlamaRuntimeManager.initAppContext(this)
+        LlamaRuntimeManager.initAppContext(this)
+        // PostHog analytics: configure the official Android SDK client with the
+        // centralized project host / project API key and consent-aware capture.
+        AnalyticsManager.init(this)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
     }
 }

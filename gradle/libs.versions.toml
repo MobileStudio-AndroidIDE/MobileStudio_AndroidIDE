@@ -21,6 +21,10 @@ material = { group = "com.google.android.material", name = "material", version.r
 androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 
+# InMobi Android SDK for ad monetization
+# InMobi SDK - not available on Maven Central; download from inmobi.com and place in app/libs/
+# inmobi-sdk = { group = "com.inmobi.monetization", name = "inmobi-sdk", version = "7.0.4" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.aide.mobilestudio.analytics.AnalyticsManager
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -91,7 +92,12 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
             if (generation != runGeneration.get()) return@submit
             cancelRequested = false
             val start = System.currentTimeMillis()
+            AnalyticsManager.trackBuildStarted()
             val errors = mutableListOf<String>()
+            fun emitDone(result: BuildResult) {
+                AnalyticsManager.trackBuildCompleted(result.success, result.durationMs)
+                emit(onDone, result)
+            }
             try {
                 // ---- [Provision] build-time tool provisioning ----
                 // First launch only asks for a language (BuildBootActivity) —
@@ -108,7 +114,7 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                 )
                 if (provisionError != null) {
                     emit(onLine, provisionError, LineLevel.ERROR)
-                    emit(onDone, BuildResult(false, System.currentTimeMillis() - start, errors))
+                    emitDone(BuildResult(false, System.currentTimeMillis() - start, errors))
                     return@submit
                 }
 
@@ -278,7 +284,7 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
 
                 if (cancelRequested || generation != runGeneration.get()) {
                     emit(onLine, "BUILD CANCELLED", LineLevel.WARNING)
-                    emit(onDone, BuildResult(false, System.currentTimeMillis() - start, errors))
+                    emitDone(BuildResult(false, System.currentTimeMillis() - start, errors))
                     return@submit
                 }
 
@@ -302,7 +308,7 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                     val nativeErr = runCatching { NativeExec.getLastError() }
                         .getOrElse { "getLastError failed: ${it.message}" }
                     emit(onLine, "> native exec error: $nativeErr", LineLevel.WARNING)
-                    emit(onDone, BuildResult(false, System.currentTimeMillis() - start, errors))
+                    emitDone(BuildResult(false, System.currentTimeMillis() - start, errors))
                     return@submit
                 }
 
@@ -398,7 +404,7 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
 
                 if (cancelRequested) {
                     emit(onLine, "BUILD CANCELLED", LineLevel.WARNING)
-                    emit(onDone, BuildResult(false, ms, errors))
+                    emitDone(BuildResult(false, ms, errors))
                     return@submit
                 }
 
@@ -418,12 +424,12 @@ class GradleRunner(private val context: Context, private val installer: JreGradl
                         if (success) LineLevel.SUCCESS else LineLevel.ERROR
                     )
                 }
-                emit(onDone, BuildResult(success, ms, errors))
+                emitDone(BuildResult(success, ms, errors))
 
             } catch (e: Exception) {
                 Log.e(TAG, "GradleRunner error", e)
                 emit(onLine, "Build error: ${e.message}", LineLevel.ERROR)
-                emit(onDone, BuildResult(false, System.currentTimeMillis() - start, errors))
+                emitDone(BuildResult(false, System.currentTimeMillis() - start, errors))
             }
         }
     }

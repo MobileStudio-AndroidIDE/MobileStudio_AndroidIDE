@@ -89,13 +89,13 @@ object BuildToolCatalog {
         ToolRelease(
             version = "21",
             url = "https://github.com/$CATALOG_OWNER/$CATALOG_REPO/releases/download/jdk21-android-21.0.14/jdk21-android-arm64.tar.gz",
-            sha256 = "3eec4ed966f0adea9510e30e3393aeca3fab4c051c1575000d4ca41c4a7f752a",
+            sha256 = "c157a2955da2c52da62e372e67194dd96243b15ddf203cd22b94d9842fd867bc",
             tag = "jdk21-android-21.0.14"
         ),
         ToolRelease(
             version = "17",
             url = "https://github.com/$CATALOG_OWNER/$CATALOG_REPO/releases/download/MobileStudio-JDK17-Android-ARM64/jdk17-android-arm64.tar.gz",
-            sha256 = "51d4ac9d91a124d74300a26712fec65d526562b50a24e1339f8f56c4be6f5686",
+            sha256 = "8190a45776f4adbf15c266bd1a8af6a881339b8cc2a9e782f4e72c79390aa4df",
             tag = "MobileStudio-JDK17-Android-ARM64"
         )
     )

@@ -44,6 +44,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
+import com.aide.mobilestudio.analytics.AnalyticsCategory
+import com.aide.mobilestudio.analytics.AnalyticsConsent
+import com.aide.mobilestudio.analytics.AnalyticsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -374,6 +377,8 @@ internal class SettingsController(
                 SPage("terminal", "Terminal"),
             )),
         SPage("backup_sync", "Backup and Sync"),
+        SPage("privacy", "Privacy",
+            desc = "Manage data collection preferences and privacy related settings"),
         SPage("advanced", "Advanced Settings"),
         SPage("other_settings", "Other Settings",
             desc = "Additional settings that do not fit into other categories",
@@ -674,6 +679,7 @@ internal class SettingsController(
                 }
             }
         }
+        Spacer(modifier = Modifier.height(8.dp))
     }
 
     // ------------------------------------------------------------
@@ -920,6 +926,7 @@ internal class SettingsController(
             "device_mirroring" -> DevicesPage()
             "advanced" -> AdvancedPage()
             "backup_sync" -> BackupSyncPage()
+            "privacy" -> AnalyticsPrivacyPage(go)
             "l_schemas" -> SchemasPage()
             "schemas_external" -> ListEditorPage(
                 "schemas_external",
@@ -1013,6 +1020,148 @@ internal class SettingsController(
         data class Lnk(val target: String, val label: String) : RowItem()
         data class Nte(val text: String) : RowItem()
         data class Act(val label: String, val action: () -> Unit) : RowItem()
+    }
+
+    // ------------------------------------------------------------
+    // Analytics privacy page (Settings -> Privacy -> Analytics)
+    // ------------------------------------------------------------
+    @Composable
+    private fun AnalyticsPrivacyPage(go: (String) -> Unit) {
+        val consent = remember { AnalyticsConsent(host) }
+        var enabled by remember { mutableStateOf<Map<AnalyticsCategory, Boolean>>(consent.snapshot()) }
+
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 12.dp),
+        ) {
+            Text(
+                "MobileStudio Analytics",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
+            )
+            Text(
+                "MobileStudio can send anonymous usage statistics to our analytics backend (PostHog). " +
+                    "You can allow or decline each category individually. All categories are OFF by default, " +
+                    "and declining analytics never disables any app feature.",
+                color = Palette.dimText,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+
+            AnalyticsCategory.values().forEach { category ->
+                val checked = enabled[category] ?: false
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = { value ->
+                            enabled = enabled + (category to value)
+                            consent.setEnabled(category, value)
+                        },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Palette.link,
+                            uncheckedColor = Palette.border,
+                            checkmarkColor = Color.White,
+                        ),
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                    Column(Modifier.padding(start = 8.dp)) {
+                        Text(
+                            category.label,
+                            color = Palette.text,
+                            fontSize = 14.sp,
+                            lineHeight = 18.sp,
+                        )
+                        Text(
+                            category.description,
+                            color = Palette.dimText,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Button(
+                onClick = {
+                    AnalyticsCategory.values().forEach { category ->
+                        consent.setEnabled(category, enabled[category] ?: false)
+                    }
+                    consent.markAccepted()
+                    toast("Analytics preferences saved")
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Save Preferences & Continue")
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    AnalyticsCategory.values().forEach { category ->
+                        consent.setEnabled(category, false)
+                    }
+                    consent.markAccepted()
+                    toast("Analytics preferences declined")
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Decline All")
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Delete Analytics Data with progress state
+            var deleting by remember { mutableStateOf(false) }
+            var deleteResult by remember { mutableStateOf<String?>(null) }
+
+            Button(
+                onClick = {
+                    deleteResult = null
+                    AnalyticsManager.deleteAnalyticsData { ok, err ->
+                        deleting = false
+                        deleteResult = if (ok) "deleted_success" else "delete_failed:${err ?: "unknown"}"
+                    }
+                    deleting = true
+                },
+                enabled = !deleting && deleteResult == null,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (deleting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Delete Analytics Data")
+                }
+            }
+
+            val dr = deleteResult ?: ""
+            if (dr == "deleted_success") {
+                Text(
+                    "Analytics data deletion requested on the server.",
+                    color = Palette.success,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            } else if (dr.isNotEmpty()) {
+                val msg = dr.removePrefix("delete_failed:")
+                Text(
+                    "Delete failed: $msg",
+                    color = Palette.error,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
     }
 
     @Composable

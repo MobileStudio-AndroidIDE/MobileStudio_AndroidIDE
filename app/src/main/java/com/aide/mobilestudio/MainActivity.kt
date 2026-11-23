@@ -68,6 +68,8 @@ import com.aide.mobilestudio.analysis.KotlinCompiler
 import com.aide.mobilestudio.extension.ExtensionManager
 import com.aide.mobilestudio.extension.ExtensionHost
 import com.aide.mobilestudio.VolumeGestureHandler
+import com.aide.mobilestudio.analytics.AnalyticsConsent
+import com.aide.mobilestudio.analytics.AnalyticsManager
 import com.aide.mobilestudio.terminal.TerminalTabManager
 import com.aide.mobilestudio.terminal.TerminalSession
 import com.aide.mobilestudio.terminal.TerminalView
@@ -611,6 +613,11 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
         super.onCreate(savedInstanceState)
         MobileStudioCrashGuard.activityCreated(this)
 
+        // First-run analytics consent screen (English, all categories default OFF).
+        if (AnalyticsConsent(this).shouldShowConsent()) {
+            startActivity(Intent(this, AnalyticsConsentActivity::class.java))
+        }
+
         UiTheme.resolve(this)
         wireExtensionBridge()
         setContent {
@@ -1148,12 +1155,18 @@ Long press: Toggle Shell panel"""
         saveCurrentFile()
         freezeDetector?.stopMonitoring()
         memoryMonitor.stopMonitoring()
+        // Analytics: end the foreground session so usage time excludes background time.
+        AnalyticsManager.onAppBackground()
     }
 
     override fun onResume() {
         super.onResume()
         freezeDetector?.startMonitoring(this)
         memoryMonitor.startMonitoring(BuildToolsConfig.memoryMonitorIntervalMs(this))
+        // Analytics: start / continue the usage session while the app is foreground.
+        AnalyticsManager.onAppForeground()
+        // Deliver any events queued while offline (no-op when offline).
+        AnalyticsManager.flush()
         handleOpenAiPanelIntent()
         handleRunCommandIntent()
         handleTerminalSelfTestIntent()
@@ -1404,6 +1417,8 @@ Long press: Toggle Shell panel"""
     override fun onDestroy() {
         super.onDestroy()
         MobileStudioCrashGuard.activityDestroyed(this)
+        // Analytics: finalize the session on clean exit (crash recovery finalizes on next start).
+        AnalyticsManager.endSession()
         // Extension lifecycle: onShutdown — no UI may be touched after this.
         runCatching { ExtensionHost.dispatchShutdownForAll() }
         freezeDetector?.destroy()
@@ -4394,6 +4409,9 @@ Long press: Toggle Shell panel"""
             showToast("Binary file cannot be opened")
             return
         }
+        // Analytics: editor feature usage (language only - never path/content).
+        AnalyticsManager.trackEditorOpened(file.extension)
+
         // Save scroll position of previous file
         val previousNavPath = currentFile?.absolutePath
         currentFile?.let {

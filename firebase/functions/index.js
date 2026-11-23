@@ -6,6 +6,61 @@ admin.initializeApp();
 
 const AI_API_KEY = defineSecret("AI_API_KEY");
 const AI_SHARED_TOKEN = defineSecret("AI_SHARED_TOKEN");
+const POSTHOG_PERSONAL_API_KEY = defineSecret("POSTHOG_PERSONAL_API_KEY");
+const POSTHOG_PROJECT_ID = defineSecret("POSTHOG_PROJECT_ID");
+const ANALYTICS_SHARED_TOKEN = defineSecret("ANALYTICS_SHARED_TOKEN");
+
+// ---------------------------------------------------------------------------
+// Simple in-memory rate limiter (per distinctId, 5 requests per 60 seconds).
+// NOTE: This resets on cold start. For production at scale, use Redis/Firestore.
+// ---------------------------------------------------------------------------
+const rateLimitMap = new Map();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+
+function checkRateLimit(distinctId) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(distinctId) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+  if (now > entry.resetAt) {
+    entry.count = 1;
+    entry.resetAt = now + RATE_LIMIT_WINDOW_MS;
+    rateLimitMap.set(distinctId, entry);
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  entry.count++;
+  rateLimitMap.set(distinctId, entry);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Idempotency: track in-flight / recently completed distinctId deletions.
+// Prevents duplicate processing within 300 seconds.
+// ---------------------------------------------------------------------------
+const idempotencyMap = new Map();
+const IDEMPOTENCY_TTL_MS = 300 * 1000;
+
+function checkIdempotency(distinctId) {
+  const now = Date.now();
+  const entry = idempotencyMap.get(distinctId);
+  if (entry && now - entry.ts < IDEMPOTENCY_TTL_MS) {
+    return entry; // previously processed
+  }
+  idempotencyMap.set(distinctId, { ts: now });
+  return null;
+}
+
+function cleanIdempotencyMap() {
+  const now = Date.now();
+  for (const [k, v] of idempotencyMap.entries()) {
+    if (now - v.ts > IDEMPOTENCY_TTL_MS) {
+      idempotencyMap.delete(k);
+    }
+  }
+}
+setInterval(cleanIdempotencyMap, 60 * 1000);
 
 exports.mobileStudioAi = onRequest(
   {
@@ -141,3 +196,146 @@ function extractJsonAnswer(providerResponse) {
     return { message: outputText, edits: [] };
   }
 }
+
+/**
+ * Server-side analytics data deletion endpoint.
+ *
+ * The client calls this endpoint with its anonymous distinctId. This function
+ * holds the PostHog Personal API Key as a Firebase secret - it NEVER reaches
+ * the Android APK or any client source code.
+ *
+ * It deletes all events associated with the given distinctId from the
+ * configured PostHog project via the persons/bulk_delete API.
+ */
+exports.mobileStudioAnalyticsDelete = onRequest(
+  {
+    region: process.env.FUNCTION_REGION || "asia-northeast3",
+    secrets: [POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID, ANALYTICS_SHARED_TOKEN],
+    cors: false,
+    timeoutSeconds: 60,
+    memory: "256MiB"
+  },
+  async (req, res) => {
+    // No secret or token values are logged anywhere in this function.
+    try {
+      if (req.method !== "POST") {
+        res.status(405).json({ ok: false, message: "POST only" });
+        return;
+      }
+
+      const sharedToken = ANALYTICS_SHARED_TOKEN.value();
+      if (sharedToken) {
+        const auth = req.get("authorization") || "";
+        if (auth !== `Bearer ${sharedToken}`) {
+          res.status(401).json({ ok: false, message: "Unauthorized" });
+          return;
+        }
+      }
+
+      const body = req.body || {};
+      const distinctId = body.distinctId;
+      if (!distinctId || typeof distinctId !== "string") {
+        res.status(400).json({ ok: false, message: "distinctId is required" });
+        return;
+      }
+      // Validate distinctId format: only allow UUID-like or alphanumeric identifiers
+      if (!/^[A-Za-z0-9\-_:]{1,128}$/.test(distinctId)) {
+        res.status(400).json({ ok: false, message: "Invalid distinctId format" });
+        return;
+      }
+
+      // Idempotency: reject duplicate deletion requests within TTL
+      const cached = checkIdempotency(distinctId);
+      if (cached) {
+        res.status(409).json({
+          ok: false,
+          message: "Delete request already processed",
+          distinctId
+        });
+        return;
+      }
+
+      // Rate limiting
+      if (!checkRateLimit(distinctId)) {
+        res.status(429).json({ ok: false, message: "Too many requests" });
+        return;
+      }
+
+      const apiKey = POSTHOG_PERSONAL_API_KEY.value();
+      const projectId = POSTHOG_PROJECT_ID.value();
+      if (!apiKey) {
+        res.status(500).json({ ok: false, message: "POSTHOG_PERSONAL_API_KEY secret is not configured" });
+        return;
+      }
+      if (!projectId) {
+        res.status(500).json({ ok: false, message: "POSTHOG_PROJECT_ID secret is not configured" });
+        return;
+      }
+
+      const phHost = process.env.POSTHOG_API_HOST || "https://us.posthog.com";
+      const url = `${phHost}/api/projects/${encodeURIComponent(projectId)}/persons/bulk_delete/`;
+
+      // Upstream call with explicit timeout via AbortController
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45 * 1000);
+
+      let upstream;
+      try {
+        upstream = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            distinct_ids: [distinctId],
+            delete_events: true,
+            delete_recordings: true,
+            keep_person: true
+          }),
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const text = await upstream.text();
+      if (!upstream.ok) {
+        res.status(upstream.status).json({
+          ok: false,
+          message: "PostHog delete failed",
+          detail: text.slice(0, 2000)
+        });
+        return;
+      }
+
+      let parsed = {};
+      try { parsed = JSON.parse(text); } catch { /* ignore parse errors */ }
+
+      const personsQueued = parsed.persons_queued_for_deletion ?? 0;
+      const personsFound = parsed.persons_found ?? 0;
+      const deletionErrors = parsed.deletion_errors ?? [];
+
+      if (deletionErrors.length > 0) {
+        res.status(202).json({
+          ok: false,
+          message: "Some deletions failed",
+          persons_found: personsFound,
+          persons_queued_for_deletion: personsQueued,
+          errors: deletionErrors.slice(0, 10)
+        });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        message: "Analytics data deletion queued",
+        persons_found: personsFound,
+        persons_queued_for_deletion: personsQueued
+      });
+    } catch (error) {
+      // Do not log the raw error which could contain secrets
+      res.status(500).json({ ok: false, message: "Internal server error" });
+    }
+  }
+);

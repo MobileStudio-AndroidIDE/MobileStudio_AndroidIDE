@@ -60,3 +60,17 @@
 
 # ---- Kotlin metadata (reflection) ----
 -keep class kotlin.Metadata { *; }
+
+# ---- InMobi SDK ----
+-keep class com.inmobi.** { *; }
+-keep class com.inmobi.ads.** { *; }
+-keep class com.inmobi.commons.** { *; }
+-keep interface com.inmobi.** { *; }
+-keepclassmembers class com.inmobi.** {
+    public *;
+}
+-keep class * extends com.inmobi.ads.AdListener { *; }
+-keep class * extends com.inmobi.ads.banner.BannerAdListener { *; }
+-keep class * extends com.inmobi.ads.nativead.NativeAdListener { *; }
+-dontwarn com.inmobi.**
+-dontwarn com.inmobi.ads.**

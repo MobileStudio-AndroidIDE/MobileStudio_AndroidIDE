@@ -87,6 +87,7 @@ import com.aide.mobilestudio.analysis.Diagnostic
 import com.aide.mobilestudio.analysis.DiagnosticSeverity
 import com.aide.mobilestudio.analysis.EditorDiagnostics
 import com.aide.mobilestudio.ai.ui.AiWorkspaceActivity
+import com.aide.mobilestudio.analytics.AnalyticsManager
 import com.aide.mobilestudio.ui.ide.IdeAction
 import com.aide.mobilestudio.ui.ide.IdeDivider
 import com.aide.mobilestudio.ui.ide.IdeFilterField
@@ -903,6 +904,7 @@ private fun EditorPane(
                         IdeAction(text = AppLanguage.string(activity, R.string.welcome_new_file), onClick = { showNewFileDialog(activity) }, primary = true)
                         IdeAction(text = AppLanguage.string(activity, R.string.welcome_new_project), onClick = { showNewProjectDialog(host) })
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         } else {
@@ -2665,6 +2667,8 @@ private fun NewProjectDialog(
                 File(projectDir, "app/src/main/kotlin/${"com.example.$safePkg".replace('.', '/')}/MainActivity.kt")
             }
             if (mainActivityFile.exists()) activity.studioOpenFileAt(mainActivityFile, 1)
+            // Analytics: project creation (feature category, consent gated).
+            AnalyticsManager.trackProjectCreated()
             onDismiss()
             Toast.makeText(activity, AppLanguage.string(activity, R.string.projects_created).replace("%s", projectDir.toString()), Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
