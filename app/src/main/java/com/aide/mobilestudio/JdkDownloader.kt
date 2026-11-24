@@ -18,7 +18,7 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 object JdkDownloader {
     private const val TAG = "JdkDownloader"
     /** Bump this when the linker wrapper format changes to force regeneration */
-    const val WRAPPER_FORMAT_VERSION = 13
+    const val WRAPPER_FORMAT_VERSION = 15
 
     // Minimum plausible archive sizes per JDK major (download sanity check).
     private val MIN_SIZE_BY_MAJOR = mapOf(
@@ -540,13 +540,27 @@ fi
 # pollutes `jlink --version` stdout on JDK21 and AGP's JavaVersion.toVersion
 # fails with "Could not determine Java version from ... 21.0.4-internal".
 # No JDK lib DT_NEEDs libjsig and HotSpot runs fine without it (measured).
+# SKIP libawt* libs: they are X11-linked (libawt_xawt needs libX11 symbols such
+# as XRenderChangePicture which do not exist on Android/Bionic) and are never
+# needed by the headless Gradle JVM — preloading them makes exec fail with
+# CANNOT LINK EXECUTABLE.
+# SKIP libsaproc.so: references C++ symbols (_ZSt9terminatev, _Znwm, etc.)
+# not present in Android's libc++ — causes CANNOT LINK EXECUTABLE.
+# SKIP libsplashscreen.so: X11-linked (XkbUseExtension etc.) — same issue.
+# SKIP libjawt.so: AWT native interface — not needed by headless Gradle JVM.
+# SKIP libjsound*, liblcms*, libfontmanager*: AWT/sound tooling — not needed.
+# Only preload the CORE libraries Gradle actually needs: libjvm.so (JVM),
+# libjava.so (Java base), libjli.so (launcher interface), libzip.so (JAR/ZIP).
+# Everything else is loaded lazily by the JVM on demand and doesn't need
+# preloading for the linker namespace fix.
 _JDK_PRELOAD=""
 for _d in "${'$'}JAVA_HOME/lib" "${'$'}JAVA_HOME/lib/server"; do
     [ -d "${'$'}_d" ] || continue
     for _f in "${'$'}_d"/*.so; do
         [ -f "${'$'}_f" ] || continue
         case "${'$'}_f" in
-            *libandroid-selinux.so*|*libandroid-shmem.so*|*libandroid-spawn.so*|*libpcre2*|*libselinux*|*libjsig*) continue ;;
+            *libjvm.so|*libjava.so|*libjli.so|*libzip.so) ;;
+            *) continue ;;
         esac
         _JDK_PRELOAD="${'$'}{_JDK_PRELOAD:+${'$'}{_JDK_PRELOAD}:}${'$'}_f"
     done

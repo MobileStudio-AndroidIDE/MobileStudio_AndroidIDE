@@ -1292,6 +1292,11 @@ ms_build_jdk_candidate_lists() {
 ${'$'}{root}/files/toolchain/jdk17"
         MS_JDK21_CANDIDATES="${'$'}MS_JDK21_CANDIDATES
 ${'$'}{root}/files/toolchain/jdk21"
+        # Current per-version JDK layout: jdk-21 / jdk-17 directly under toolchain/jdk/
+        MS_JDK21_CANDIDATES="${'$'}MS_JDK21_CANDIDATES
+${'$'}{root}/files/toolchain/jdk/jdk-21"
+        MS_JDK17_CANDIDATES="${'$'}MS_JDK17_CANDIDATES
+${'$'}{root}/files/toolchain/jdk/jdk-17"
         # Version-unqualified path: historically pointed at whichever JDK
         # was current at install time — treated as "other" since its
         # actual version can't be assumed without probing `release`.

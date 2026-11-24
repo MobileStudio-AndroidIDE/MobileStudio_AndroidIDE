@@ -22,8 +22,8 @@ class ToolchainManager(private val context: Context) {
         // Bundled fallbacks — the dynamic catalog (BuildToolCatalog /
         // ToolchainUpdateSites cache) is authoritative when reachable.
         // NEWEST FIRST so "first()" consumers pick the newest tool.
-        const val DEFAULT_JDK = "jdk-17"
-        const val FALLBACK_JDK = "jdk-17"
+        const val DEFAULT_JDK = "jdk-21"
+        const val FALLBACK_JDK = "jdk-21"
         const val DEFAULT_GRADLE = "gradle-9.7.0"
 
         val AVAILABLE_JDK = listOf("jdk-21", "jdk-17")

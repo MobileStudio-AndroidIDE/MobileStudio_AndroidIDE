@@ -10,57 +10,122 @@ const POSTHOG_PERSONAL_API_KEY = defineSecret("POSTHOG_PERSONAL_API_KEY");
 const POSTHOG_PROJECT_ID = defineSecret("POSTHOG_PROJECT_ID");
 const ANALYTICS_SHARED_TOKEN = defineSecret("ANALYTICS_SHARED_TOKEN");
 
+const db = admin.firestore();
+
 // ---------------------------------------------------------------------------
-// Simple in-memory rate limiter (per distinctId, 5 requests per 60 seconds).
-// NOTE: This resets on cold start. For production at scale, use Redis/Firestore.
+// Firestore-based rate limiter (per distinctId, 5 requests per 60 seconds).
+// Uses Firestore transactions for atomicity across cold starts.
 // ---------------------------------------------------------------------------
-const rateLimitMap = new Map();
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_COLLECTION = "analytics_rate_limits";
 
-function checkRateLimit(distinctId) {
-  const now = Date.now();
-  const entry = rateLimitMap.get(distinctId) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
-  if (now > entry.resetAt) {
-    entry.count = 1;
-    entry.resetAt = now + RATE_LIMIT_WINDOW_MS;
-    rateLimitMap.set(distinctId, entry);
-    return true;
+async function checkRateLimit(distinctId) {
+  const docRef = db.collection(RATE_LIMIT_COLLECTION).doc(distinctId);
+  const now = admin.firestore.Timestamp.now();
+  const windowStartMs = now.toMillis() - RATE_LIMIT_WINDOW_MS;
+
+  let allowed = false;
+  try {
+    await db.runTransaction(async (t) => {
+      const doc = await t.get(docRef);
+      const data = doc.exists() ? doc.data() : null;
+
+      // Reset if window expired
+      if (data && data.windowStart && data.windowStart.toMillis() < windowStartMs) {
+        t.set(docRef, { count: 1, windowStart: now }, { merge: true });
+        allowed = true;
+        return;
+      }
+
+      const count = data ? (data.count || 0) : 0;
+      if (count >= RATE_LIMIT_MAX) {
+        allowed = false;
+        return;
+      }
+
+      t.set(docRef, { count: count + 1, windowStart: data ? data.windowStart : now }, { merge: true });
+      allowed = true;
+    });
+  } catch (e) {
+    // On transaction failure, fail closed (reject request)
+    allowed = false;
   }
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return false;
-  }
-  entry.count++;
-  rateLimitMap.set(distinctId, entry);
-  return true;
+  return allowed;
 }
 
 // ---------------------------------------------------------------------------
-// Idempotency: track in-flight / recently completed distinctId deletions.
-// Prevents duplicate processing within 300 seconds.
+// Firestore-based idempotency (prevents duplicate deletion requests).
+// TTL: 300 seconds. Uses Firestore transactions for atomicity.
 // ---------------------------------------------------------------------------
-const idempotencyMap = new Map();
 const IDEMPOTENCY_TTL_MS = 300 * 1000;
+const IDEMPOTENCY_COLLECTION = "analytics_idempotency";
 
-function checkIdempotency(distinctId) {
-  const now = Date.now();
-  const entry = idempotencyMap.get(distinctId);
-  if (entry && now - entry.ts < IDEMPOTENCY_TTL_MS) {
-    return entry; // previously processed
+async function checkIdempotency(distinctId) {
+  const docRef = db.collection(IDEMPOTENCY_COLLECTION).doc(distinctId);
+  const now = admin.firestore.Timestamp.now();
+  const cutoffMs = now.toMillis() - IDEMPOTENCY_TTL_MS;
+
+  let cached = null;
+  try {
+    await db.runTransaction(async (t) => {
+      const doc = await t.get(docRef);
+      if (!doc.exists()) {
+        // First request: mark as pending
+        t.set(docRef, {
+          status: "pending",
+          createdAt: now,
+          distinctId
+        });
+        cached = null;
+        return;
+      }
+
+      const data = doc.data();
+      const createdAtMs = data.createdAt ? data.createdAt.toMillis() : 0;
+
+      // Expired: treat as new request and overwrite
+      if (createdAtMs < cutoffMs) {
+        t.set(docRef, {
+          status: "pending",
+          createdAt: now,
+          distinctId
+        }, { merge: true });
+        cached = null;
+        return;
+      }
+
+      // Still within TTL: duplicate request
+      cached = {
+        status: data.status || "pending",
+        createdAt: data.createdAt
+      };
+    });
+  } catch (e) {
+    // On transaction failure, allow request to proceed (fail open for idempotency)
+    cached = null;
   }
-  idempotencyMap.set(distinctId, { ts: now });
-  return null;
+  return cached;
 }
 
-function cleanIdempotencyMap() {
-  const now = Date.now();
-  for (const [k, v] of idempotencyMap.entries()) {
-    if (now - v.ts > IDEMPOTENCY_TTL_MS) {
-      idempotencyMap.delete(k);
-    }
+async function recordIdempotencyResult(distinctId, status, result) {
+  const docRef = db.collection(IDEMPOTENCY_COLLECTION).doc(distinctId);
+  const now = admin.firestore.Timestamp.now();
+  try {
+    await db.runTransaction(async (t) => {
+      const doc = await t.get(docRef);
+      t.set(docRef, {
+        status,
+        createdAt: doc.exists() && doc.data().createdAt ? doc.data().createdAt : now,
+        updatedAt: now,
+        distinctId,
+        result
+      }, { merge: true });
+    });
+  } catch (e) {
+    // Best-effort; do not block the response
   }
 }
-setInterval(cleanIdempotencyMap, 60 * 1000);
 
 exports.mobileStudioAi = onRequest(
   {
@@ -317,6 +382,11 @@ exports.mobileStudioAnalyticsDelete = onRequest(
       const deletionErrors = parsed.deletion_errors ?? [];
 
       if (deletionErrors.length > 0) {
+        await recordIdempotencyResult(distinctId, "failed", {
+          persons_found: personsFound,
+          persons_queued_for_deletion: personsQueued,
+          errors: deletionErrors.slice(0, 10)
+        });
         res.status(202).json({
           ok: false,
           message: "Some deletions failed",
@@ -327,6 +397,10 @@ exports.mobileStudioAnalyticsDelete = onRequest(
         return;
       }
 
+      await recordIdempotencyResult(distinctId, "completed", {
+        persons_found: personsFound,
+        persons_queued_for_deletion: personsQueued
+      });
       res.json({
         ok: true,
         message: "Analytics data deletion queued",
@@ -335,6 +409,9 @@ exports.mobileStudioAnalyticsDelete = onRequest(
       });
     } catch (error) {
       // Do not log the raw error which could contain secrets
+      await recordIdempotencyResult(distinctId, "failed", {
+        error: "Internal server error"
+      });
       res.status(500).json({ ok: false, message: "Internal server error" });
     }
   }

@@ -247,6 +247,7 @@ class FileManagerActivity : AppCompatActivity() {
         val name = file.name.lowercase()
         return when {
             name.endsWith(".apk") -> android.R.drawable.ic_menu_agenda
+            name.endsWith(".exe") -> android.R.drawable.ic_menu_info_details
             name.endsWith(".zip") -> android.R.drawable.ic_menu_info_details
             name.endsWith(".kt") || name.endsWith(".java") -> android.R.drawable.ic_menu_edit
             name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") ->
@@ -375,11 +376,95 @@ class FileManagerActivity : AppCompatActivity() {
         when {
             name.endsWith(".apk") -> showApkActions(file)
             name.endsWith(".zip") && name.contains("split") -> showSplitApkActions(file)
+            name.endsWith(".exe") -> showExeActions(file)
             name.endsWith(".txt") || name.endsWith(".kt") || name.endsWith(".java") ||
                 name.endsWith(".xml") || name.endsWith(".json") || name.endsWith(".gradle") ||
                 name.endsWith(".md") || name.endsWith(".log") -> openInEditor(file)
             else -> openGeneric(file)
         }
+    }
+
+    private fun showExeActions(exe: File) {
+        AlertDialog.Builder(this)
+            .setTitle("EXE: ${exe.name}")
+            .setItems(arrayOf("Run with Wine (GUI)", "Run with Wine (Shell)", "View EXE Info", "Cancel")) { _, which ->
+                when (which) {
+                    0 -> runExeWithWine(exe, gui = true)
+                    1 -> runExeWithWine(exe, gui = false)
+                    2 -> showExeInfo(exe)
+                    3 -> {}
+                }
+            }
+            .show()
+    }
+
+    private fun runExeWithWine(exe: File, gui: Boolean) {
+        // Check if Wine is installed
+        val wineDir = File(filesDir, "wine-mobile")
+        val wineExe = File(wineDir, "wine")
+        if (!wineExe.exists()) {
+            AlertDialog.Builder(this)
+                .setTitle("Wine Not Installed")
+                .setMessage("Wine is not installed. Please install Wine first from the Win64 Manager.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        val statusMsg = if (gui) "Running EXE with Wine (GUI)..." else "Running EXE with Wine (Shell)..."
+        Toast.makeText(this, statusMsg, Toast.LENGTH_SHORT).show()
+
+        thread(isDaemon = true) {
+            val env = mutableMapOf<String, String>()
+            env["DISPLAY"] = ":99"
+            env["WINEDEBUG"] = "-all"
+            env["WINEPREFIX"] = File(wineDir, "prefix").absolutePath
+            env["LD_LIBRARY_PATH"] = "${wineDir.absolutePath}:${File(wineDir, "lib").absolutePath}"
+
+            val command = if (gui) {
+                listOf(wineExe.absolutePath, exe.absolutePath)
+            } else {
+                listOf(wineExe.absolutePath, exe.absolutePath)
+            }
+
+            try {
+                val process = ProcessBuilder(command)
+                    .directory(wineDir)
+                    .environment()
+                    .putAll(env)
+                    .redirectErrorStream(true)
+                    .start()
+
+                // Read output
+                val output = process.inputStream.bufferedReader().readText()
+                process.waitFor()
+
+                handler.post {
+                    if (process.exitValue() == 0) {
+                        Toast.makeText(this@FileManagerActivity, "EXE finished (exit 0)", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@FileManagerActivity, "EXE finished (exit ${process.exitValue()})", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                handler.post {
+                    Toast.makeText(this@FileManagerActivity, "Wine error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun showExeInfo(exe: File) {
+        val msg = StringBuilder()
+        msg.append("Name: ").append(exe.name).append("\n")
+        msg.append("Path: ").append(exe.absolutePath).append("\n")
+        msg.append("Size: ").append(humanSize(exe.length())).append("\n")
+        msg.append("Modified: ").append(fmtDate(exe.lastModified())).append("\n")
+        AlertDialog.Builder(this)
+            .setTitle("EXE Info")
+            .setMessage(msg.toString())
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun openInEditor(file: File) {

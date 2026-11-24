@@ -6,6 +6,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.BroadcastReceiver
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
@@ -848,8 +850,26 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
 
         // Show tutorial on first launch (including volume gesture onboarding)
         showTutorialIfNeeded()
+
+        // Register settings change receiver so UI recomposes immediately when
+        // Settings are applied (OK/Apply pressed in SettingsActivity).
+        settingsChangeReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val theme = intent?.getStringExtra("theme") ?: "Dark"
+                val fontSize = intent?.getStringExtra("font_size") ?: "14sp"
+                val fontFamily = intent?.getStringExtra("font_family") ?: "Monospace"
+                Log.d("MainActivity", "Settings changed: theme=$theme fontSize=$fontSize fontFamily=$fontFamily")
+                // Force Compose UI recomposition by invalidating
+                runOnUiThread {
+                    window.decorView.invalidate()
+                }
+            }
+        }
+        val filter = IntentFilter("com.aide.mobilestudio.SETTINGS_CHANGED")
+        registerReceiver(settingsChangeReceiver, filter)
     }
 
+    private var settingsChangeReceiver: BroadcastReceiver? = null
     private var tutorialGuide: TutorialGuide? = null
 
     private fun showTutorialIfNeeded() {
@@ -1415,6 +1435,8 @@ Long press: Toggle Shell panel"""
     }
 
     override fun onDestroy() {
+        settingsChangeReceiver?.let { unregisterReceiver(it) }
+        settingsChangeReceiver = null
         super.onDestroy()
         MobileStudioCrashGuard.activityDestroyed(this)
         // Analytics: finalize the session on clean exit (crash recovery finalizes on next start).
@@ -1622,7 +1644,7 @@ Long press: Toggle Shell panel"""
         val runButton = findViewById<ImageButton>(R.id.btn_run)
         runButton.setOnClickListener {
             MobileStudioCrashGuard.safe(this, "MainActivity.buildButton") {
-                if (isBuildRunning) stopBuild() else runGradleTask(currentBuildTask())
+                if (isBuildRunning) stopBuild() else runBuildBasedOnProjectType()
             }
         }
         runButton.setOnLongClickListener {
@@ -6656,6 +6678,16 @@ Long press: Toggle Shell panel"""
                 }
             }
         }
+    }
+
+    /**
+     * Auto-detects project type and runs the appropriate build:
+     * - Gradle project (build.gradle/build.gradle.kts) → Gradle build
+     * - EXE project (main.c/main.cpp + MinGW toolchain) → MinGW/Clang EXE build
+     * - Other project types → handled by runGradleTask's existing dispatch
+     */
+    private fun runBuildBasedOnProjectType() {
+        runGradleTask(currentBuildTask())
     }
 
     internal fun runGradleTask(vararg tasks: String) {

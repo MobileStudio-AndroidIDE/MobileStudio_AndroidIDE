@@ -176,7 +176,7 @@ internal class SettingsController(
 
     private fun commitDraft() {
         if (draft.isEmpty()) return
-        // 1. Write to main prefs file
+        // 1. Write to main prefs file (mobilestudio_settings)
         val editor = prefs.edit()
         for ((k, v) in draft) {
             when {
@@ -190,7 +190,7 @@ internal class SettingsController(
         }
         editor.apply()
 
-        // 2. Sync to ide_options (editor behavior: auto_pair, bracket_match, etc.)
+        // 2. Sync to ide_options (editor behavior & appearance)
         val ideOpts = host.getSharedPreferences("ide_options", Context.MODE_PRIVATE).edit()
         for ((k, v) in draft) {
             when (k) {
@@ -202,20 +202,15 @@ internal class SettingsController(
                         ideOpts.putFloat(k, v.removeSuffix("sp").toFloatOrNull() ?: 14f)
                     }
                 }
-                "ed_show_line_numbers" -> {
+                "ed_show_line_numbers", "ed_highlight_current", "ed_soft_wrap",
+                "uit_minimap", "uit_breadcrumbs" -> {
                     if (v is Boolean) ideOpts.putBoolean(k, v)
                 }
-                "ed_highlight_current" -> {
-                    if (v is Boolean) ideOpts.putBoolean(k, v)
+                "font_family" -> {
+                    if (v is String) ideOpts.putString(k, v)
                 }
-                "ed_soft_wrap" -> {
-                    if (v is Boolean) ideOpts.putBoolean(k, v)
-                }
-                "uit_minimap" -> {
-                    if (v is Boolean) ideOpts.putBoolean(k, v)
-                }
-                "uit_breadcrumbs" -> {
-                    if (v is Boolean) ideOpts.putBoolean(k, v)
+                "theme", "color_scheme" -> {
+                    if (v is String) ideOpts.putString(k, v)
                 }
             }
         }
@@ -248,6 +243,33 @@ internal class SettingsController(
         termOpts.apply()
 
         draft.clear()
+
+        // 5. Apply settings to the running app immediately
+        applySettings()
+    }
+
+    /**
+     * Applies committed settings to the running app immediately.
+     * Broadcasts a settings-changed intent so Compose UI and other components
+     * can recompose and pick up the new values from SharedPreferences.
+     */
+    private fun applySettings() {
+        val theme = prefs.getString("theme", "Dark") ?: "Dark"
+        val fontSize = prefs.getString("font_size", "14sp") ?: "14sp"
+        val fontFamily = prefs.getString("font_family", "Monospace") ?: "Monospace"
+        val colorScheme = prefs.getString("color_scheme", "Default") ?: "Default"
+
+        // Broadcast settings change to all app components
+        host.sendBroadcast(
+            Intent("com.aide.mobilestudio.SETTINGS_CHANGED")
+                .putExtra("theme", theme)
+                .putExtra("font_size", fontSize)
+                .putExtra("font_family", fontFamily)
+                .putExtra("color_scheme", colorScheme)
+                .putExtra("timestamp", System.currentTimeMillis())
+        )
+
+        Log.d("SettingsActivity", "Settings applied: theme=$theme fontSize=$fontSize fontFamily=$fontFamily colorScheme=$colorScheme")
     }
 
     // ------------------------------------------------------------
