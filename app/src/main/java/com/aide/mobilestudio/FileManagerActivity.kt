@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.aide.mobilestudio.StudioUi
 import java.io.File
 import java.io.FileInputStream
+import java.lang.ProcessBuilder
 import java.io.FileOutputStream
 import java.nio.channels.FileChannel
 import java.text.SimpleDateFormat
@@ -428,12 +429,11 @@ class FileManagerActivity : AppCompatActivity() {
             }
 
             try {
-                val process = ProcessBuilder(command)
-                    .directory(wineDir)
-                    .environment()
-                    .putAll(env)
-                    .redirectErrorStream(true)
-                    .start()
+                val pb = ProcessBuilder(command)
+                pb.directory(wineDir)
+                pb.environment().putAll(env)
+                pb.redirectErrorStream(true)
+                val process = pb.start()
 
                 // Read output
                 val output = process.inputStream.bufferedReader().readText()

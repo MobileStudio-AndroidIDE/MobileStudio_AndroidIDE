@@ -3445,6 +3445,39 @@ internal class SettingsController(
             RowItem.Chk("pa_enabled", "Enable presentation assistant", def = false),
             RowItem.Chk("pa_show_gestures", "Show touch gestures", def = true),
         )
+        "appearance" -> listOf(
+            RowItem.Sec("Theme"),
+            RowItem.Cbo("theme", "Theme:",
+                listOf("Dark", "Light", "Dracula", "Monokai", "Nord", "One Dark Pro"), "Dark"),
+            RowItem.Cbo("color_scheme", "Color scheme:",
+                listOf("Default", "High contrast", "Warm", "Cool", "Sepia"), "Default"),
+            RowItem.Sec("Window"),
+            RowItem.Chk("win_show_menubar", "Show menu bar", def = true),
+            RowItem.Chk("win_show_toolbar", "Show toolbar", def = true),
+            RowItem.Chk("win_show_statusbar", "Show status bar", def = true),
+            RowItem.Chk("win_show_tabs", "Show tabs", def = true),
+            RowItem.Sec("Window title"),
+            RowItem.Chk("win_show_project_name", "Show project name", def = true),
+            RowItem.Chk("win_show_file_name", "Show file name", def = true),
+            RowItem.Chk("win_show_line_col", "Show line and column", def = true),
+        )
+        "system_settings" -> listOf(
+            RowItem.Sec("Memory"),
+            RowItem.Cbo("mem_heap", "IDE heap size:",
+                listOf("512 MB", "1 GB", "2 GB", "4 GB", "8 GB"), "2 GB"),
+            RowItem.Cbo("mem_metaspace", "Metaspace size:",
+                listOf("256 MB", "512 MB", "1 GB"), "512 MB"),
+            RowItem.Sec("File encoding"),
+            RowItem.Cbo("sys_default_encoding", "Default encoding:",
+                listOf("UTF-8", "UTF-16", "ISO-8859-1", "Windows-1252"), "UTF-8"),
+            RowItem.Chk("sys_transparent_native", "Use transparent native-to-unicode conversion", def = false),
+            RowItem.Sec("File encodings for new files"),
+            RowItem.Cbo("sys_new_file_encoding", "Default encoding for new files:",
+                listOf("UTF-8", "UTF-16", "ISO-8859-1", "Windows-1252"), "UTF-8"),
+            RowItem.Sec("Line separator"),
+            RowItem.Cbo("sys_line_separator", "Line separator:",
+                listOf("System default", "\n (Unix)", "\r\n (Windows)"), "System default"),
+        )
 
         // Editor
         "ed_general" -> listOf(
@@ -3537,6 +3570,43 @@ internal class SettingsController(
             RowItem.Cbo("nl_dialect", "Spelling dialect:",
                 listOf("American English", "British English", "Canadian English"), "American English"),
         )
+        "ed_font" -> listOf(
+            RowItem.Sec("Font"),
+            RowItem.Cbo("font_family", "Font:", listOf(
+                "Monospace", "Courier New", "Consolas", "Fira Code", "JetBrains Mono",
+                "Roboto Mono", "Source Code Pro", "Ubuntu Mono"), "Monospace"),
+            RowItem.Cbo("font_size", "Size:", listOf(
+                "8sp", "10sp", "12sp", "14sp", "16sp", "18sp", "20sp", "22sp", "24sp"), "14sp"),
+            RowItem.Sec("Line spacing"),
+            RowItem.Cbo("font_line_spacing", "Line spacing:", listOf(
+                "1.0", "1.15", "1.5", "2.0"), "1.0"),
+        )
+        "ed_color_scheme" -> listOf(
+            RowItem.Sec("Scheme"),
+            RowItem.Cbo("color_scheme", "Scheme:", listOf(
+                "Default", "Dark", "Light", "Dracula", "Monokai", "Nord", "One Dark Pro"), "Default"),
+            RowItem.Sec("Colors"),
+            RowItem.Cbo("cs_gutter", "Gutter:", listOf(
+                "#2B2B2B", "#1E1E1E", "#333333", "#000000"), "#2B2B2B"),
+            RowItem.Cbo("cs_line_numbers", "Line numbers:", listOf(
+                "#858585", "#FFFFFF", "#000000", "#FF8888"), "#858585"),
+            RowItem.Cbo("cs_selection", "Selection:", listOf(
+                "#3A3A3A", "#FFFFFF", "#0000FF", "#FF0000"), "#3A3A3A"),
+        )
+        "ed_copyright" -> listOf(
+            RowItem.Sec("Copyright"),
+            RowItem.Nte("Copyright templates are inserted into new source files."),
+            RowItem.Txt("cr_header", "Copyright header:", def = "Copyright (c) MobileStudio"),
+            RowItem.Chk("cr_update_year", "Update year automatically", def = true),
+        )
+        "ed_inlay_hints" -> listOf(
+            RowItem.Sec("Inlay hints"),
+            RowItem.Chk("ih_parameters", "Show parameter name hints", def = true),
+            RowItem.Chk("ih_types", "Show type hints", def = false),
+            RowItem.Chk("ih_chain_calls", "Show method chain hints", def = false),
+            RowItem.Sec("Excluded files and folders"),
+            RowItem.Nte("Files and folders listed here will not show inlay hints."),
+        )
 
         // Version Control
         "vc_changelists" -> listOf(
@@ -3591,6 +3661,12 @@ internal class SettingsController(
         "vc_subversion" -> listOf(
             RowItem.Nte("Subversion support is not bundled with this build."),
         )
+        "vc_mercurial" -> listOf(
+            RowItem.Nte("Mercurial support is not bundled with this build."),
+        )
+        "vc_perforce" -> listOf(
+            RowItem.Nte("Perforce support is not bundled with this build."),
+        )
 
         // Build, Execution, Deployment
         "b_coverage" -> listOf(
@@ -3619,6 +3695,31 @@ internal class SettingsController(
             RowItem.Nte("Remote jar repositories are declared in the project build scripts."),
             RowItem.Chk("repo_offline", "Offline mode", def = false),
         )
+        "b_tools" -> listOf(
+            RowItem.Sec("Gradle"),
+            RowItem.Chk("gradle_daemon", "Enable Gradle daemon", def = true),
+            RowItem.Chk("gradle_parallel", "Build in parallel", def = true),
+            RowItem.Chk("gradle_cache", "Use Gradle build cache", def = true),
+            RowItem.Chk("gradle_verbose", "Verbose output", def = false),
+            RowItem.Sec("Memory"),
+            RowItem.Cbo("gradle_heap", "Gradle heap size:",
+                listOf("512 MB", "1 GB", "2 GB", "4 GB", "8 GB"), "2 GB"),
+            RowItem.Cbo("gradle_metaspace", "Gradle metaspace:",
+                listOf("256 MB", "512 MB", "1 GB"), "512 MB"),
+            RowItem.Cbo("kotlin_heap", "Kotlin heap size:",
+                listOf("512 MB", "1 GB", "2 GB"), "1 GB"),
+            RowItem.Cbo("kotlin_metaspace", "Kotlin metaspace:",
+                listOf("256 MB", "512 MB"), "512 MB"),
+            RowItem.Sec("Workers & Threads"),
+            RowItem.Cbo("max_workers", "Max workers:",
+                listOf("1", "2", "4", "8", "16"), "4"),
+            RowItem.Chk("parallel", "Parallel execution", def = true),
+            RowItem.Sec("VFS & Console"),
+            RowItem.Chk("vfs_watch", "Enable VFS watch", def = false),
+            RowItem.Cbo("console", "Console:", listOf("plain", "console", "rich"), "plain"),
+            RowItem.Sec("Custom JVM Args"),
+            RowItem.Txt("custom_args", "Custom Gradle JVM args:", def = ""),
+        )
 
         // Languages & Frameworks
         "l_mermaid" -> listOf(
@@ -3644,6 +3745,22 @@ internal class SettingsController(
         "studio_labs" -> listOf(
             RowItem.Nte("Studio Labs collects opt-in prototypes. No data leaves the device."),
             RowItem.Chk("labs_enabled", "Enable Studio Labs features", def = false),
+        )
+        "advanced" -> listOf(
+            RowItem.Sec("Performance"),
+            RowItem.Chk("advanced_disable_animations", "Disable UI animations", def = false),
+            RowItem.Chk("advanced_disable_shadows", "Disable shadows", def = false),
+            RowItem.Cbo("advanced_thread_priority", "Thread priority:",
+                listOf("Low", "Normal", "High"), "Normal"),
+            RowItem.Sec("Network"),
+            RowItem.Chk("advanced_http2", "Use HTTP/2", def = true),
+            RowItem.Chk("advanced_disable_cache", "Disable HTTP cache", def = false),
+            RowItem.Cbo("advanced_timeout", "Connection timeout (s):",
+                listOf("5", "10", "30", "60"), "30"),
+            RowItem.Sec("Logging"),
+            RowItem.Cbo("advanced_log_level", "Log level:",
+                listOf("Verbose", "Debug", "Info", "Warn", "Error"), "Info"),
+            RowItem.Chk("advanced_log_timestamps", "Show timestamps in logs", def = true),
         )
 
         // Tools > Terminal

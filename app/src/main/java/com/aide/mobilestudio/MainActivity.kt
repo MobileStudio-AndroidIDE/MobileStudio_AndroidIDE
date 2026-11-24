@@ -6681,12 +6681,17 @@ Long press: Toggle Shell panel"""
     }
 
     /**
-     * Auto-detects project type and runs the appropriate build:
-     * - Gradle project (build.gradle/build.gradle.kts) → Gradle build
-     * - EXE project (main.c/main.cpp + MinGW toolchain) → MinGW/Clang EXE build
-     * - Other project types → handled by runGradleTask's existing dispatch
+     * Auto-detects project type and runs the appropriate build.
+     * EXE project (main.c/main.cpp + MinGW toolchain) → MinGW/Clang EXE build ONLY.
+     * Gradle is NEVER invoked for EXE projects.
      */
     private fun runBuildBasedOnProjectType() {
+        // EXE project: run Windows EXE build directly, NEVER touch Gradle
+        if (currentProjectKind == ProjectKind.EXE) {
+            runWindowsExeBuild(currentProjectDir ?: filesDir)
+            return
+        }
+        // Gradle-based project (Android, JAR, Python, etc.)
         runGradleTask(currentBuildTask())
     }
 
