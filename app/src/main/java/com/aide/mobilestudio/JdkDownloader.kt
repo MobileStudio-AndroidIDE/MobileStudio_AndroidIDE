@@ -22,8 +22,8 @@ object JdkDownloader {
 
     // Minimum plausible archive sizes per JDK major (download sanity check).
     private val MIN_SIZE_BY_MAJOR = mapOf(
-        21 to 200_000_000L,
-        17 to 180_000_000L
+        21 to 100_000_000L,
+        17 to 90_000_000L
     )
     private const val DEFAULT_MIN_SIZE = 150_000_000L
 
