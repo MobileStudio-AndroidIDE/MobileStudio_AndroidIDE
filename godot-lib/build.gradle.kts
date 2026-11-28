@@ -53,6 +53,13 @@ android {
             )
         }
     }
+
+    // Release builds run Android lint's "vital" check, which crashes on
+    // Godot.kt (lint/K2 FIR bug: 'findFirCompiledSymbol' on a companion
+    // object). The code itself compiles fine — skip the release lint gate.
+    lint {
+        checkReleaseBuilds = false
+    }
 }
 
 dependencies {

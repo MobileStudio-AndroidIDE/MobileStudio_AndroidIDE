@@ -49,6 +49,13 @@ android {
         }
     }
 
+    // Release builds run Android lint's "vital" check, which crashes on
+    // Godot.kt in godot-lib (lint/K2 FIR bug, not a code error).
+    // Same gate skipped here so the release build can't trip on it.
+    lint {
+        checkReleaseBuilds = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
