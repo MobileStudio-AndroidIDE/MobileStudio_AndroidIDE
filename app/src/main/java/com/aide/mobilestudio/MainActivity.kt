@@ -866,7 +866,7 @@ class MainActivity : AppCompatActivity(), ContextMenuUtils.FileContextMenuHandle
             }
         }
         val filter = IntentFilter("com.aide.mobilestudio.SETTINGS_CHANGED")
-        registerReceiver(settingsChangeReceiver, filter)
+        registerReceiver(settingsChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
     }
 
     private var settingsChangeReceiver: BroadcastReceiver? = null
